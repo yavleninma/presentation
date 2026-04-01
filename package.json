@@ -1,0 +1,16 @@
+{
+  "name": "slideforge",
+  "private": true,
+  "description": "SlideForge monorepo root — run npm install here once for Git hooks",
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm run lint --prefix frontend",
+    "typecheck": "npm run typecheck --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "verify": "npm run lint --prefix frontend && npm run typecheck --prefix frontend && npm run build --prefix frontend",
+    "verify:quick": "npm run lint --prefix frontend && npm run typecheck --prefix frontend"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}
