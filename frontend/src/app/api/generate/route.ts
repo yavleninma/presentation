@@ -5,9 +5,19 @@ import {
   buildSlideContentPrompt,
   SYSTEM_PROMPT,
 } from "@/lib/generation/prompts";
+import { searchSingleImage } from "@/lib/images/pexels";
 import { SlideLayoutType } from "@/types/presentation";
 
 export const maxDuration = 60;
+
+const MIN_SLIDES = 1;
+const MAX_SLIDES = 10;
+
+function clampSlideCount(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return 10;
+  return Math.min(MAX_SLIDES, Math.max(MIN_SLIDES, Math.round(n)));
+}
 
 function getOpenAI() {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -37,12 +47,9 @@ async function generateJSON(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      topic,
-      slideCount = 10,
-      language = "ru",
-      templateId = "sovcombank",
-    } = body;
+    const { topic, slideCount: slideCountRaw, language = "ru", templateId = "sovcombank" } =
+      body;
+    const slideCount = clampSlideCount(slideCountRaw ?? 10);
 
     if (!topic) {
       return Response.json({ error: "Topic is required" }, { status: 400 });
@@ -98,6 +105,16 @@ export async function POST(request: NextRequest) {
               SYSTEM_PROMPT,
               slidePrompt
             );
+
+            const imageQuery = slideContent.imageQuery as string | undefined;
+            if (imageQuery && !slideContent.imageUrl) {
+              const size =
+                os.layout === "full-image" ? "large2x" : "landscape";
+              const imageUrl = await searchSingleImage(imageQuery, size);
+              if (imageUrl) {
+                slideContent.imageUrl = imageUrl;
+              }
+            }
 
             const slide = {
               id: crypto.randomUUID(),

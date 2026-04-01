@@ -1,5 +1,14 @@
 import { Presentation, Slide, PresentationOutline } from "@/types/presentation";
 
+const MIN_SLIDES = 1;
+const MAX_SLIDES = 10;
+
+function clampSlideCount(n: number | undefined): number {
+  const v = n ?? 10;
+  if (!Number.isFinite(v)) return 10;
+  return Math.min(MAX_SLIDES, Math.max(MIN_SLIDES, Math.round(v)));
+}
+
 interface GenerationCallbacks {
   onPhase: (phase: string) => void;
   onOutline: (outline: PresentationOutline) => void;
@@ -22,7 +31,7 @@ export async function generatePresentation(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       topic,
-      slideCount: options.slideCount ?? 10,
+      slideCount: clampSlideCount(options.slideCount),
       language: options.language ?? "ru",
       templateId: options.templateId ?? "sovcombank",
     }),

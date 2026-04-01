@@ -36,9 +36,15 @@ export function buildOutlinePrompt(
 ${layouts.map((l) => `- "${l}"`).join("\n")}
 
 Требования:
-- Первый слайд ВСЕГДА "title"
+${
+  slideCount === 1
+    ? `- Ровно один слайд: только layout "title" (заголовок презентации + подзаголовок/тезисы в keyPoints, без отдельного thank-you)`
+    : slideCount === 2
+      ? `- Ровно два слайда: первый "title", второй "thank-you"`
+      : `- Первый слайд ВСЕГДА "title"
 - Последний слайд ВСЕГДА "thank-you"
-- Используй разнообразные типы: section для разделов, content для текста, kpi для цифр, image-text для визуальных, timeline для хронологии, quote для цитат, two-columns для сравнений
+- Используй разнообразные типы: section для разделов, content для текста, kpi для цифр, image-text для визуальных, timeline для хронологии, quote для цитат, two-columns для сравнений`
+}
 - Не повторяй один тип подряд (кроме content)
 
 Ответь СТРОГО в формате JSON (без markdown, без \`\`\`):

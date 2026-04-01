@@ -43,7 +43,7 @@ This is not optional. Outdated docs waste tokens and cause bugs for the next age
 
 ## File editing tips
 
-- `page.tsx` (485 lines) — main UI, has prompt input, slide viewer, sidebar, right panel
+- `page.tsx` (~630 lines) — main UI, has prompt input, slide viewer, sidebar, right panel
 - `SlideRenderer.tsx` — core rendering hub, has background patterns + logo + layout router
 - `prompts.ts` — all LLM prompts live here. Edit carefully — structure of JSON output matters
 - `pptx-export.ts` — maps slide types to PptxGenJS calls. Must mirror visual rendering

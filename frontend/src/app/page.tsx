@@ -21,6 +21,14 @@ import {
   FilePlus2,
 } from "lucide-react";
 
+const SLIDE_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+
+function slideCountLabel(n: number): string {
+  if (n === 1) return "1 слайд";
+  if (n >= 2 && n <= 4) return `${n} слайда`;
+  return `${n} слайдов`;
+}
+
 const LAYOUT_OPTIONS: { value: SlideLayoutType; label: string }[] = [
   { value: "title", label: "Титульный" },
   { value: "section", label: "Раздел" },
@@ -308,12 +316,15 @@ export default function Home() {
                     <FileText className="w-4 h-4 text-neutral-400" />
                     <select
                       value={slideCount}
-                      onChange={(e) => setSlideCount(Number(e.target.value))}
+                      onChange={(e) =>
+                        setSlideCount(Number(e.target.value) as (typeof SLIDE_COUNT_OPTIONS)[number])
+                      }
                       className="text-sm text-neutral-600 bg-neutral-50 rounded-lg px-2 py-1.5 border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-neutral-300"
+                      aria-label="Количество слайдов"
                     >
-                      {[5, 8, 10, 12, 15, 20].map((n) => (
+                      {SLIDE_COUNT_OPTIONS.map((n) => (
                         <option key={n} value={n}>
-                          {n} слайдов
+                          {slideCountLabel(n)}
                         </option>
                       ))}
                     </select>

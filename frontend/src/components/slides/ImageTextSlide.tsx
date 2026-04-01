@@ -20,12 +20,15 @@ export function ImageTextSlide({ slide, template, editable, onContentChange }: S
         ) : (
           <div
             className="absolute inset-0 flex items-center justify-center"
-            style={{ backgroundColor: c.surface }}
+            style={{
+              background: `linear-gradient(135deg, ${c.primary}22 0%, ${c.accent}33 50%, ${c.secondary}22 100%)`,
+              backgroundColor: c.surface,
+            }}
           >
             <div className="text-center">
               <svg
-                className="w-16 h-16 mx-auto mb-3 opacity-30"
-                style={{ color: c.surfaceForeground }}
+                className="w-16 h-16 mx-auto mb-3 opacity-20"
+                style={{ color: c.primary }}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -37,9 +40,11 @@ export function ImageTextSlide({ slide, template, editable, onContentChange }: S
                   d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                 />
               </svg>
-              <span className="text-sm opacity-40" style={{ color: c.surfaceForeground }}>
-                {imageQuery || "Изображение"}
-              </span>
+              {imageQuery && (
+                <span className="text-xs opacity-30" style={{ color: c.surfaceForeground }}>
+                  {imageQuery}
+                </span>
+              )}
             </div>
           </div>
         )}

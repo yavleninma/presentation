@@ -50,7 +50,8 @@ frontend/
 │   │   ├── demo/page.tsx         # Demo page showing all 10 slide types
 │   │   ├── layout.tsx            # Root layout (Inter font, cyrillic)
 │   │   ├── globals.css           # Tailwind v4 + Shadcn theme vars
-│   │   └── api/generate/route.ts # SSE endpoint: OpenAI → stream slides
+│   │   ├── api/generate/route.ts # SSE endpoint: OpenAI → stream slides
+│   │   └── api/images/search/route.ts # Pexels image search API
 │   │
 │   ├── components/
 │   │   ├── slides/
@@ -78,6 +79,8 @@ frontend/
 │   │   ├── generation/
 │   │   │   ├── prompts.ts        # System prompt + outline/slide prompts
 │   │   │   └── client.ts         # SSE client: fetch + parse stream
+│   │   ├── images/
+│   │   │   └── pexels.ts         # Pexels API client for stock photos
 │   │   ├── export/
 │   │   │   └── pptx-export.ts    # PptxGenJS: Presentation → .pptx file
 │   │   ├── store/
@@ -112,14 +115,14 @@ Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx
 - **Styling:** All slides use inline `style={{ color: c.foreground }}` — NOT Tailwind color classes. This is intentional because colors come from the dynamic template object.
 - **Tailwind v4:** Uses `@theme inline {}` syntax. No `tailwind.config.js`.
 - **State:** Zustand store at `lib/store/presentation-store.ts`. Single source of truth.
-- **Generation:** SSE streaming via `ReadableStream` in route handler. Client parses `data: {event, data}\n\n` lines.
+- **Generation:** SSE streaming via `ReadableStream` in route handler. Client parses `data: {event, data}\n\n` lines. User-facing slide count is **1–10** (UI select + server/client clamp) to limit LLM cost.
 - **Export:** Client-side PPTX via PptxGenJS. PDF export via Puppeteer is TODO.
 
 ## Environment
 
 - Node 20+, npm
 - `cd frontend && npm run dev` → http://localhost:3000
-- `.env.local` must have `OPENAI_API_KEY`
+- `.env.local` must have `OPENAI_API_KEY` and `PEXELS_API_KEY` (get free key at pexels.com/api)
 - From repo root: `npm install` once (enables Husky); frontend deps still via `cd frontend && npm install`
 
 ## What's Working
@@ -129,17 +132,19 @@ Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx
 - ✅ 10 slide layout types with Sovcombank branding
 - ✅ 3 templates (Sovcombank, Dark, Minimal)
 - ✅ Slide navigation (thumbnails sidebar + arrows)
-- ✅ PPTX export
+- ✅ PPTX export (all 10 layout types, including images)
 - ✅ Demo page at /demo
 - ✅ Inline editing: headings, bullet points, quotes, contacts (contentEditable)
 - ✅ Layout switcher dropdown in right panel
 - ✅ Add/delete slide buttons
 - ✅ "New presentation" button → resets to prompt screen
+- ✅ Pexels stock photo integration (auto-fetch for image-text / full-image slides)
+- ✅ Image fallback gradients when Pexels unavailable
+- ✅ `/api/images/search` route for client-side image search
 
 ## What's NOT Working Yet
 
 - ❌ Image replacement (drag-and-drop or URL input)
-- ❌ Stock photo search (Pexels/Unsplash API)
 - ❌ AI image generation (Kandinsky API)
 - ❌ PDF export
 - ❌ Document upload + parsing

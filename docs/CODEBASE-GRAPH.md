@@ -12,7 +12,10 @@
     │──uses──→ [client.ts] ──fetches──→ [/api/generate/route.ts]
     │                                          │
     │                                          ├──calls──→ [prompts.ts] (builds LLM prompts)
-    │                                          └──calls──→ OpenAI API (GPT-4o-mini)
+    │                                          ├──calls──→ OpenAI API (GPT-4o-mini)
+    │                                          └──calls──→ [pexels.ts] (auto-fetch images)
+    │
+    │──can fetch──→ [/api/images/search/route.ts] ──calls──→ [pexels.ts]
     │
     │──renders──→ [SlideRenderer.tsx]
     │                   │
@@ -74,15 +77,17 @@ ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent,
 | File | Lines | When to read |
 |------|-------|--------------|
 | types/presentation.ts | 105 | Always — defines all types |
-| page.tsx | 560 | When editing main UI |
+| page.tsx | 631 | When editing main UI |
 | SlideRenderer.tsx | 200 | When adding slide types or fixing rendering |
 | editor/EditableText.tsx | 65 | When fixing inline editing |
-| prompts.ts | 130 | When changing AI output format |
-| route.ts (generate) | 105 | When changing generation pipeline |
-| pptx-export.ts | 175 | When fixing PPTX export |
+| prompts.ts | 131 | When changing AI output format |
+| route.ts (generate) | 168 | When changing generation pipeline |
+| route.ts (images) | 20 | When changing image search API |
+| pexels.ts | 75 | When changing image provider |
+| pptx-export.ts | 340 | When fixing PPTX export |
 | presentation-store.ts | 135 | When adding state/actions |
 | templates/sovcombank.ts | 35 | When editing brand colors |
-| client.ts | 65 | When changing SSE parsing |
+| client.ts | 89 | When changing SSE parsing |
 | Individual slide .tsx | 40-110 | When fixing specific slide layout |
 
 ## CI and local checks
