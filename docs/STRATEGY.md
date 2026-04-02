@@ -88,6 +88,8 @@
 | 2026-04-02 | Output fidelity matters as much as generation speed | Разные шаблоны и экспорт должны действительно ощущаться разными и качественными, иначе "AI wow" быстро схлопывается. |
 | 2026-04-02 | Added explicit Output Fidelity workstream | Следующий quality ceiling — не только UX потока, но и соответствие preview/export, шрифтов и шаблонной дифференциации. |
 | 2026-04-02 | Neutral default experience is mandatory | Дефолтный шаблон, placeholder и стартовый flow должны быть универсальными, иначе продукт сужает себя ещё до первой генерации. |
+| 2026-04-02 | Design System Upgrade = EPIC-17, приоритет #1 в To Do | Modern Dark = AI slop (indigo/violet/pink). Все шаблоны Inter везде. Исправить до KIMI-UX работы — анимировать некрасивые слайды бессмысленно. Добавить 3 новых шаблона: Startup, Consulting, IT. Ref: `docs/DESIGN-STANDARDS.md` |
+| 2026-04-02 | Figma MCP = POST-MVP | MVP без Figma. Подключить когда будет готова дизайн-система и есть дизайнер. Уникальная фича: Code→Canvas эксклюзив Claude Code. |
 
 ## Open Questions
 

@@ -43,6 +43,7 @@
 
 ## 🟡 To Do (в порядке приоритета)
 
+
 ### EPIC-15: "KIMI-like" Generation UX ⭐ NEW
 > Ref: `docs/KIMI-UX-PLAYBOOK.md` — полный разбор паттернов
 - [ ] **Реальный live-stream preview**: инициализировать пустую презентацию и показывать `slide`-события сразу, а не только после финального `presentation`
@@ -83,17 +84,17 @@
 
 ### EPIC-13: UX Quick Wins
 - [x] Выбор числа слайдов при генерации: только 1–10 (меньше токенов / быстрее)
-- [ ] Сменить дефолтный шаблон на "Минимализм" (универсальнее Совкомбанка)
+- [x] Сменить дефолтный шаблон на "Минимализм" (универсальнее Совкомбанка)
 - [ ] localStorage persistence — не терять презентацию при перезагрузке
-- [ ] Разные шрифты для шаблонов (сейчас все на Inter — шаблоны выглядят одинаково)
+- [x] Разные шрифты для шаблонов (сейчас все на Inter — шаблоны выглядят одинаково)
 - [ ] Универсальный placeholder: "Квартальный отчёт по продажам" вместо банковского примера
-- [ ] Constraint в промпте: "Используй минимум 5 разных типов лейаутов, не повторяй layout > 2 раз"
+- [x] Constraint в промпте: "Используй минимум 5 разных типов лейаутов, не повторяй layout > 2 раз"
 - [ ] Синхронизировать дефолты между UI / client / server, чтобы везде был один стартовый шаблон и один quality baseline
 
 ### EPIC-14: New Templates
-- [ ] "Стартап / Pitch Deck" — яркий, с акцентом на метрики
-- [ ] "Консалтинг / McKinsey" — строгий, data-heavy
-- [ ] "IT / Технологии" — тёмный, с моноширинным акцентом
+- [x] "Стартап / Pitch Deck" — яркий, с акцентом на метрики
+- [x] "Консалтинг / McKinsey" — строгий, data-heavy
+- [x] "IT / Технологии" — тёмный, с моноширинным акцентом
 - [ ] AI-подбор шаблона на основе темы (Freestyle-режим)
 - Зачем: разнообразие шаблонов = ощущение премиальности + каждый находит "свой"
 
@@ -110,7 +111,7 @@
 - [ ] Кнопка "PDF" рядом с "PPTX" в хедере
 
 ### EPIC-11: Deploy
-- [x] Vercel production после push в `main`: job `deploy-vercel` в `.github/workflows/presentations-ci.yml` + секреты `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (см. README); Root Directory = `presentations-frontend`; альтернатива — только Git-интеграция в дашборде Vercel без этого job
+- [x] Vercel production после push в `main`: job `deploy-vercel` в `.github/workflows/presentations-ci.yml` + секреты `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (см. README); Vercel Project Root Directory = `presentations-frontend`, а GitHub Actions deploy запускается из repo root
 - [ ] Домен slideforge.ru / slideforge.app
 - [ ] Мониторинг (Sentry)
 - [x] CI: GitHub Actions — lint, typecheck, build на `main` / PR
@@ -124,6 +125,18 @@
 ---
 
 ## ✅ Done
+
+### EPIC-17: Design System Upgrade
+- [x] Загрузка шрифтов через Google Fonts `<link>` + CSS custom properties: Bricolage Grotesque, Space Grotesk, IBM Plex Sans, Syne, DM Sans, Playfair Display, Source Sans 3, Space Mono
+- [x] `minimal.ts`: heading → Bricolage Grotesque
+- [x] `modern-dark.ts`: heading → Space Grotesk + новые цвета (teal/emerald/amber on near-black)
+- [x] `sovcombank.ts`: heading → IBM Plex Sans
+- [x] Новый шаблон `startup.ts`: Syne + DM Sans, green+orange on black
+- [x] Новый шаблон `consulting.ts`: Playfair Display + Source Sans 3, navy+red on white
+- [x] Новый шаблон `tech.ts`: Space Mono, terminal green on near-black
+- [x] `index.ts`: 6 шаблонов зарегистрировано, дефолт → minimal
+- [x] `prompts.ts`: LAYOUT DIVERSITY RULE — min 5 типов, content ≤ 40%, не повторять тип 2 раза подряд
+- [x] `page.tsx`: дефолтный шаблон → minimal
 
 ### EPIC-04: Images
 - [x] Интеграция Pexels API — API route `/api/images/search`
@@ -143,7 +156,7 @@
 - [x] Next.js 16 + TypeScript + Tailwind v4 + Shadcn/ui
 - [x] Система типов (`types/presentation.ts`)
 - [x] Zustand store с CRUD для слайдов
-- [x] 3 шаблона: Совкомбанк, Modern Dark, Минимализм
+- [x] 6 шаблонов: Минимализм, Modern Dark (обновлён), Совкомбанк, Стартап, Консалтинг, IT
 - [x] Template registry с `getTemplate()`
 
 ### EPIC-02: AI Generation + Rendering

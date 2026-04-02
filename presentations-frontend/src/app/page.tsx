@@ -45,7 +45,7 @@ const LAYOUT_OPTIONS: { value: SlideLayoutType; label: string }[] = [
 export default function Home() {
   const [topic, setTopic] = useState("");
   const [slideCount, setSlideCount] = useState(10);
-  const [selectedTemplate, setSelectedTemplate] = useState("sovcombank");
+  const [selectedTemplate, setSelectedTemplate] = useState("minimal");
   const [showTemplates, setShowTemplates] = useState(false);
 
   const {

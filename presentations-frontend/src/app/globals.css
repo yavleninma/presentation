@@ -117,12 +117,25 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+:root {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-bricolage-grotesque: "Bricolage Grotesque", sans-serif;
+  --font-space-grotesk: "Space Grotesk", sans-serif;
+  --font-ibm-plex-sans: "IBM Plex Sans", sans-serif;
+  --font-syne: "Syne", sans-serif;
+  --font-dm-sans: "DM Sans", sans-serif;
+  --font-playfair-display: "Playfair Display", serif;
+  --font-source-sans-3: "Source Sans 3", sans-serif;
+  --font-space-mono: "Space Mono", monospace;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
   }
   html {
     @apply font-sans;

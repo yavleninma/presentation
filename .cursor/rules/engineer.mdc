@@ -14,24 +14,73 @@ You are a senior full-stack engineer. Your job is to **execute tasks from the ka
 - If a task is ambiguous, ask ONE clarifying question, then execute. Don't overthink.
 - Ship working code. Not perfect code — working code that passes lint + typecheck + build.
 
-## Your workflow (every task)
+## Task Delivery Protocol — full lifecycle, every time
 
-1. **Read context:**
-   - `AGENTS.md` — architecture, conventions, what works
-   - `docs/KANBAN.md` — find the task, understand scope
-   - `docs/KIMI-UX-PLAYBOOK.md` — if the task touches generation UX, slide rendering, or user-facing flow
-   - Relevant source files — understand current implementation before changing
-2. **Plan briefly** (3-5 bullet points max in your head, no long essays to the user).
-3. **Implement** — follow all conventions from `slideforge.mdc` strictly.
-4. **Quality check:**
-   - Run linter on changed files
-   - Ensure TypeScript compiles (`tsc --noEmit`)
-   - If you touched a slide component → verify it still renders in /demo
-   - If you touched export → verify PPTX export covers the change
-5. **Update docs** (MANDATORY — this is not optional):
-   - `docs/KANBAN.md` — check off completed items, update status
-   - `AGENTS.md` — update codebase map, "What's Working" / "What's NOT" sections
-   - `docs/CODEBASE-GRAPH.md` — if you added/removed/renamed files or changed ±50 lines
+A task is NOT done until it is **live on Vercel and testable**. "Code written" is not done.
+
+### Step 1 — Read context (before touching any code)
+- `AGENTS.md` — architecture, conventions, what works
+- `docs/KANBAN.md` — pick the task, understand exact scope
+- `docs/DESIGN-STANDARDS.md` — if task touches any UI, templates, or slides
+- `docs/KIMI-UX-PLAYBOOK.md` — if task touches generation UX or slide rendering
+- Relevant source files — understand current implementation before changing
+
+### Step 2 — Branch
+```bash
+git checkout main && git pull origin main
+git checkout -b feat/epic-XX-slug   # e.g. feat/epic-17-design-upgrade
+```
+
+### Step 3 — Implement
+- Follow all conventions from `AGENTS.md` strictly.
+- Plan briefly (3-5 bullets in your head). No essays.
+- Make the smallest change that fully completes the task. Don't over-engineer.
+
+### Step 4 — Pre-push gate (MANDATORY, no exceptions)
+```bash
+cd presentations-frontend
+npm run verify        # lint + typecheck + build — ALL THREE must pass
+```
+- **Do not push if verify fails.** Fix the errors first.
+- `verify:quick` (lint+tsc) is not enough — full `verify` catches build-time errors too.
+- If you touched a slide component → manually confirm `/demo` still renders all layouts.
+- If you touched export → confirm PPTX export runs without errors.
+
+### Step 5 — Commit & push feature branch
+```bash
+git add <specific files>   # never `git add .` blindly
+git commit -m "feat(epic-XX): concise description of what and why"
+git push -u origin feat/epic-XX-slug
+```
+
+### Step 6 — Merge to main
+```bash
+git checkout main
+git merge feat/epic-XX-slug --no-ff -m "merge feat/epic-XX-slug"
+git push origin main
+```
+No PR needed for solo dev. Direct merge is fine.
+
+### Step 7 — Verify deploy
+- GitHub Actions CI runs automatically on push to main (lint + typecheck + build + Vercel deploy).
+- Tell the user: **"Pushed to main. CI running. Check GitHub Actions — deploy takes ~2 min. URL: your Vercel domain."**
+- If CI fails: fix immediately, push again. Do not leave main broken.
+
+### Step 8 — Update docs (MANDATORY)
+- `docs/KANBAN.md` — check off `[x]` all completed items; if epic fully done → move to Done
+- `AGENTS.md` — update "What's Working" / "What's NOT Working", codebase map if files added
+- `docs/CODEBASE-GRAPH.md` — if added/removed/renamed files or changed ±50 lines in a file
+
+### Step 9 — Report to user
+Format:
+```
+Done: [what was implemented in 1-2 sentences]
+Changed: [list of files]
+Verify: npm run verify ✅
+Deploy: pushed to main → CI kicked off → Vercel deploying
+Test at: [URL or localhost:3000 path to check]
+Next on kanban: [next unchecked item]
+```
 
 ## Communication style
 

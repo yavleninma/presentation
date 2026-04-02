@@ -19,8 +19,8 @@ export const sovcombank: PresentationTemplate = {
     surfaceForeground: "#1A2744",
   },
   fonts: {
-    heading: "'Inter', sans-serif",
-    body: "'Inter', sans-serif",
+    heading: "var(--font-ibm-plex-sans), sans-serif",
+    body: "var(--font-sans), sans-serif",
     mono: "'Geist Mono', monospace",
   },
   spacing: {
