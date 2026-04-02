@@ -41,6 +41,7 @@ presentation/                          # npm package: slideforge-presentations
 ├── docs/
 │   ├── KANBAN.md             # Sprint board — source of truth for task status
 │   ├── STRATEGY.md           # Product strategy, decisions, competitive landscape
+│   ├── DESIGN-STANDARDS.md   # Visual system rules: template concepts, fonts, anti-patterns
 │   ├── KIMI-UX-PLAYBOOK.md   # UX benchmark: KIMI patterns to adopt (read before UX tasks!)
 │   └── CODEBASE-GRAPH.md     # File dependency graph + size guide
 ├── .cursor/rules/
@@ -76,8 +77,8 @@ presentations-frontend/
 │   ├── app/
 │   │   ├── page.tsx              # Main UI: prompt input + presentation viewer
 │   │   ├── demo/page.tsx         # Demo page showing all 10 slide types
-│   │   ├── layout.tsx            # Root layout (Inter font, cyrillic)
-│   │   ├── globals.css           # Tailwind v4 + Shadcn theme vars
+│   │   ├── layout.tsx            # Root layout + Google Fonts pack for template typography
+│   │   ├── globals.css           # Tailwind v4 + Shadcn theme vars + font CSS variables
 │   │   ├── api/generate/route.ts # SSE endpoint: OpenAI → stream slides
 │   │   └── api/images/search/route.ts # Pexels image search API
 │   │
@@ -101,9 +102,12 @@ presentations-frontend/
 │   ├── lib/
 │   │   ├── templates/
 │   │   │   ├── index.ts           # Template registry + getTemplate()
-│   │   │   ├── sovcombank.ts      # Sovcombank brand: red/blue/navy
-│   │   │   ├── modern-dark.ts     # Dark theme: indigo/violet/pink
-│   │   │   └── minimal.ts        # Clean B&W + blue accent
+│   │   │   ├── minimal.ts         # Clean light theme + Bricolage Grotesque
+│   │   │   ├── modern-dark.ts     # Tech editorial dark: teal/emerald/amber
+│   │   │   ├── sovcombank.ts      # Sovcombank brand + IBM Plex Sans
+│   │   │   ├── startup.ts         # Pitch-deck theme: Syne + DM Sans
+│   │   │   ├── consulting.ts      # Consulting theme: Playfair + Source Sans 3
+│   │   │   └── tech.ts            # Terminal-inspired theme: Space Mono
 │   │   ├── generation/
 │   │   │   ├── prompts.ts        # System prompt + outline/slide prompts
 │   │   │   └── client.ts         # SSE client: fetch + parse stream
@@ -189,9 +193,10 @@ See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and colo
 ## What's Working
 
 - ✅ ESLint (max warnings 0) + `tsc --noEmit` + pre-commit hook; GitHub Actions CI on `main`
-- ✅ Prompt → AI generates outline → streams slides → visual preview
+- ✅ Prompt → AI generates outline and final deck through SSE-backed pipeline
 - ✅ 10 slide layout types with Sovcombank branding
-- ✅ 3 templates (Sovcombank, Dark, Minimal)
+- ✅ 6 templates with differentiated typography and color systems
+- ✅ Multi-font design system via Google Fonts + CSS custom properties
 - ✅ Slide navigation (thumbnails sidebar + arrows)
 - ✅ PPTX export (all 10 layout types, including images)
 - ✅ Demo page at /demo
@@ -202,6 +207,8 @@ See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and colo
 - ✅ Pexels stock photo integration (auto-fetch for image-text / full-image slides)
 - ✅ Image fallback gradients when Pexels unavailable
 - ✅ `/api/images/search` route for client-side image search
+- ✅ Default template switched to "Минимализм"
+- ✅ Outline prompt now enforces layout diversity (min 5 types, content ≤ 40%, no back-to-back repeats)
 
 ## What's NOT Working Yet
 
@@ -209,7 +216,10 @@ See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and colo
 - ❌ AI image generation (Kandinsky API)
 - ❌ PDF export
 - ❌ Document upload + parsing
-- ❌ Outline editor (edit structure before generation)
+- ❌ Outline editor / outline approval flow in UI (`onOutline` exists, but screen is not surfaced yet)
+- ❌ Real slide-by-slide preview during generation (UI still waits for final presentation before showing slides)
+- ❌ Universal default prompt placeholder (still bank-flavored on start screen)
+- ❌ Preview ↔ PPTX typography parity (`pptx-export.ts` still hardcodes Arial instead of template-driven fonts)
 - ❌ Template customizer (upload logo, pick colors)
 - ❌ Auth / user accounts
 - ❌ Billing / subscription

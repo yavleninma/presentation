@@ -68,6 +68,13 @@ All receive: { slide: Slide, template: PresentationTemplate, editable?, onConten
 All access:  slide.content.* for data,  template.colors.* for styling
 ```
 
+### layout.tsx + globals.css ↔ templates
+```
+layout.tsx loads the Google Fonts pack used by the template system.
+globals.css defines CSS custom properties such as --font-bricolage-grotesque and --font-space-mono.
+templates/*.ts reference those vars through template.fonts.heading/body/mono.
+```
+
 ### templates/*.ts → PresentationTemplate
 ```
 { id, name, colors: ThemeColors, fonts: ThemeFonts, spacing, logoUrl?, backgroundPattern? }
@@ -79,18 +86,19 @@ ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent,
 
 | File | Lines | When to read |
 |------|-------|--------------|
-| types/presentation.ts | 105 | Always — defines all types |
-| page.tsx | 631 | When editing main UI |
-| SlideRenderer.tsx | 200 | When adding slide types or fixing rendering |
-| editor/EditableText.tsx | 65 | When fixing inline editing |
-| prompts.ts | 131 | When changing AI output format |
-| route.ts (generate) | 169 | When changing generation pipeline |
-| route.ts (images) | 20 | When changing image search API |
-| pexels.ts | 75 | When changing image provider |
-| pptx-export.ts | 340 | When fixing PPTX export |
-| presentation-store.ts | 135 | When adding state/actions |
-| templates/sovcombank.ts | 35 | When editing brand colors |
-| client.ts | 89 | When changing SSE parsing |
+| types/presentation.ts | 107 | Always — defines all types |
+| page.tsx | 587 | When editing main UI |
+| SlideRenderer.tsx | 188 | When adding slide types or fixing rendering |
+| editor/EditableText.tsx | 62 | When fixing inline editing |
+| prompts.ts | 112 | When changing AI output format |
+| route.ts (generate) | 145 | When changing generation pipeline |
+| route.ts (images) | 18 | When changing image search API |
+| pexels.ts | 68 | When changing image provider |
+| pptx-export.ts | 562 | When fixing PPTX export |
+| presentation-store.ts | 123 | When adding state/actions |
+| templates/index.ts | 19 | When registering or reordering templates |
+| templates/*.ts | 30-31 | When editing template colors, fonts, spacing |
+| client.ts | 79 | When changing SSE parsing |
 | Individual slide .tsx | 40-110 | When fixing specific slide layout |
 
 ## CI and local checks
@@ -109,6 +117,7 @@ ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent,
 ### New template
 1. Create `lib/templates/my-theme.ts` exporting `PresentationTemplate`
 2. Register in `lib/templates/index.ts` → `templates` object
+3. Add any new font family to `app/layout.tsx` + `app/globals.css` before referencing it from `template.fonts`
 
 ### New export format
 1. Create `lib/export/new-format.ts`
