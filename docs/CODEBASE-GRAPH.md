@@ -4,6 +4,15 @@
 >
 > **RULE:** If you add, remove, or rename files — update the graph and the File Size Guide below. If you add new module connections — update the dependency flow diagram.
 
+## Operational Files
+
+```
+.cursor/rules/engineer.mdc   -> main Engineer role
+.cursor/rules/eng.mdc        -> short alias for Engineer (`@eng`)
+.cursor/rules/strategist.mdc -> main Strategist role
+.cursor/rules/strat.mdc      -> short alias for Strategist (`@strat`)
+```
+
 ## Module Dependency Flow
 
 ```
@@ -54,6 +63,22 @@ Store mutators: setPresentation, setCurrentSlide, appendSlide, updateSlideConten
 ```
 generatePresentation(topic, options, callbacks)
   callbacks: onPhase, onOutline, onSlide, onComplete, onError
+```
+
+### Known Product Gaps In Current Wiring
+```
+client.ts already emits outline events, but page.tsx leaves onOutline as a reserved no-op,
+so the outline stage is not yet visible as a real approval step in the UI.
+
+presentation-store.ts appendSlide() only mutates when presentation already exists.
+page.tsx resets presentation to null before generation and waits for onComplete(presentation),
+so slide SSE events do not currently create a true live slide-by-slide preview.
+
+template files expose template.fonts for browser rendering, but pptx-export.ts still hardcodes Arial,
+so template differentiation and preview/export parity break at the export boundary.
+
+page.tsx still defaults to the Sovcombank template and a bank-flavored placeholder,
+which lowers perceived universality before the first generation even starts.
 ```
 
 ### client.ts ↔ /api/generate (SSE protocol)
