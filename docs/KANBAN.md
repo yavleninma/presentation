@@ -124,6 +124,7 @@
 - [x] Repo-derived public scenario reference added for `/` and `/demo`
 - [x] `AGENTS.md` tightened around browser-first public UX QA rules and definition of done
 - [x] Unified local skill naming added: `slideforge-engineer`, `slideforge-strategist`, `slideforge-public-ux-qa`
+- [x] QA role clarified: `slideforge-public-ux-qa` only tests and reports, fixes belong to engineer mode
 
 ### EPIC-15: "KIMI-like" Generation UX ⭐ NEW
 > Ref: `docs/KIMI-UX-PLAYBOOK.md` - полный разбор паттернов

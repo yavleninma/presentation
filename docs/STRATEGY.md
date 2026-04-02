@@ -18,6 +18,38 @@
 
 **Strategic implication:** before spending energy on pricing, billing, or sales packaging, fix the visible generation loop, outline approval, typography differentiation, and export fidelity. Otherwise the product is technically capable but emotionally flatter than it should be.
 
+## Collaboration Boundary Strategy (2026-04-02)
+
+**Default stance:** if the employer or any external party wants to "work together", do not hand over the full repo first. Start with a demo, hosted pilot, or a deliberately packaged work-safe edition.
+
+**Recommended split:**
+
+1. **Private Core** — keep personal moat here.
+   - LLM orchestration, prompts, template logic, export fidelity know-how, future evals, internal product docs, growth/pricing notes, agent workflows.
+2. **Shared Wrapper** — this is the part that can be shown or co-developed.
+   - Company-specific shell, auth, deployment glue, branding assets, feature flags, adapter interfaces, internal integrations.
+3. **Work Edition / Delivery Layer** — the runnable version for the employer.
+   - Hosted environment, separate repo/branch, or packaged release that works without exposing the full product source tree.
+
+**Practical rule:** do not rely on "hiding AGENTS files" as the defense. The real defense is architectural separation plus written IP boundaries. If the shared version can only move forward by rebuilding the private core, that is acceptable. If it contains the whole generation moat already, the split failed.
+
+**What should stay private by default:**
+- `.env*`, API keys, tokens, customer data
+- `docs/KANBAN.md`, pricing/GTM notes, strategy docs
+- Agent/system files, internal prompts, eval scripts
+- Template R&D, output-quality experiments, commercialization packaging
+
+**What can be shared first:**
+- Demo deployment or recorded walkthrough
+- Company-branded template layer
+- Thin UI shell and adapter contracts
+- Sanitized repo that runs with mocked or replaceable generation internals
+
+**Decision heuristic:**
+- If they only need to evaluate value: share demo, not source.
+- If they need to pilot internally: share hosted/staging access or limited work-safe repo.
+- If they need to co-build: co-build only the wrapper/integration layer, not the whole product core.
+
 ## Quality Priorities (next 2 sprints)
 
 1. **Outline-first control.** Пользователь должен увидеть план, поправить его и только потом запускать сборку слайдов.
@@ -90,6 +122,7 @@
 | 2026-04-02 | Neutral default experience is mandatory | Дефолтный шаблон, placeholder и стартовый flow должны быть универсальными, иначе продукт сужает себя ещё до первой генерации. |
 | 2026-04-02 | Design System Upgrade = EPIC-17, приоритет #1 в To Do | Modern Dark = AI slop (indigo/violet/pink). Все шаблоны Inter везде. Исправить до KIMI-UX работы — анимировать некрасивые слайды бессмысленно. Добавить 3 новых шаблона: Startup, Consulting, IT. Ref: `docs/DESIGN-STANDARDS.md` |
 | 2026-04-02 | Figma MCP = POST-MVP | MVP без Figma. Подключить когда будет готова дизайн-система и есть дизайнер. Уникальная фича: Code→Canvas эксклюзив Claude Code. |
+| 2026-04-02 | Employer/partner sharing should use a split model, not full-repo access | Recommended packaging = Private Core + Shared Wrapper + Work Edition. Protect moat through architecture and written IP boundaries, not through ad-hoc file hiding. |
 
 ## Open Questions
 

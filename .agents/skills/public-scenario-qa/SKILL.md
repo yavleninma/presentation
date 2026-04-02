@@ -1,6 +1,6 @@
 ---
 name: slideforge-public-ux-qa
-description: SlideForge public no-login UX QA. Use when Codex needs to test the public app in a browser as a real user, walk landing or CTA scenarios, judge clarity, friction, trust, and momentum, make only small high-confidence fixes when allowed, and retest the affected scenario.
+description: SlideForge public no-login UX QA. Use when Codex needs to test the public app in a browser as a real user, walk landing or CTA scenarios, and judge clarity, friction, trust, and momentum. This skill is for testing and reporting only, not for making fixes.
 ---
 
 # Public Scenario QA
@@ -12,7 +12,7 @@ Use this skill for recurring public UX QA passes. Read `references/public-scenar
 - The task is about public, non-authenticated product quality.
 - The task should be judged in a browser, not only by reading code.
 - The goal is to understand whether a real user can discover value, move forward confidently, and finish a meaningful flow.
-- The task may include small high-confidence fixes plus a retest.
+- The expected output is a sharp QA report, not implementation work.
 
 ## Do Not Use This Skill When
 
@@ -20,6 +20,7 @@ Use this skill for recurring public UX QA passes. Read `references/public-scenar
 - The user wants deep automated coverage, a new test harness, or a large refactor.
 - The task is backend-only and has no public UX surface to judge.
 - The request is broad product strategy rather than scenario testing.
+- The user wants Codex to fix product code as part of the QA pass.
 
 ## Workflow
 
@@ -59,16 +60,7 @@ Use this skill for recurring public UX QA passes. Read `references/public-scenar
    - Broken form states
    - Major layout issues
 
-7. Fix only if the task allows fixes.
-   - Keep fixes small and high confidence.
-   - Do not widen scope into refactors, framework migrations, or broad cleanup.
-   - If a problem is real but not safe to fix quickly, report it instead of improvising a risky rewrite.
-
-8. Retest the affected scenario.
-   - Re-run the exact path touched by the fix.
-   - Confirm that the original symptom is gone and no nearby user step regressed.
-
-9. Finish with a structured report.
+7. Finish with a structured report.
    - `Scenario tested`
    - `User goal`
    - `What worked well`
@@ -76,7 +68,6 @@ Use this skill for recurring public UX QA passes. Read `references/public-scenar
    - `Friction points`
    - `Trust issues`
    - `Cosmetic roughness`
-   - `Fixes made`
    - `Remaining risks`
 
 ## Hard Rules
@@ -84,5 +75,10 @@ Use this skill for recurring public UX QA passes. Read `references/public-scenar
 - Do not test auth-only flows.
 - Do not wander randomly across unrelated features.
 - Do not replace scenario judgment with a shallow pass/fail checklist.
-- Do not perform deep refactors unless the user explicitly asks for them.
-- Do not report browser validation if you only inspected code.
+- Do not make product changes or perform refactors as part of this skill.
+  Do not report browser validation if you only inspected code.
+  final output.
+
+---
+
+**Not every skill requires all three types of resources.**

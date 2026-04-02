@@ -166,12 +166,12 @@ ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent,
 | client.ts | 106 | When changing SSE parsing |
 | Individual slide .tsx | 40-110 | When fixing specific slide layout |
 | .codex/config.toml | 8 | When checking project-scoped Codex QA settings |
-| .agents/skills/public-scenario-qa/SKILL.md | 70 | When running `slideforge-public-ux-qa` |
+| .agents/skills/public-scenario-qa/SKILL.md | 63 | When running `slideforge-public-ux-qa` |
 | .agents/skills/public-scenario-qa/references/public-scenarios.md | 146 | When choosing or scoping a public scenario |
 | .agents/skills/slideforge-engineer/SKILL.md | 26 | When you want the local engineer mode in skill form |
 | .agents/skills/slideforge-strategist/SKILL.md | 22 | When you want the local strategist mode in skill form |
-| AGENTS.md | 68 | When you need repo layout, commands, and QA ground rules |
-| docs/KANBAN.md | 159 | When choosing the next priority or updating task status |
+| AGENTS.md | 66 | When you need repo layout, commands, and QA ground rules |
+| docs/KANBAN.md | 160 | When choosing the next priority or updating task status |
 | docs/STRATEGY.md | 134 | When checking positioning, moat, or collaboration decisions |
 | docs/CODEBASE-GRAPH.md | 171 | When orienting in the codebase or updating module boundaries |
 

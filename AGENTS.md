@@ -43,8 +43,7 @@
 - Browser scenario testing matters more than code-only assumptions.
 - Judge clarity, friction, trust, and momentum, not just whether the code technically runs.
 - Scope is public, non-authenticated flows only. Auth, billing, admin, and future private areas are out of scope unless the user explicitly expands scope.
-- Prefer small verified fixes over broad rewrites.
-- Retest every affected scenario after a meaningful fix.
+- The QA role is test-and-report only. Fixes belong to the engineer role, not QA.
 - If browser MCP or the local app cannot run, report the exact blocker. Do not claim browser coverage you did not get.
 - Use the local `slideforge-public-ux-qa` skill for recurring no-auth QA passes.
 
@@ -71,7 +70,7 @@ Copy and reuse these as your default prompts:
   `Используй skill slideforge-strategist. Оцени продукт, приоритеты или конкретную идею как стратег: найди главный рычаг, укажи слабые места, предложи следующие шаги и обнови docs/KANBAN.md и docs/STRATEGY.md, если выводы меняют приоритеты.`
 
 - Public UX QA
-  `Используй skill slideforge-public-ux-qa. Прогони browser-first public no-auth UX QA по выбранному сценарию. Смотри на clarity, friction, trust и momentum. Исправляй только маленькие надёжные проблемы, потом ретестни и дай структурированный отчёт.`
+  `Используй skill slideforge-public-ux-qa. Прогони browser-first public no-auth UX QA по выбранному сценарию. Смотри на clarity, friction, trust и momentum. Ничего не исправляй: только протестируй и дай структурированный отчёт.`
 
 Quick phrasing also works:
 
@@ -83,8 +82,7 @@ Quick phrasing also works:
 
 - The app was started or the exact startup blocker was recorded.
 - At least one real public scenario was walked in the browser from entry to outcome.
-- The pass reports: scenario tested, user goal, what worked well, blockers, friction points, trust issues, cosmetic roughness, fixes made, and remaining risks.
-- Any high-confidence fix was retested in the affected scenario before closing the task.
+- The pass reports: scenario tested, user goal, what worked well, blockers, friction points, trust issues, cosmetic roughness, and remaining risks.
 - `AGENTS.md`, `docs/KANBAN.md`, and `docs/CODEBASE-GRAPH.md` were updated if the repo state changed.
 
 ## Current Testing Reality
