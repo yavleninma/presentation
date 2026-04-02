@@ -39,8 +39,8 @@ Same checks run in **GitHub Actions** on push/PR to `main` (`.github/workflows/p
 
 1. Создать проект в [Vercel](https://vercel.com): импорт репозитория, **Root Directory** = `presentations-frontend`.
 2. В Vercel → Project → Settings → Environment Variables задать `OPENAI_API_KEY`, `PEXELS_API_KEY` (и при необходимости остальное).
-3. В GitHub → репозиторий → **Settings → Secrets and variables → Actions** добавить:
-   - `VERCEL_TOKEN` — [Vercel → Account Settings → Tokens](https://vercel.com/account/tokens)
+3. В GitHub → репозиторий → **Settings → Secrets and variables → Actions** добавить (это **не** то же самое, что переменные в Vercel — без них job деплоя падает с `no-credentials-found`):
+   - `VERCEL_TOKEN` — [Vercel → Account Settings → Tokens](https://vercel.com/account/tokens) (создать новый токен и вставить **целиком** в секрет, без пробелов)
    - `VERCEL_ORG_ID` и `VERCEL_PROJECT_ID` — из `presentations-frontend/.vercel/project.json` после локального `cd presentations-frontend && npx vercel link` (файл в git не коммитить)
 
 Без этих секретов job `deploy-vercel` упадёт; CI (`verify`) по-прежнему выполнится.

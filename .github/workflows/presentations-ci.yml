@@ -51,7 +51,17 @@ jobs:
           node-version: "20"
 
       - name: Deploy to Vercel
-        run: npx vercel@latest deploy --prod --non-interactive --token=${{ secrets.VERCEL_TOKEN }}
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN is missing or empty. This is a GitHub Actions secret (not Vercel env vars): Repo → Settings → Secrets and variables → Actions → create VERCEL_TOKEN at https://vercel.com/account/tokens"
+            exit 1
+          fi
+          if [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::error::Set GitHub secrets VERCEL_ORG_ID and VERCEL_PROJECT_ID (from presentations-frontend/.vercel/project.json after npx vercel link)."
+            exit 1
+          fi
+          npx vercel@latest deploy --prod --non-interactive --token="$VERCEL_TOKEN"
