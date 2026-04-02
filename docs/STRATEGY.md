@@ -1,6 +1,6 @@
 # SlideForge — Product Strategy & Decision Log
 
-> Updated: 2026-04-01 | Status: Pre-launch MVP
+> Updated: 2026-04-02 | Status: Pre-launch MVP
 
 ## Positioning
 
@@ -16,7 +16,8 @@
 | Slidy.ai | ? | Российские серверы, локализация | Менее известен |
 | Сократик | 189₽/преза, 469₽/мес | Простота, русский | Базовый функционал |
 | Presentacium | ? | Учёба + бизнес | Нет "вау"-эффекта |
-| **SlideForge** | **нет (пока)** | **Совкомбанк-кейс, хороший визуал слайдов** | **Нет картинок, нет landing, нет billing** |
+| KIMI (Moonshot AI) | Free–$199/мес | Agentic slides, AI-инфографика, outline-first flow, 200K контекст | Нет кастомных шаблонов, интерфейс EN/CN only, китайский сервер |
+| **SlideForge** | **нет (пока)** | **Совкомбанк-кейс, хороший визуал слайдов, RU-first** | **Нет outline editor, нет landing, нет billing** |
 
 ## Revenue Model Hypothesis
 
@@ -62,6 +63,9 @@
 | 2026-04-01 | Дефолтный шаблон → Минимализм | Sovcombank путает не-корпоративных юзеров. |
 | 2026-04-01 | EPIC-03 (Editor) = Done | Замена изображений перенесена в EPIC-04. |
 | 2026-04-01 | Kanban пересобран по бизнес-приоритету | Было: Editor → Photos → PDF. Стало: Images → PPTX Fix → Landing → Auth → Billing. |
+| 2026-04-02 | UX-бенчмарк = KIMI Agentic Slides | Целевое ощущение: "умный соавтор + дизайнер". См. `docs/KIMI-UX-PLAYBOOK.md` |
+| 2026-04-02 | Outline Editor (EPIC-06) → приоритет поднят | Самый большой UX-разрыв с KIMI. onOutline callback уже есть, нужен UI. |
+| 2026-04-02 | "Театр прогресса" — новое направление | Видимые шаги мышления AI во время генерации. Чисто фронтенд, высокий ROI. |
 
 ## Open Questions
 
