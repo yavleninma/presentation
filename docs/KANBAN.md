@@ -5,7 +5,7 @@
 > Each epic = separate chat session. Read `AGENTS.md` for full context before starting.
 > Role shortcuts: Cursor — `@eng` = engineer, `@strat` = strategist. Codex — просто пиши `Инженер, ...` или `Стратег, ...`.
 >
-> **Priority logic:** Outline-first UX → Live generation feel → Output quality → Export fidelity → Landing → Persistence → Auth → Billing.
+> **Priority logic:** ICP fit for enterprise IT leaders → decision-package workflow → outline approval → output quality → export fidelity → landing → persistence. Billing stays secondary until the wedge is sharp.
 > Everything else is secondary until we have paying users.
 
 ---
@@ -42,6 +42,14 @@
 ---
 
 ## 🟡 To Do (в порядке приоритета)
+
+### EPIC-22: Decision Package V1 Hardening ⭐ NEW
+> After the strategic reset, harden the enterprise wedge before adding breadth.
+- [ ] Add file-based source ingestion for guided brief (`DOCX/PDF/TXT` → extracted facts)
+- [ ] Make `Update Previous Package` truly reuse prior package structure instead of only being a scenario preset
+- [ ] Add archetype-aware QA pass for decision slide, KPI commentary, risk, dependency, and incident timeline outputs
+- [ ] Run browser-first QA on `/` for Steering Committee, Budget Defense, and Incident Update flows
+- [ ] Verify PPTX output against the new decision-package narrative, not only against old layout parity
 
 ### EPIC-19: Collaboration-Safe Packaging ⭐ NEW
 > Conditional strategic track: do this before giving any code access to employer/partner.
@@ -117,6 +125,14 @@
 ---
 
 ## ✅ Done
+
+### EPIC-21: Decision Package Reset
+- [x] `/` rebuilt from generic prompt flow into a scenario-first guided brief for enterprise IT leadership communication
+- [x] Outline-first review now shows extraction findings, storyline options, editable slide roles, and structure approval before slide generation
+- [x] `/api/generate` rewritten around decision-package prompts and `/api/generate/slide` added for intent-based slide regeneration
+- [x] Slide metadata expanded to carry management role, archetype, verdict, why-this-slide logic, and regeneration intents
+- [x] `/demo` replaced the slide-type gallery with scenario-led management package previews
+- [x] Public metadata and messaging updated away from "AI slide generator" toward "decision package for CEO/CFO/committees"
 
 ### EPIC-20: Public Scenario QA Enablement
 - [x] Project-scoped `.codex/config.toml` added for repeatable Codex QA with conservative sandboxing and isolated Playwright MCP

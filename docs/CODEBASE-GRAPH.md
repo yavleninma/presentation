@@ -2,23 +2,19 @@
 
 > Compact map for agents. Shows how modules connect. Read this to know WHERE to edit.
 >
-> **RULE:** If you add, remove, or rename files — update the graph and the File Size Guide below. If you add new module connections — update the dependency flow diagram.
+> **RULE:** If you add, remove, or rename files, update the graph and the File Size Guide below. If you add new module connections, update the dependency flow diagram.
 
 ## Operational Files
 
 ```
-.codex/config.toml            -> project-scoped Codex config for conservative sandbox + isolated Playwright MCP
-.agents/skills/public-scenario-qa/SKILL.md -> `slideforge-public-ux-qa` workflow for public no-auth browser QA
-.agents/skills/public-scenario-qa/references/public-scenarios.md -> repo-derived scenario catalog for `/` and `/demo`
-.agents/skills/slideforge-engineer/SKILL.md -> unified engineer skill name for implementation work
-.agents/skills/slideforge-strategist/SKILL.md -> unified strategist skill name for product and prioritization work
-.cursor/rules/engineer.mdc   -> main Engineer role
-.cursor/rules/eng.mdc        -> short alias for Engineer (`@eng`)
-.cursor/rules/strategist.mdc -> main Strategist role
-.cursor/rules/strat.mdc      -> short alias for Strategist (`@strat`)
-docs/STRATEGY.md             -> positioning, moat, commercialization boundary decisions
-docs/KANBAN.md               -> roadmap and priority queue, including collaboration-safe packaging
-AGENTS.md                    -> repo context + operational sharing guardrails
+.codex/config.toml                                      -> project-scoped Codex config for conservative sandbox + isolated Playwright MCP
+.agents/skills/public-scenario-qa/SKILL.md             -> `slideforge-public-ux-qa` workflow for public no-auth browser QA
+.agents/skills/public-scenario-qa/references/public-scenarios.md -> scenario catalog for `/` and `/demo`
+.agents/skills/slideforge-engineer/SKILL.md            -> unified engineer skill name for implementation work
+.agents/skills/slideforge-strategist/SKILL.md          -> unified strategist skill name for product and prioritization work
+AGENTS.md                                              -> repo context, commands, routes, QA guardrails
+docs/KANBAN.md                                         -> roadmap and priority queue
+docs/STRATEGY.md                                       -> positioning, moat, commercialization boundary decisions
 ```
 
 ## Scenario QA Flow
@@ -35,164 +31,174 @@ Browser QA pass against public routes: `/` and `/demo`
 
 ## Module Dependency Flow
 
-```
-[page.tsx] ──uses──→ [presentation-store.ts] (Zustand)
-    │                        │
-    │──uses──→ [client.ts] ──fetches──→ [/api/generate/route.ts]
-    │                                          │
-    │                                          ├──calls──→ [prompts.ts] (builds LLM prompts)
-    │                                          ├──calls──→ OpenAI API (GPT-5.4-mini; override via OPENAI_MODEL)
-    │                                          └──calls──→ [pexels.ts] (auto-fetch images)
-    │
-    │──can fetch──→ [/api/images/search/route.ts] ──calls──→ [pexels.ts]
-    │
-    │──renders──→ [SlideRenderer.tsx]
-    │                   │
-    │                   ├──routes──→ [TitleSlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   ├──routes──→ [SectionSlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   ├──routes──→ [ContentSlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   ├──routes──→ [TwoColumnsSlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   ├──routes──→ [ImageTextSlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   ├──routes──→ [KPISlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   ├──routes──→ [TimelineSlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   ├──routes──→ [QuoteSlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   ├──routes──→ [FullImageSlide.tsx] ──uses──→ [EditableText.tsx]
-    │                   └──routes──→ [ThankYouSlide.tsx] ──uses──→ [EditableText.tsx]
-    │
-    │──calls──→ [pptx-export.ts] ──uses──→ PptxGenJS
-    │
-    └──reads──→ [templates/index.ts]
-                      │
-                      ├──imports──→ [minimal.ts]
-                      ├──imports──→ [modern-dark.ts]
-                      ├──imports──→ [sovcombank.ts]
-                      ├──imports──→ [startup.ts]
-                      ├──imports──→ [consulting.ts]
-                      └──imports──→ [tech.ts]
+```text
+[page.tsx]
+  ├─ uses ─> [decision-package.ts]
+  │            scenario presets, brief defaults, role/archetype labels, regen intent labels
+  ├─ uses ─> [presentation-store.ts]
+  │            presentation, outline, phase, error, currentSlideIndex
+  ├─ uses ─> [client.ts]
+  │            ├─ POST outline mode ─> [/api/generate/route.ts]
+  │            ├─ POST slides mode  ─> [/api/generate/route.ts]
+  │            └─ POST regenerate   ─> [/api/generate/slide/route.ts]
+  ├─ renders ─> [SlideRenderer.tsx]
+  ├─ reads ─> [templates/index.ts]
+  └─ calls ─> [pptx-export.ts]
+
+[/api/generate/route.ts]
+  ├─ uses ─> [decision-package.ts]
+  ├─ uses ─> [prompts.ts]
+  ├─ calls -> OpenAI API
+  └─ calls -> [pexels.ts] for auto-image lookup when needed
+
+[/api/generate/slide/route.ts]
+  ├─ uses ─> [prompts.ts]
+  └─ calls -> OpenAI API
+
+[SlideRenderer.tsx]
+  ├─ routes -> [TitleSlide.tsx]
+  ├─ routes -> [SectionSlide.tsx]
+  ├─ routes -> [ContentSlide.tsx]
+  ├─ routes -> [TwoColumnsSlide.tsx]
+  ├─ routes -> [ImageTextSlide.tsx]
+  ├─ routes -> [KPISlide.tsx]
+  ├─ routes -> [TimelineSlide.tsx]
+  ├─ routes -> [QuoteSlide.tsx]
+  ├─ routes -> [FullImageSlide.tsx]
+  └─ routes -> [ThankYouSlide.tsx]
 ```
 
 ## Key Interfaces Between Modules
 
-### page.tsx ↔ presentation-store.ts
-```
-Store exposes: presentation, currentSlideIndex, phase
-Store mutators: setPresentation, setCurrentSlide, appendSlide, updateSlideContent, updateSlide, removeSlide, addSlide, resetPresentation
-Generation flow: page.tsx seeds an empty draft presentation before calling generatePresentation(),
-so appendSlide() can hydrate the UI immediately from incoming SSE slide events.
+### `page.tsx` ↔ `presentation-store.ts`
+
+```text
+Store exposes:
+- presentation
+- currentSlideIndex
+- phase
+- outline
+- error
+
+Key mutators used by the main flow:
+- setPresentation
+- setCurrentSlide
+- setPhase
+- setOutline
+- setError
+- appendSlide
+- updateSlide
+- updateSlideContent
+- addSlide
+- removeSlide
+- resetPresentation
 ```
 
-### page.tsx ↔ client.ts
-```
-generatePresentation(topic, options, callbacks)
-  callbacks: onPhase, onOutline, onStatus, onSlide, onComplete, onError
+### `page.tsx` ↔ `client.ts`
+
+```text
+generateOutline(brief, options)
+generateSlides(brief, outline, options, callbacks)
+regenerateSlide(slide, presentation, brief, intent, previousSlide?, nextSlide?)
 ```
 
-### Known Product Gaps In Current Wiring
-```
-EPIC-15 wiring is now live end-to-end: page.tsx seeds a draft presentation, renders
-outline review, consumes status events, and auto-follows new slides while generation is in flight.
+### `client.ts` ↔ `/api/generate` and `/api/generate/slide`
 
-The remaining outline gap is product-level, not transport-level: the UI now shows the outline,
-but there are still no approval controls to edit/reorder slides before generation continues.
+```text
+/api/generate
+- mode: "outline" -> JSON { outline }
+- mode: "slides"  -> SSE stream
 
-template files expose template.fonts for browser rendering, but pptx-export.ts still hardcodes Arial,
-so template differentiation and preview/export parity break at the export boundary.
+SSE events:
+- phase
+- thinking
+- researching
+- slide_start
+- image_search
+- slide
+- polishing
+- presentation
+- error
 
-UI defaults already point to `minimal`, but client.ts and /api/generate still fall back to `sovcombank`
-when templateId is omitted, so template defaults are not yet fully synchronized across UI / client / server.
-
-The repo is still effectively a single app tree, so there is no clean architectural split yet
-between personal product IP (`Private Core`) and any employer-safe `Shared Wrapper`.
-If code-sharing becomes necessary, a separate boundary layer should be introduced before access is granted.
-```
-
-### Recommended Future Split (strategic, not implemented yet)
-```
-[Private Core]
-  prompts, generation orchestration, template logic, export fidelity, internal docs/evals
-          |
-          v
-[Shared Wrapper]
-  UI shell, adapter contracts, employer-specific branding/integrations, deploy glue
-          |
-          v
-[Work Edition]
-  hosted pilot, sanitized repo, or packaged runnable build for external collaboration
+/api/generate/slide
+- JSON in/out for intent-based single-slide regeneration
 ```
 
-### client.ts ↔ /api/generate (SSE protocol)
-```
-Request:  POST { topic, slideCount, language, templateId }
-Response: SSE stream of lines:
-  data: {"event": "phase|thinking|researching|outline|slide_start|image_search|slide|polishing|presentation|error", "data": ...}
+### `decision-package.ts` ↔ prompts/routes/UI
+
+```text
+Central source for:
+- scenarioDefinitions
+- createEmptyBrief()
+- getScenarioDefinition()
+- slideRoleLabels
+- archetypeLabels
+- regenerationIntentLabels
+- DEFAULT_REGEN_INTENTS
 ```
 
-### SlideRenderer ↔ Slide Components
-```
-All receive: { slide: Slide, template: PresentationTemplate, editable?, onContentChange? }
-All access:  slide.content.* for data,  template.colors.* for styling
+## Current Product Gaps
+
+```text
+1. Ingestion depth:
+   Guided brief works, but enterprise-friendly document ingestion is still missing.
+
+2. Update mode depth:
+   "Update Previous Package" exists as a scenario preset, but not yet as a true prior-package diff/reuse workflow.
+
+3. Export parity:
+   Template fonts/rendering diverge from PPTX because pptx-export.ts still has legacy assumptions.
+
+4. Structural split:
+   The repo is still a single app tree; no hard boundary yet between private core IP and any external/shared wrapper.
 ```
 
-### layout.tsx + globals.css ↔ templates
-```
-layout.tsx loads the Google Fonts pack used by the template system.
-globals.css defines CSS custom properties such as --font-bricolage-grotesque and --font-space-mono.
-templates/*.ts reference those vars through template.fonts.heading/body/mono.
-```
-
-### templates/*.ts → PresentationTemplate
-```
-{ id, name, colors: ThemeColors, fonts: ThemeFonts, spacing, logoUrl?, backgroundPattern? }
-ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent, accentForeground,
-             background, foreground, muted, mutedForeground, surface, surfaceForeground
-```
-
-## File Size Guide (for token budgeting)
+## File Size Guide
 
 | File | Lines | When to read |
 |------|-------|--------------|
-| types/presentation.ts | 137 | Always — defines all types |
-| page.tsx | 1184 | When editing main UI |
-| SlideRenderer.tsx | 199 | When adding slide types or fixing rendering |
-| editor/EditableText.tsx | 69 | When fixing inline editing |
-| prompts.ts | 144 | When changing AI output format |
-| route.ts (generate) | 312 | When changing generation pipeline |
-| route.ts (images) | 22 | When changing image search API |
-| pexels.ts | 78 | When changing image provider |
-| pptx-export.ts | 581 | When fixing PPTX export |
-| presentation-store.ts | 135 | When adding state/actions |
-| templates/index.ts | 22 | When registering or reordering templates |
-| templates/*.ts | 30-31 | When editing template colors, fonts, spacing |
-| client.ts | 106 | When changing SSE parsing |
-| Individual slide .tsx | 40-110 | When fixing specific slide layout |
-| .codex/config.toml | 8 | When checking project-scoped Codex QA settings |
-| .agents/skills/public-scenario-qa/SKILL.md | 63 | When running `slideforge-public-ux-qa` |
-| .agents/skills/public-scenario-qa/references/public-scenarios.md | 146 | When choosing or scoping a public scenario |
-| .agents/skills/slideforge-engineer/SKILL.md | 26 | When you want the local engineer mode in skill form |
-| .agents/skills/slideforge-strategist/SKILL.md | 22 | When you want the local strategist mode in skill form |
-| AGENTS.md | 66 | When you need repo layout, commands, and QA ground rules |
-| docs/KANBAN.md | 160 | When choosing the next priority or updating task status |
-| docs/STRATEGY.md | 134 | When checking positioning, moat, or collaboration decisions |
-| docs/CODEBASE-GRAPH.md | 171 | When orienting in the codebase or updating module boundaries |
+| `src/types/presentation.ts` | 218 | Always; defines the decision-package types |
+| `src/app/page.tsx` | 1014 | Main public workflow, guided brief, outline review, preview |
+| `src/app/demo/page.tsx` | 497 | Scenario-led public demo |
+| `src/app/api/generate/route.ts` | 587 | Outline creation, streaming slide generation, normalization |
+| `src/app/api/generate/slide/route.ts` | 106 | Slide-level regeneration |
+| `src/lib/generation/prompts.ts` | 384 | Decision-package prompts, normalization helpers |
+| `src/lib/generation/client.ts` | 142 | Outline/slides/regeneration client calls |
+| `src/lib/decision-package.ts` | 315 | Scenario definitions and labels |
+| `src/lib/store/presentation-store.ts` | 135 | Zustand state and slide CRUD |
+| `src/lib/export/pptx-export.ts` | 581 | PPTX export logic |
+| `src/components/slides/SlideRenderer.tsx` | 199 | Layout routing and scaling |
+| `src/lib/templates/index.ts` | 22 | Template registry |
+| `src/lib/templates/*.ts` | 30-31 | Theme colors, fonts, spacing |
+| `AGENTS.md` | 72 | Repo operations and route reality |
+| `docs/KANBAN.md` | 174 | Current roadmap and priorities |
+| `docs/STRATEGY.md` | 70 | Strategic decisions and boundary notes |
+| `docs/CODEBASE-GRAPH.md` | 166 | This file |
 
-## CI and local checks
+## CI And Local Checks
 
-- **Root:** `npm run verify` → `presentations-frontend`: `lint` + `typecheck` + `build`
-- **Pre-commit:** `.husky/pre-commit` → `verify:quick` (lint + typecheck, без build)
-- **GitHub:** `.github/workflows/presentations-ci.yml` — verify on push/PR to `main`; production deploy to Vercel on push to `main` (requires `VERCEL_*` secrets and a Vercel Project Root Directory of `presentations-frontend` while the workflow itself runs from repo root)
+- Root: `npm run verify` -> frontend `lint` + `typecheck` + `build`
+- Fast local gate: `npm run verify:quick`
+- App-only build: `npm run build --prefix presentations-frontend`
+
+## Change Playbooks
 
 ### New slide type
-1. Add to `SlideLayoutType` union in `types/presentation.ts`
-2. Create `components/slides/NewSlide.tsx` (receive SlideComponentProps)
-3. Register in `SlideRenderer.tsx` → `layoutComponents` map
-4. Add layout instructions in `prompts.ts` → `layoutInstructions` object
-5. Add PPTX rendering case in `pptx-export.ts` → `addSlideContent` switch
 
-### New template
-1. Create `lib/templates/my-theme.ts` exporting `PresentationTemplate`
-2. Register in `lib/templates/index.ts` → `templates` object
-3. Add any new font family to `app/layout.tsx` + `app/globals.css` before referencing it from `template.fonts`
+1. Add it to `SlideLayoutType` in `src/types/presentation.ts`
+2. Create `src/components/slides/NewSlide.tsx`
+3. Register it in `src/components/slides/SlideRenderer.tsx`
+4. Add generation instructions in `src/lib/generation/prompts.ts`
+5. Add PPTX rendering support in `src/lib/export/pptx-export.ts`
+
+### New scenario / decision package type
+
+1. Add the scenario in `src/lib/decision-package.ts`
+2. Update the brief defaults and prompt seed there
+3. Ensure prompt handling in `src/lib/generation/prompts.ts` supports the intended output
+4. Update `/demo` if the scenario should be publicly visible
 
 ### New export format
-1. Create `lib/export/new-format.ts`
-2. Add button + handler in `page.tsx` header section
+
+1. Create `src/lib/export/new-format.ts`
+2. Add the button/handler in `src/app/page.tsx`

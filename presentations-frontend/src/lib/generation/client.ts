@@ -1,46 +1,71 @@
 import {
-  Presentation,
-  Slide,
-  PresentationOutline,
   GenerationPhase,
   GenerationStatusEvent,
+  Presentation,
+  PresentationBrief,
+  PresentationOutline,
+  Slide,
+  SlideRegenerationIntent,
 } from "@/types/presentation";
 
-const MIN_SLIDES = 1;
-const MAX_SLIDES = 10;
-
-function clampSlideCount(n: number | undefined): number {
-  const v = n ?? 10;
-  if (!Number.isFinite(v)) return 10;
-  return Math.min(MAX_SLIDES, Math.max(MIN_SLIDES, Math.round(v)));
-}
-
-interface GenerationCallbacks {
+interface SlideGenerationCallbacks {
   onPhase: (phase: GenerationPhase) => void;
-  onOutline: (outline: PresentationOutline) => void;
   onStatus: (status: GenerationStatusEvent) => void;
   onSlide: (slide: Slide) => void;
   onComplete: (presentation: Presentation) => void;
   onError: (error: string) => void;
 }
 
-export async function generatePresentation(
-  topic: string,
-  options: {
+export async function generateOutline(
+  brief: PresentationBrief,
+  options?: {
+    language?: "ru" | "en";
     slideCount?: number;
-    language?: string;
+  }
+): Promise<PresentationOutline> {
+  const response = await fetch("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode: "outline",
+      brief,
+      language: options?.language ?? "ru",
+      slideCount: options?.slideCount,
+    }),
+  });
+
+  const data = (await response.json()) as {
+    outline?: PresentationOutline;
+    error?: string;
+  };
+
+  if (!response.ok || !data.outline) {
+    throw new Error(data.error ?? "Failed to generate outline");
+  }
+
+  return data.outline;
+}
+
+export async function generateSlides(
+  brief: PresentationBrief,
+  outline: PresentationOutline,
+  options: {
+    language?: "ru" | "en";
     templateId?: string;
+    selectedStorylineId?: string;
   },
-  callbacks: GenerationCallbacks
+  callbacks: SlideGenerationCallbacks
 ): Promise<void> {
   const response = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      topic,
-      slideCount: clampSlideCount(options.slideCount),
+      mode: "slides",
+      brief,
+      outline,
       language: options.language ?? "ru",
-      templateId: options.templateId ?? "sovcombank",
+      templateId: options.templateId ?? "minimal",
+      selectedStorylineId: options.selectedStorylineId,
     }),
   });
 
@@ -69,14 +94,12 @@ export async function generatePresentation(
 
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
+
       try {
         const { event, data } = JSON.parse(line.slice(6));
         switch (event) {
           case "phase":
             callbacks.onPhase(data as GenerationPhase);
-            break;
-          case "outline":
-            callbacks.onOutline(data as PresentationOutline);
             break;
           case "thinking":
           case "researching":
@@ -103,4 +126,34 @@ export async function generatePresentation(
       }
     }
   }
+}
+
+export async function regenerateSlide(
+  slide: Slide,
+  presentation: Presentation,
+  brief: PresentationBrief,
+  intent: SlideRegenerationIntent,
+  previousSlide?: Slide,
+  nextSlide?: Slide
+): Promise<Slide> {
+  const response = await fetch("/api/generate/slide", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      slide,
+      presentation,
+      brief,
+      intent,
+      previousSlide,
+      nextSlide,
+    }),
+  });
+
+  const data = (await response.json()) as { slide?: Slide; error?: string };
+
+  if (!response.ok || !data.slide) {
+    throw new Error(data.error ?? "Failed to regenerate slide");
+  }
+
+  return data.slide;
 }

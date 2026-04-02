@@ -5,10 +5,12 @@
 ## Repo Layout
 
 - `presentations-frontend/` - Next.js 16 app with the public UI and Route Handlers
-- `presentations-frontend/src/app/page.tsx` - main public generator flow at `/`
-- `presentations-frontend/src/app/demo/page.tsx` - public demo route at `/demo`
-- `presentations-frontend/src/app/api/generate/route.ts` - public generation endpoint used by `/`
+- `presentations-frontend/src/app/page.tsx` - public decision-package flow at `/`
+- `presentations-frontend/src/app/demo/page.tsx` - public scenario-led demo route at `/demo`
+- `presentations-frontend/src/app/api/generate/route.ts` - outline-first generation endpoint used by `/`
+- `presentations-frontend/src/app/api/generate/slide/route.ts` - slide-level intent-based regeneration endpoint
 - `presentations-frontend/src/app/api/images/search/route.ts` - public image lookup endpoint used by the UI
+- `presentations-frontend/src/lib/decision-package.ts` - scenario definitions, labels, and guided-brief defaults
 - `docs/` - roadmap, strategy, design notes, and codebase map
 - `.cursor/rules/` - project role definitions (`engineer`, `strategist`)
 - `.agents/skills/public-scenario-qa/` - repo folder for the `slideforge-public-ux-qa` skill
@@ -30,13 +32,19 @@
 
 - Full generation testing on `/` expects `presentations-frontend/.env.local` with `OPENAI_API_KEY` and `PEXELS_API_KEY`.
 - Public shell checks can still inspect `/` and `/demo` without finishing the generate flow, but do not fake a successful generation pass if the env is missing or broken.
-- On this machine, `next dev` may fail inside the sandbox with `spawn EPERM`. If that happens, rerun the dev server outside the sandbox before calling the browser issue a product bug.
+- On this machine, `next dev` or `next build` may fail inside the sandbox with `spawn EPERM`. If that happens, rerun outside the sandbox before filing a product bug.
 
 ## Public Routes And Core Journeys
 
-- `/` - enter a topic, optionally choose slide count and template, start generation, observe outline/progress, review the finished deck, navigate slides, edit inline, add/delete slides, export PPTX
-- `/demo` - browse all slide types and switch templates without generating anything
-- Public API calls behind the UI: `/api/generate` and `/api/images/search`
+- `/` - choose a committee scenario, fill the guided brief, generate an outline, review extraction findings and storyline options, adjust the narrative, generate the decision package, regenerate individual slides by intent, export PPTX
+- `/demo` - inspect scenario-led decision-package examples for steering, budget defense, and incident update without generating anything
+- Public API calls behind the UI: `/api/generate`, `/api/generate/slide`, `/api/images/search`
+
+## Product Reality
+
+- SlideForge is no longer positioned as a generic AI slide maker.
+- The public product now aims at CIO/CDTO-level enterprise communication: guided brief, outline approval, decision package, and slide-level regeneration by intent.
+- The core output is a management package for leadership, not a visually decorative deck.
 
 ## Public UX QA Rules
 
