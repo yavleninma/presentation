@@ -8,6 +8,23 @@
 **For whom:** Менеджеры, маркетологи, аналитики в малом/среднем бизнесе РФ.
 **Why now:** Санкции стимулируют рост национальных SaaS. Gamma/Tome недоступны или неудобны для рус. рынка. Локальные конкуренты (Slidy.ai, Сократик, Presentacium) — есть, но ни один не стал "стандартом".
 
+## Strategic Review (2026-04-02)
+
+**What is actually strong now:** the product is already beyond "toy demo" level. It has a real generation pipeline, editable slides, templates, images, and PPTX export. That is enough to impress in a live demo.
+
+**What is underperforming right now:** the product promise is ahead of the actual feeling in the UI. Code-wise, outline events exist but are not surfaced, and live slide streaming is not yet visible to the user. So the experience still feels like "submit -> wait -> receive", not like an AI co-author.
+
+**Main priority reading:** right now the bottleneck is quality, not monetization. The product needs to feel more alive during generation and more polished in the final output before it is worth optimizing packaging.
+
+**Strategic implication:** before spending energy on pricing, billing, or sales packaging, fix the visible generation loop, outline approval, typography differentiation, and export fidelity. Otherwise the product is technically capable but emotionally flatter than it should be.
+
+## Quality Priorities (next 2 sprints)
+
+1. **Outline-first control.** Пользователь должен увидеть план, поправить его и только потом запускать сборку слайдов.
+2. **Live generation feel.** Генерация должна выглядеть как живой процесс, а не как ожидание чёрного ящика.
+3. **Output fidelity.** Шаблоны должны реально отличаться, а export не должен ухудшать впечатление от preview.
+4. **Input neutrality.** Продукт должен перестать выглядеть как "генератор только для банков" в дефолтном входе и базовом template-flow.
+
 ## Competitive Landscape (April 2026)
 
 | Конкурент | Цена | Сильная сторона | Слабость |
@@ -66,6 +83,11 @@
 | 2026-04-02 | UX-бенчмарк = KIMI Agentic Slides | Целевое ощущение: "умный соавтор + дизайнер". См. `docs/KIMI-UX-PLAYBOOK.md` |
 | 2026-04-02 | Outline Editor (EPIC-06) → приоритет поднят | Самый большой UX-разрыв с KIMI. onOutline callback уже есть, нужен UI. |
 | 2026-04-02 | "Театр прогресса" — новое направление | Видимые шаги мышления AI во время генерации. Чисто фронтенд, высокий ROI. |
+| 2026-04-02 | Fix visible streaming gap before any monetization work | Сейчас SSE есть на уровне кода, но UI не превращает это в "живую" генерацию. Это бьёт по wow-effect и perceived quality. |
+| 2026-04-02 | Quality-first phase confirmed | До pricing/billing продукт должен пройти через цикл: real outline flow → real live preview → stronger output fidelity. |
+| 2026-04-02 | Output fidelity matters as much as generation speed | Разные шаблоны и экспорт должны действительно ощущаться разными и качественными, иначе "AI wow" быстро схлопывается. |
+| 2026-04-02 | Added explicit Output Fidelity workstream | Следующий quality ceiling — не только UX потока, но и соответствие preview/export, шрифтов и шаблонной дифференциации. |
+| 2026-04-02 | Neutral default experience is mandatory | Дефолтный шаблон, placeholder и стартовый flow должны быть универсальными, иначе продукт сужает себя ещё до первой генерации. |
 
 ## Open Questions
 
@@ -74,3 +96,4 @@
 - [ ] OpenAI vs YandexGPT: стоит ли тестировать YandexGPT для RU-контента?
 - [ ] Pexels vs Unsplash: кто даёт лучшие бизнес-фото для рус. контекста?
 - [ ] Нужен ли "режим презентации" (slideshow) или достаточно PPTX/PDF?
+- [ ] Насколько сильно live preview и outline approval поднимают completion rate первой генерации?

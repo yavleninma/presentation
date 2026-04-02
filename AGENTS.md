@@ -18,12 +18,33 @@ There is **no separate backend repo or long‑running server process**. Server l
 
 ## Agent Roles
 
-The project uses two switchable roles via Cursor manual rules (`.cursor/rules/`). Reference one at the start of a chat to activate it:
+The project uses two switchable roles via Cursor manual rules (`.cursor/rules/`), and the same roles can be invoked in Codex chats directly by role name.
 
 | Role | File | Invoke with | Purpose |
 |------|------|-------------|---------|
-| **Engineer** | `.cursor/rules/engineer.mdc` | `@engineer` | Executes tasks from kanban. Writes code, runs quality checks, updates docs. No product strategy. |
-| **Strategist** | `.cursor/rules/strategist.mdc` | `@strategist` | Business partner & growth experimenter. Analyzes product, proposes hypotheses, updates kanban & strategy. Never edits product code. |
+| **Engineer** | `.cursor/rules/engineer.mdc` | `@engineer`, `@eng` | Executes tasks from kanban. Writes code, runs quality checks, updates docs. No product strategy. |
+| **Strategist** | `.cursor/rules/strategist.mdc` | `@strategist`, `@strat` | Business partner & growth experimenter. Analyzes product, proposes hypotheses, updates kanban & strategy. Never edits product code. |
+
+### Cursor Calls
+
+- `@eng` → Engineer mode
+- `@strat` → Strategist mode
+
+- `@eng возьми следующую задачу из канбана`
+- `@eng сделай EPIC-15: live preview`
+- `@strat оцени качество продукта и обнови доску`
+- `@strat пересобери приоритеты на ближайшие 2 спринта`
+
+### Codex Calls
+
+In Codex, you do not need Cursor-style rule syntax. You can just address the role in plain Russian:
+
+- `Инженер, возьми следующую задачу`
+- `Инженер, сделай EPIC-18`
+- `Стратег, оцени текущее качество продукта`
+- `Стратег, пересобери приоритеты и обнови доску`
+- `переключись в режим инженера`
+- `переключись в режим стратега`
 
 Both roles inherit project context from `slideforge.mdc` (always-applied).
 
@@ -46,9 +67,16 @@ presentation/                          # npm package: slideforge-presentations
 ├── .cursor/rules/
 │   ├── slideforge.mdc        # Always-on: architecture, conventions, quality gates
 │   ├── engineer.mdc          # Manual: executor role
+│   ├── eng.mdc               # Alias: short call for Engineer mode (`@eng`)
 │   └── strategist.mdc        # Manual: business partner role
+│   └── strat.mdc             # Alias: short call for Strategist mode (`@strat`)
 └── AGENTS.md
 ```
+
+### Role Alias Files
+
+- `.cursor/rules/eng.mdc` — short alias for Engineer (`@eng`)
+- `.cursor/rules/strat.mdc` — short alias for Strategist (`@strat`)
 
 ## Architecture
 
@@ -145,6 +173,7 @@ Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx
 - **State:** Zustand store at `lib/store/presentation-store.ts`. Single source of truth.
 - **Generation:** SSE streaming via `ReadableStream` in route handler. Client parses `data: {event, data}\n\n` lines. User-facing slide count is **1–10** (UI select + server/client clamp) to limit LLM cost.
 - **Export:** Client-side PPTX via PptxGenJS. PDF export via Puppeteer is TODO.
+- **Current product priority:** quality-first. Focus order is outline UX → live generation feel → template/output fidelity → export parity.
 
 ## Environment
 
@@ -157,7 +186,7 @@ Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx
 ## What's Working
 
 - ✅ ESLint (max warnings 0) + `tsc --noEmit` + pre-commit hook; GitHub Actions CI on `main`
-- ✅ Prompt → AI generates outline → streams slides → visual preview
+- ✅ Prompt → AI generates outline and final deck through SSE-backed pipeline
 - ✅ 10 slide layout types with Sovcombank branding
 - ✅ 3 templates (Sovcombank, Dark, Minimal)
 - ✅ Slide navigation (thumbnails sidebar + arrows)
@@ -177,7 +206,10 @@ Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx
 - ❌ AI image generation (Kandinsky API)
 - ❌ PDF export
 - ❌ Document upload + parsing
-- ❌ Outline editor (edit structure before generation)
+- ❌ Outline editor / outline approval flow in UI (`onOutline` exists, but screen is not surfaced yet)
+- ❌ Real slide-by-slide preview during generation (UI still waits for final presentation before showing slides)
+- ❌ Strong template differentiation (browser templates still feel too similar in typography/rhythm)
+- ❌ Preview ↔ PPTX typography parity (`pptx-export.ts` still hardcodes Arial instead of template-driven fonts)
 - ❌ Template customizer (upload logo, pick colors)
 - ❌ Auth / user accounts
 - ❌ Billing / subscription

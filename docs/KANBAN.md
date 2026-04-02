@@ -3,8 +3,9 @@
 > **RULE:** When you finish a task, check it off `[x]` here. When all tasks in an epic are done, move the epic to Done. When starting an epic, move it to In Progress. This file is the source of truth for project status.
 >
 > Each epic = separate chat session. Read `AGENTS.md` for full context before starting.
+> Role shortcuts: Cursor — `@eng` = engineer, `@strat` = strategist. Codex — просто пиши `Инженер, ...` или `Стратег, ...`.
 >
-> **Priority logic:** Image → Export quality → Landing → Persistence → Auth → Billing.
+> **Priority logic:** Outline-first UX → Live generation feel → Output quality → Export fidelity → Landing → Persistence → Auth → Billing.
 > Everything else is secondary until we have paying users.
 
 ---
@@ -44,6 +45,8 @@
 
 ### EPIC-15: "KIMI-like" Generation UX ⭐ NEW
 > Ref: `docs/KIMI-UX-PLAYBOOK.md` — полный разбор паттернов
+- [ ] **Реальный live-stream preview**: инициализировать пустую презентацию и показывать `slide`-события сразу, а не только после финального `presentation`
+- [ ] **Нормальный state flow генерации**: `idle → outline review → generating → polishing → complete`, без "мертвой паузы" между prompt и результатом
 - [ ] **Театр прогресса**: SSE-события thinking/researching/slide_start/polishing + анимированный статус-бар
 - [ ] **Анимация появления слайдов**: fade-in + auto-scroll к текущему слайду при генерации
 - [ ] **Прогресс генерации**: "Генерирую слайд 3 из 8: «Анализ рынка»..."
@@ -53,12 +56,23 @@
 
 ### EPIC-06: Outline Editor ⬆️ PRIORITY UP
 > Самый большой UX-разрыв с KIMI. `PresentationOutline` тип есть, `onOutline` callback в SSE есть.
+- [ ] Подключить `onOutline` → Zustand/UI и сделать отдельный экран подтверждения плана до генерации слайдов
 - [ ] UI для показа аутлайна (заголовки слайдов + тезисы) сразу после генерации плана
+- [ ] Отдельное CTA на этапе outline: "Утвердить план и продолжить"
 - [ ] Редактирование: изменить заголовок, удалить/добавить слайд в аутлайне
 - [ ] Drag-and-drop порядка слайдов в аутлайне
 - [ ] Выбор layout для каждого слайда в аутлайне
 - [ ] Кнопка "Выглядит хорошо, генерируй!" → запуск генерации слайдов
 - [ ] Выбор шаблона МЕЖДУ аутлайном и генерацией (перенести из начального экрана)
+
+### EPIC-18: Output Fidelity Pass ⭐ NEW
+> Цель: чтобы презентация ощущалась "дорогой" не только в браузере, но и в результате.
+- [ ] Убрать hardcoded `Arial` из PPTX-экспорта и привязать шрифты к `template.fonts`
+- [ ] Preview ↔ PPTX parity audit по всем 10 layout-типам: найти и завести mismatch-список
+- [ ] Усилить различия шаблонов не только цветом, но и типографикой, плотностью и визуальным ритмом
+- [ ] Пройтись по дефолтным spacing/typography токенам шаблонов и убрать ощущение "одного и того же шаблона в разных цветах"
+- [ ] Улучшить imageQuery/подбор визуалов, чтобы меньше было generic stock-photo эффекта
+- [ ] Ввести quality-review для `/demo`: каждый шаблон должен давать ощутимо разное впечатление на одном и том же контенте
 
 ### EPIC-16: Slide-Level Regeneration ⭐ NEW
 > Ref: KIMI-UX-PLAYBOOK.md §6 — перегенерация блоков
@@ -74,6 +88,7 @@
 - [ ] Разные шрифты для шаблонов (сейчас все на Inter — шаблоны выглядят одинаково)
 - [ ] Универсальный placeholder: "Квартальный отчёт по продажам" вместо банковского примера
 - [ ] Constraint в промпте: "Используй минимум 5 разных типов лейаутов, не повторяй layout > 2 раз"
+- [ ] Синхронизировать дефолты между UI / client / server, чтобы везде был один стартовый шаблон и один quality baseline
 
 ### EPIC-14: New Templates
 - [ ] "Стартап / Pitch Deck" — яркий, с акцентом на метрики
