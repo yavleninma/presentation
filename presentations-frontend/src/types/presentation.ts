@@ -10,6 +10,53 @@ export type SlideLayoutType =
   | "full-image"
   | "thank-you";
 
+export type MeetingScenarioId =
+  | "steering-committee"
+  | "quarterly-it-review"
+  | "budget-defense"
+  | "incident-risk-update"
+  | "vendor-decision"
+  | "program-recovery"
+  | "update-previous-package";
+
+export type ManagementSlideRole =
+  | "inform"
+  | "explain"
+  | "compare"
+  | "justify"
+  | "escalate"
+  | "recommend"
+  | "decide"
+  | "close";
+
+export type SlideArchetype =
+  | "headline-verdict"
+  | "kpi-dashboard-commentary"
+  | "progress-vs-plan"
+  | "risk-heatmap"
+  | "options-matrix"
+  | "budget-waterfall"
+  | "roadmap-milestones"
+  | "incident-timeline"
+  | "dependency-map"
+  | "decision-slide"
+  | "executive-summary"
+  | "appendix-detail";
+
+export type SlideConfidence = "high" | "medium" | "low";
+
+export type SlideRegenerationIntent =
+  | "tighten"
+  | "shorten-for-execs"
+  | "rewrite-for-cfo"
+  | "remove-jargon"
+  | "add-business-impact"
+  | "make-risk-clearer"
+  | "strengthen-evidence"
+  | "offer-structure-alternatives"
+  | "turn-into-decision-slide"
+  | "strengthen-verdict";
+
 export interface KPIValue {
   value: string;
   label: string;
@@ -41,12 +88,27 @@ export interface SlideContent {
   rightColumn?: { heading?: string; bullets?: string[] };
 }
 
+export interface SlideMeta {
+  role: ManagementSlideRole;
+  archetype: SlideArchetype;
+  audience: string;
+  headlineVerdict: string;
+  managementQuestion: string;
+  decisionIntent: string;
+  evidence: string[];
+  confidence: SlideConfidence;
+  whyThisSlide: string;
+  storylinePosition?: string;
+  regenerationIntents?: SlideRegenerationIntent[];
+}
+
 export interface Slide {
   id: string;
   order: number;
   layout: SlideLayoutType;
   content: SlideContent;
   notes?: string;
+  meta?: SlideMeta;
   overrides?: Partial<ThemeColors>;
 }
 
@@ -88,15 +150,32 @@ export interface PresentationTemplate {
   backgroundPattern?: "none" | "dots" | "grid" | "gradient" | "geometric";
 }
 
-export interface Presentation {
+export interface PresentationBrief {
+  scenarioId: MeetingScenarioId;
+  meetingName: string;
+  audience: string;
+  desiredOutcome: string;
+  deadline?: string;
+  mainThesis: string;
+  leadershipAsk: string;
+  workingWell: string;
+  notWorking: string;
+  criticalNumbers: string;
+  risks: string;
+  dependencies: string;
+  sourceMaterial: string;
+}
+
+export interface ExtractionFinding {
+  label: string;
+  severity: "info" | "warning" | "critical";
+  detail: string;
+}
+
+export interface NarrativeOption {
   id: string;
   title: string;
-  prompt?: string;
-  templateId: string;
-  language: "ru" | "en";
-  slides: Slide[];
-  createdAt: string;
-  updatedAt: string;
+  rationale: string;
 }
 
 export interface OutlineSlide {
@@ -104,11 +183,36 @@ export interface OutlineSlide {
   layout: SlideLayoutType;
   keyPoints?: string[];
   speakerNotes?: string;
+  meta?: SlideMeta;
+}
+
+export interface DecisionPackage {
+  scenarioId: MeetingScenarioId;
+  audienceLabel: string;
+  executiveSummary: string;
+  storylineOptions: NarrativeOption[];
+  extractionFindings: ExtractionFinding[];
+  followUpQuestions: string[];
+  appendixSummary: string[];
 }
 
 export interface PresentationOutline {
   title: string;
   slides: OutlineSlide[];
+  package: DecisionPackage;
+}
+
+export interface Presentation {
+  id: string;
+  title: string;
+  prompt?: string;
+  templateId: string;
+  language: "ru" | "en";
+  brief?: PresentationBrief;
+  decisionPackage?: DecisionPackage;
+  slides: Slide[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type GenerationStatusEventType =
@@ -130,6 +234,7 @@ export interface GenerationStatusEvent {
 
 export type GenerationPhase =
   | "idle"
+  | "briefing"
   | "outline-review"
   | "generating"
   | "polishing"

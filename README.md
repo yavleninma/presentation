@@ -1,73 +1,74 @@
-# SlideForge — презентации (веб-приложение)
+# SlideForge
 
-Продукт: AI-генератор корпоративных презентаций. В этом репозитории — **монорепозиторий** с одним приложением Next.js: **UI + серверные API** в каталоге `presentations-frontend/` (npm-пакет `slideforge-presentations-web`). Корень репозитория — `slideforge-presentations` (хуки, общие скрипты).
+SlideForge is not a generic AI slide maker anymore. It is a decision-package copilot for enterprise IT leaders: a public Next.js app that turns scattered status updates, KPI fragments, risks, and source notes into a management package for CEOs, CFOs, steering committees, and investment committees.
 
-## Где «бэкенд»
+## Product Shape
 
-Отдельного бэкенд-сервиса нет. Запросы к OpenAI и Pexels идут из **Route Handlers** Next.js: `presentations-frontend/src/app/api/...`. Локально это тот же процесс, что и `next dev`; на Vercel — serverless-функции того же деплоя.
+- `/` -> scenario-first guided brief for management communication
+- outline-first flow -> extraction findings, storyline options, structure approval
+- package generation -> executive-ready slides, notes, appendix logic, slide-level regeneration by intent
+- `/demo` -> public scenario-led previews instead of a gallery of slide types
+
+## Repo Structure
+
+- `presentations-frontend/` - app, route handlers, templates, slide rendering, export
+- `docs/` - roadmap, strategy, and codebase map
+- `AGENTS.md` - repo operations, routes, commands, QA rules
 
 ## Quick Start
 
 ```bash
-cd presentations-frontend
-cp .env.local.example .env.local  # add your OPENAI_API_KEY
 npm install
+cd presentations-frontend
+npm install
+cp .env.local.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000
+Open [http://localhost:3000](http://localhost:3000)
 
-### One-time: Git hooks (pre-commit)
+## Environment
 
-From the **repo root** (not only `presentations-frontend/`):
+For full generation flows on `/`, set in `presentations-frontend/.env.local`:
+
+- `OPENAI_API_KEY`
+- `PEXELS_API_KEY`
+
+Without those keys you can still inspect the public shell and `/demo`, but not claim a successful end-to-end generation pass.
+
+## Checks
+
+From repo root:
 
 ```bash
-npm install
-```
-
-Husky runs `lint` + `typecheck` on `git commit`. Full gate (including production build):
-
-```bash
+npm run verify:quick
 npm run verify
 ```
 
-Same checks run in **GitHub Actions** on push/PR to `main` (`.github/workflows/presentations-ci.yml`).
+App-only build:
 
-### Deploy (Vercel, после push в `main`)
+```bash
+npm run build --prefix presentations-frontend
+```
 
-После успешного CI workflow выкатывает **production** через Vercel CLI. Нужно один раз:
+## Deploy
 
-1. Создать проект в [Vercel](https://vercel.com): импорт репозитория, **Root Directory** = `presentations-frontend`.
-2. В Vercel → Project → Settings → Environment Variables задать `OPENAI_API_KEY`, `PEXELS_API_KEY` (и при необходимости остальное).
-3. В GitHub → репозиторий → **Settings → Secrets and variables → Actions** добавить (это **не** то же самое, что переменные в Vercel):
-   - **`VERCEL_TOKEN`** — [Vercel → Account Settings → Tokens](https://vercel.com/account/tokens): создать токен, вставить в секрет **целиком**, без пробелов. Без него: `no-credentials-found`.
-   - **`VERCEL_PROJECT_ID`** — Vercel → твой **проект** → **Settings** → **General** → блок **Project ID** → скопировать (часто начинается с `prj_`).
-   - **`VERCEL_ORG_ID`** — это ID команды/аккаунта, к которому привязан проект:
-     - В шапке Vercel выбери **team** (или Personal team) → **Settings** (настройки команды) → **Team ID**; или
-     - локально: `cd presentations-frontend && npx vercel link`, затем из файла `.vercel/project.json` поля `projectId` → GitHub-секрет `VERCEL_PROJECT_ID`, `orgId` → **`VERCEL_ORG_ID`** (файл `.vercel/` в git не коммитить).
+The app deploys from `presentations-frontend` on Vercel.
 
-   Без любого из трёх секретов job `deploy-vercel` упадёт; CI (`verify`) по-прежнему выполнится.
+Required Vercel project settings:
 
-**Если проект в Vercel уже был привязан к старому пути `frontend/`**, в настройках проекта смените **Root Directory** на `presentations-frontend`.
+- Root Directory -> `presentations-frontend`
+- environment variables -> `OPENAI_API_KEY`, `PEXELS_API_KEY`
 
-## Docs for AI Agents
+Required GitHub Actions secrets for production deploy:
 
-| File | Purpose |
-|------|---------|
-| [AGENTS.md](AGENTS.md) | Architecture, codebase map, conventions |
-| [docs/KANBAN.md](docs/KANBAN.md) | Task board — epics, sprints, priorities |
-| [.cursor/rules/slideforge.mdc](.cursor/rules/slideforge.mdc) | Cursor agent rules |
+- `VERCEL_TOKEN`
+- `VERCEL_PROJECT_ID`
+- `VERCEL_ORG_ID`
 
-## Tech Stack
+## Agent Docs
 
-- **App:** Next.js 16, TypeScript, Tailwind v4, Shadcn/ui, Zustand (каталог `presentations-frontend/`)
-- **AI:** OpenAI GPT-4o-mini (JSON mode, SSE streaming)
-- **Export:** PptxGenJS (PPTX), Puppeteer (PDF — planned)
-- **Templates:** Sovcombank, Modern Dark, Minimal
-
-## Features
-
-- Prompt → outline → 10 slide types → visual preview
-- 3 corporate templates with brand colors
-- PPTX export
-- Real-time slide-by-slide generation with SSE streaming
+- [AGENTS.md](AGENTS.md)
+- [docs/KANBAN.md](docs/KANBAN.md)
+- [docs/CODEBASE-GRAPH.md](docs/CODEBASE-GRAPH.md)
+- [docs/STRATEGY.md](docs/STRATEGY.md)

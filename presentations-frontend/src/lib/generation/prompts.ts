@@ -1,144 +1,419 @@
-import { SlideLayoutType } from "@/types/presentation";
+import {
+  OutlineSlide,
+  Presentation,
+  PresentationBrief,
+  Slide,
+  SlideContent,
+  KPIValue,
+  SlideLayoutType,
+  SlideRegenerationIntent,
+} from "@/types/presentation";
+import {
+  DEFAULT_REGEN_INTENTS,
+  formatBriefPrompt,
+  getScenarioDefinition,
+} from "@/lib/decision-package";
 
-export const SYSTEM_PROMPT = `Ты — профессиональный дизайнер корпоративных презентаций. Твоя задача — создавать структурированные, убедительные презентации для руководителей российских компаний.
+export const SYSTEM_PROMPT = `Ты — AI chief of staff для ИТ-руководителя крупной российской компании.
 
-Правила:
-- Каждый слайд должен содержать только ключевые мысли (не стены текста)
-- Буллет-поинты: максимум 4-5 на слайд, каждый — одна идея в 1-2 строки
-- Язык: деловой русский, без канцелярита
-- Числа и факты — вместо общих фраз
-- Заголовки: ёмкие, до 6 слов`;
+Твоя задача — не делать "красивые презентации", а собирать управленческие decision packages для CEO, CFO, COO, ExCom, steering committee и инвестиционных комитетов.
+
+Ключевые правила:
+- Начинай с управленческого вывода, а не с описания темы.
+- Каждый слайд должен делать работу: информировать, объяснять, сравнивать, эскалировать, рекомендовать или подводить к решению.
+- Заголовки должны быть verdict-style: не "Статус программы", а "Программа держит результат, но сдвигает критичный milestone".
+- Не пиши нейтральный буллет-спам. Каждый пункт либо доказывает, либо объясняет, либо усиливает решение.
+- Переводи технический материал в язык бизнеса. Если нужен технический жаргон — убирай его в appendix.
+- Показывай риски честно. Не прячь слабые места.
+- Для CFO и CEO важны: последствия, деньги, trade-offs, темп, риск, ask.
+- Финальный пакет должен помогать принять решение, а не просто "ознакомиться".
+`;
+
+const ALLOWED_LAYOUTS: SlideLayoutType[] = [
+  "title",
+  "section",
+  "content",
+  "two-columns",
+  "image-text",
+  "kpi",
+  "timeline",
+];
+
+function getLayoutInstructions(layout: SlideLayoutType): string {
+  const instructions: Record<SlideLayoutType, string> = {
+    title: `Используй:
+- heading: жёсткий verdict headline
+- subheading: короткая рамка встречи или executive summary
+- speakerNotes: 2-3 фразы для открытия разговора`,
+    section: `Используй:
+- heading: verdict перехода к следующему блоку
+- subheading: зачем этот блок нужен разговору
+- speakerNotes: как связать блок с предыдущим и следующим`,
+    content: `Используй:
+- heading: verdict headline
+- body: 1 короткий абзац с business-meaning
+- bullets: 3-4 пункта, каждый — доказательство, риск или рекомендация
+- speakerNotes: что нужно проговорить устно, не повторяя текст на слайде`,
+    "two-columns": `Используй:
+- heading: verdict headline
+- leftColumn: вариант A / baseline / проблема / текущий план
+- rightColumn: вариант B / recommendation / новый план / целевое состояние
+- speakerNotes: в чём trade-off и какой вывод должен сделать руководитель`,
+    "image-text": `Используй:
+- heading: verdict headline
+- bullets: 2-3 тезиса
+- imageQuery: английский запрос для stock image только если визуал реально помогает объяснить контекст
+- speakerNotes: как визуал поддерживает управленческий тезис`,
+    kpi: `Используй:
+- heading: verdict headline
+- subheading: что означают цифры для бизнеса
+- kpiValues: 3-4 объекта { value, label, trend }
+- speakerNotes: какие цифры критичны и какой вывод из них следует`,
+    timeline: `Используй:
+- heading: verdict headline
+- timelineItems: 3-5 объектов { year, title, description } для roadmap, incident timeline или rebaseline path
+- speakerNotes: где контрольная точка, где срыв, где следующий шаг`,
+    quote: "",
+    "full-image": "",
+    "thank-you": "",
+  };
+
+  return instructions[layout];
+}
 
 export function buildOutlinePrompt(
-  topic: string,
+  brief: PresentationBrief,
   slideCount: number,
   language: string
 ): string {
-  const layouts: SlideLayoutType[] = [
-    "title",
-    "section",
-    "content",
-    "two-columns",
-    "image-text",
-    "kpi",
-    "timeline",
-    "quote",
-    "full-image",
-    "thank-you",
-  ];
+  const scenario = getScenarioDefinition(brief.scenarioId);
 
-  return `Создай структуру презентации на тему: "${topic}"
+  return `Собери decision package для сценария "${scenario.name}".
 
-Количество слайдов: ${slideCount}
+Контекст:
+${formatBriefPrompt(brief)}
+
+Дополнительная установка сценария:
+${scenario.promptSeed}
+
+Количество основных слайдов: ${slideCount}
 Язык: ${language === "ru" ? "русский" : "английский"}
 
-Доступные типы слайдов (layout):
-${layouts.map((l) => `- "${l}"`).join("\n")}
+Доступные visual layouts:
+${ALLOWED_LAYOUTS.map((layout) => `- "${layout}"`).join("\n")}
 
-Требования:
-${
-  slideCount === 1
-    ? `- Ровно один слайд: только layout "title" (заголовок презентации + подзаголовок/тезисы в keyPoints, без отдельного thank-you)`
-    : slideCount === 2
-      ? `- Ровно два слайда: первый "title", второй "thank-you"`
-      : `- Первый слайд ВСЕГДА "title"
-- Последний слайд ВСЕГДА "thank-you"
-- Используй разнообразные типы: section для разделов, content для текста, kpi для цифр, image-text для визуальных, timeline для хронологии, quote для цитат, two-columns для сравнений`
-}
-- LAYOUT DIVERSITY RULE: используй минимум 5 разных типов лейаутов
-- Не повторяй один тип лейаута 2 раза подряд
-- Тип "content" — не более 40% слайдов (максимум ${Math.floor(slideCount * 0.4)} из ${slideCount})
-- Предпочитай: mix из content, kpi, image-text, two-columns, quote, timeline
+Обязательные требования:
+- Это не generic slide deck. Это управленческий пакет для встречи с руководством.
+- Не используй layouts "quote", "full-image" и "thank-you".
+- Первый слайд должен быстро зафиксировать verdict и stakes.
+- Последний основной слайд должен быть decision-oriented: ask, recommendation или next steps.
+- Заголовок каждого слайда должен быть утверждением, а не названием темы.
+- В пакете должны появиться архетипы, релевантные сценарию: ${scenario.defaultArchetypes.join(", ")}.
+- Если в brief есть пробелы или противоречия, вытащи их отдельно в extractionFindings.
+- Дай 2-3 storyline options, чтобы пользователь мог выбрать narrative до генерации слайдов.
+- Для каждого слайда заполни meta: роль, архетип, аудитория, headlineVerdict, managementQuestion, decisionIntent, evidence, confidence, whyThisSlide, storylinePosition.
+- regenerationIntents заполняй списком из этих значений: ${DEFAULT_REGEN_INTENTS.join(", ")}.
 
-Ответь СТРОГО в формате JSON (без markdown, без \`\`\`):
+Ответь СТРОГО JSON-объектом:
 {
-  "title": "Заголовок презентации",
+  "title": "Название пакета",
+  "package": {
+    "scenarioId": "${brief.scenarioId}",
+    "audienceLabel": "Короткая формулировка аудитории",
+    "executiveSummary": "1 короткий абзац executive summary",
+    "storylineOptions": [
+      { "id": "option-a", "title": "Название storyline", "rationale": "Почему этот narrative сильный" }
+    ],
+    "extractionFindings": [
+      { "label": "Короткий ярлык", "severity": "info|warning|critical", "detail": "Что здесь не хватает или конфликтует" }
+    ],
+    "followUpQuestions": ["Вопрос 1", "Вопрос 2"],
+    "appendixSummary": ["Что стоит вынести в appendix"]
+  },
   "slides": [
     {
-      "title": "Заголовок слайда",
-      "layout": "title",
-      "keyPoints": ["ключевая мысль 1", "ключевая мысль 2"],
-      "speakerNotes": "Заметки для выступающего"
+      "title": "Verdict headline",
+      "layout": "content",
+      "keyPoints": ["Тезис 1", "Тезис 2", "Тезис 3"],
+      "speakerNotes": "Что проговорить устно",
+      "meta": {
+        "role": "recommend",
+        "archetype": "decision-slide",
+        "audience": "CFO",
+        "headlineVerdict": "Жёсткий headline",
+        "managementQuestion": "Какой вопрос этот слайд закрывает",
+        "decisionIntent": "Какое решение он двигает",
+        "evidence": ["Доказательство 1", "Доказательство 2"],
+        "confidence": "medium",
+        "whyThisSlide": "Зачем этот слайд в истории",
+        "storylinePosition": "контекст -> статус -> риск -> решение",
+        "regenerationIntents": ["strengthen-verdict", "rewrite-for-cfo"]
+      }
     }
   ]
 }`;
 }
 
 export function buildSlideContentPrompt(
-  slideTitle: string,
-  layout: SlideLayoutType,
-  keyPoints: string[] | undefined,
+  slide: OutlineSlide,
+  brief: PresentationBrief,
   presentationTitle: string,
   slideIndex: number,
-  totalSlides: number
+  totalSlides: number,
+  selectedStoryline?: string
 ): string {
-  const layoutInstructions: Record<string, string> = {
-    title: `Это титульный слайд. Заполни:
-- heading: мощный заголовок презентации (до 8 слов)
-- subheading: подзаголовок/описание (до 15 слов)
-- speakerNotes: 2-3 предложения для выступающего, что сказать устно`,
+  const meta = slide.meta;
 
-    section: `Это разделитель секции. Заполни:
-- heading: название раздела (до 5 слов)
-- subheading: краткое описание раздела (до 12 слов)
-- speakerNotes: 1-2 предложения, как подвести аудиторию к новому разделу`,
+  return `Пакет: "${presentationTitle}"
+Сценарий: ${getScenarioDefinition(brief.scenarioId).name}
+Слайд ${slideIndex + 1} из ${totalSlides}
+Выбранный storyline: ${selectedStoryline || "не указан"}
 
-    content: `Это слайд с контентом. Заполни:
-- heading: заголовок (до 6 слов)
-- bullets: массив из 3-5 ключевых пунктов (каждый до 15 слов)
-- body: опционально — вступительное предложение
-- speakerNotes: 2-3 предложения для спикера с акцентом на главный вывод`,
+Контекст brief:
+${formatBriefPrompt(brief)}
 
-    "two-columns": `Это слайд с двумя колонками. Заполни:
-- heading: заголовок сравнения (до 6 слов)
-- leftColumn: { heading: "Название левой", bullets: ["пункт 1", "пункт 2", "пункт 3"] }
-- rightColumn: { heading: "Название правой", bullets: ["пункт 1", "пункт 2", "пункт 3"] }
-- speakerNotes: 2-3 предложения, как проговорить сравнение и вывод`,
+Заготовка слайда:
+- title: ${slide.title}
+- layout: ${slide.layout}
+- keyPoints: ${slide.keyPoints?.join("; ") || "нет"}
+- speakerNotes: ${slide.speakerNotes || "нет"}
+- role: ${meta?.role || "inform"}
+- archetype: ${meta?.archetype || "headline-verdict"}
+- audience: ${meta?.audience || brief.audience}
+- headlineVerdict: ${meta?.headlineVerdict || slide.title}
+- managementQuestion: ${meta?.managementQuestion || "Не указан"}
+- decisionIntent: ${meta?.decisionIntent || "Не указан"}
+- evidence: ${meta?.evidence?.join("; ") || "нет"}
+- whyThisSlide: ${meta?.whyThisSlide || "Не указан"}
 
-    "image-text": `Это слайд с изображением и текстом. Заполни:
-- heading: заголовок (до 6 слов)
-- bullets: 2-4 ключевых пункта
-- imageQuery: описание нужного изображения на АНГЛИЙСКОМ для стокового поиска (например "business team meeting office")
-- speakerNotes: 2-3 предложения, как связать визуал с тезисами`,
+${getLayoutInstructions(slide.layout)}
 
-    kpi: `Это слайд с ключевыми показателями. Заполни:
-- heading: заголовок (до 6 слов)
-- kpiValues: массив из 3-4 объектов { value: "число/метрика", label: "подпись", trend: "up"|"down"|"neutral" }
-Используй реалистичные бизнес-метрики.
-- speakerNotes: 2-3 предложения, как интерпретировать цифры и какой вывод из них сделать`,
+Дополнительные правила:
+- heading должен совпадать по смыслу с headlineVerdict и быть жёстким.
+- body и bullets должны говорить на языке бизнеса и управления.
+- Не делай нейтральных пунктов вида "повысить эффективность" без доказательств.
+- Если layout = kpi, под цифрами обязательно должна читаться управленческая интерпретация.
+- Если layout = timeline, используй это как incident timeline, roadmap или rebaseline path, а не как декоративную историю.
+- speakerNotes должны помогать защищать позицию на встрече.
 
-    timeline: `Это слайд с хронологией. Заполни:
-- heading: заголовок (до 6 слов)
-- timelineItems: массив из 3-5 объектов { year: "2024", title: "Событие", description: "Краткое описание" }
-- speakerNotes: 2-3 предложения, как провести аудиторию по этапам`,
+Ответь только JSON-объектом. Верни только поля контента для layout и опционально "speakerNotes".`;
+}
 
-    quote: `Это слайд с цитатой. Заполни:
-- quoteText: вдохновляющая или релевантная цитата (1-2 предложения)
-- quoteAuthor: автор цитаты
-- quoteRole: должность/роль автора
-- speakerNotes: 1-2 предложения, зачем эта цитата здесь и как она поддерживает narrative`,
-
-    "full-image": `Это визуальный слайд с изображением на весь фон. Заполни:
-- heading: мощный заголовок (до 6 слов)
-- subheading: пояснение (до 12 слов)
-- imageQuery: описание фонового изображения на АНГЛИЙСКОМ (например "modern city skyline sunset")
-- speakerNotes: 2-3 предложения с эмоциональной подводкой и выводом`,
-
-    "thank-you": `Это финальный слайд. Заполни:
-- heading: "Спасибо!" или подходящий финальный заголовок
-- contactEmail: email (придумай реалистичный)
-- contactPhone: телефон
-- contactWebsite: сайт
-- speakerNotes: 1-2 предложения для финального call to action`,
+export function buildSlideRegenerationPrompt(
+  slide: Slide,
+  presentation: Presentation,
+  brief: PresentationBrief,
+  intent: SlideRegenerationIntent,
+  previousSlide?: Slide,
+  nextSlide?: Slide
+): string {
+  const intentDescriptions: Record<SlideRegenerationIntent, string> = {
+    tighten: "Сделай формулировки жёстче и собраннее без потери смысла.",
+    "shorten-for-execs":
+      "Сократи слайд для CEO/CFO: меньше текста, быстрее считываемый вывод.",
+    "rewrite-for-cfo":
+      "Перепиши под CFO: деньги, trade-offs, downside, управленческие последствия.",
+    "remove-jargon":
+      "Убери технарский жаргон и оставь бизнес-понятные формулировки.",
+    "add-business-impact":
+      "Добавь бизнес-эффект: деньги, риск, скорость, SLA, репутация, последствия.",
+    "make-risk-clearer":
+      "Сделай риск явнее: в чём impact, вероятность, цена бездействия, кто владелец.",
+    "strengthen-evidence":
+      "Усиль доказательность: убери общие слова, добавь конкретные аргументы и логику.",
+    "offer-structure-alternatives":
+      "Сделай контент альтернативным и более сильным по структуре, но сохрани тот же layout.",
+    "turn-into-decision-slide":
+      "Сделай слайд decision-oriented: чёткий ask, recommendation и consequence of no-decision.",
+    "strengthen-verdict":
+      "Сделай headline более жёстким, однозначным и управленчески сильным.",
   };
 
-  return `Презентация: "${presentationTitle}"
-Слайд ${slideIndex + 1} из ${totalSlides}: "${slideTitle}"
-Тип слайда: ${layout}
+  return `Ты обновляешь один слайд внутри decision package, не ломая соседние выводы.
 
-${keyPoints?.length ? `Ключевые мысли: ${keyPoints.join("; ")}` : ""}
+Контекст пакета:
+- title: ${presentation.title}
+- scenario: ${getScenarioDefinition(brief.scenarioId).name}
+- audience: ${brief.audience}
+- main thesis: ${brief.mainThesis}
+- leadership ask: ${brief.leadershipAsk}
 
-${layoutInstructions[layout] || layoutInstructions.content}
+Предыдущий слайд:
+${previousSlide ? `${previousSlide.content.heading || previousSlide.meta?.headlineVerdict || previousSlide.layout}` : "нет"}
 
-Ответь СТРОГО в формате JSON (без markdown, без \`\`\`). Верни ТОЛЬКО поля, указанные выше. speakerNotes должны быть полезны спикеру и не дублировать дословно текст на слайде.`;
+Текущий слайд:
+${JSON.stringify(slide, null, 2)}
+
+Следующий слайд:
+${nextSlide ? `${nextSlide.content.heading || nextSlide.meta?.headlineVerdict || nextSlide.layout}` : "нет"}
+
+Намерение перегенерации:
+${intentDescriptions[intent]}
+
+Правила:
+- Сохрани layout: ${slide.layout}.
+- Сохрани роль слайда: ${slide.meta?.role || "inform"}.
+- Сохрани место слайда в storyline.
+- Обнови heading/body/bullets/kpiValues/timelineItems только в пределах нужного намерения.
+- Если нужно, уточни notes и meta.headlineVerdict, но не меняй archetype без крайней необходимости.
+- Не превращай слайд в generic bullets.
+
+Ответь только JSON:
+{
+  "content": { ... },
+  "notes": "speaker notes",
+  "meta": {
+    "headlineVerdict": "обновлённый verdict",
+    "whyThisSlide": "обновлённое объяснение при необходимости",
+    "evidence": ["..."]
+  }
+}`;
+}
+
+export function mergeSlideMeta(
+  original: Slide["meta"],
+  updates?: Partial<NonNullable<Slide["meta"]>>
+): Slide["meta"] {
+  if (!original && !updates) return undefined;
+
+  return {
+    role: original?.role ?? "inform",
+    archetype: original?.archetype ?? "headline-verdict",
+    audience: updates?.audience ?? original?.audience ?? "",
+    headlineVerdict:
+      updates?.headlineVerdict ?? original?.headlineVerdict ?? "",
+    managementQuestion:
+      updates?.managementQuestion ?? original?.managementQuestion ?? "",
+    decisionIntent: updates?.decisionIntent ?? original?.decisionIntent ?? "",
+    evidence: updates?.evidence ?? original?.evidence ?? [],
+    confidence: updates?.confidence ?? original?.confidence ?? "medium",
+    whyThisSlide: updates?.whyThisSlide ?? original?.whyThisSlide ?? "",
+    storylinePosition:
+      updates?.storylinePosition ?? original?.storylinePosition ?? "",
+    regenerationIntents:
+      updates?.regenerationIntents ??
+      original?.regenerationIntents ??
+      DEFAULT_REGEN_INTENTS,
+  };
+}
+
+export function normalizeGeneratedContent(
+  layout: SlideLayoutType,
+  raw: Record<string, unknown>,
+  fallbackHeading: string
+): SlideContent & { speakerNotes?: string } {
+  const speakerNotes =
+    typeof raw.speakerNotes === "string" ? raw.speakerNotes.trim() : undefined;
+
+  const content: SlideContent = {
+    heading:
+      typeof raw.heading === "string" && raw.heading.trim()
+        ? raw.heading.trim()
+        : fallbackHeading,
+    subheading:
+      typeof raw.subheading === "string" ? raw.subheading.trim() : undefined,
+    body: typeof raw.body === "string" ? raw.body.trim() : undefined,
+    bullets: Array.isArray(raw.bullets)
+      ? raw.bullets
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .slice(0, 4)
+      : undefined,
+    imageQuery:
+      typeof raw.imageQuery === "string" ? raw.imageQuery.trim() : undefined,
+    quoteText:
+      typeof raw.quoteText === "string" ? raw.quoteText.trim() : undefined,
+    quoteAuthor:
+      typeof raw.quoteAuthor === "string" ? raw.quoteAuthor.trim() : undefined,
+    quoteRole:
+      typeof raw.quoteRole === "string" ? raw.quoteRole.trim() : undefined,
+    contactEmail:
+      typeof raw.contactEmail === "string"
+        ? raw.contactEmail.trim()
+        : undefined,
+    contactPhone:
+      typeof raw.contactPhone === "string"
+        ? raw.contactPhone.trim()
+        : undefined,
+    contactWebsite:
+      typeof raw.contactWebsite === "string"
+        ? raw.contactWebsite.trim()
+        : undefined,
+    leftColumn:
+      raw.leftColumn && typeof raw.leftColumn === "object"
+        ? {
+            heading:
+              typeof (raw.leftColumn as { heading?: unknown }).heading ===
+              "string"
+                ? (raw.leftColumn as { heading: string }).heading.trim()
+                : undefined,
+            bullets: Array.isArray(
+              (raw.leftColumn as { bullets?: unknown[] }).bullets
+            )
+              ? (
+                  (raw.leftColumn as { bullets: unknown[] }).bullets as unknown[]
+                )
+                  .filter((item): item is string => typeof item === "string")
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                  .slice(0, 4)
+              : undefined,
+          }
+        : undefined,
+    rightColumn:
+      raw.rightColumn && typeof raw.rightColumn === "object"
+        ? {
+            heading:
+              typeof (raw.rightColumn as { heading?: unknown }).heading ===
+              "string"
+                ? (raw.rightColumn as { heading: string }).heading.trim()
+                : undefined,
+            bullets: Array.isArray(
+              (raw.rightColumn as { bullets?: unknown[] }).bullets
+            )
+              ? (
+                  (raw.rightColumn as { bullets: unknown[] }).bullets as unknown[]
+                )
+                  .filter((item): item is string => typeof item === "string")
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                  .slice(0, 4)
+              : undefined,
+          }
+        : undefined,
+    kpiValues: Array.isArray(raw.kpiValues)
+      ? raw.kpiValues
+        .filter(
+          (item): item is { value?: string; label?: string; trend?: string } =>
+            typeof item === "object" && item !== null
+        )
+        .map((item): KPIValue => ({
+          value: item.value?.trim() || "",
+          label: item.label?.trim() || "",
+          trend:
+              item.trend === "up" || item.trend === "down" || item.trend === "neutral"
+                ? item.trend
+                : undefined,
+          }))
+          .filter((item) => item.value && item.label)
+          .slice(0, 4)
+      : undefined,
+    timelineItems: Array.isArray(raw.timelineItems)
+      ? raw.timelineItems
+          .filter(
+            (item): item is { year?: string; title?: string; description?: string } =>
+              typeof item === "object" && item !== null
+          )
+          .map((item) => ({
+            year: item.year?.trim() || "",
+            title: item.title?.trim() || "",
+            description: item.description?.trim() || undefined,
+          }))
+          .filter((item) => item.year && item.title)
+          .slice(0, layout === "timeline" ? 5 : 4)
+      : undefined,
+  };
+
+  return { ...content, speakerNotes };
 }
