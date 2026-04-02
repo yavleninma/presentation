@@ -14,10 +14,10 @@ interface PresentationState {
   outline: PresentationOutline | null;
   error: string | null;
 
-  setPresentation: (p: Presentation) => void;
+  setPresentation: (p: Presentation | null) => void;
   setCurrentSlide: (index: number) => void;
   setPhase: (phase: GenerationPhase) => void;
-  setOutline: (outline: PresentationOutline) => void;
+  setOutline: (outline: PresentationOutline | null) => void;
   setError: (error: string | null) => void;
 
   updateSlide: (slideId: string, updates: Partial<Slide>) => void;

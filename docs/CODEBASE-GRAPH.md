@@ -11,6 +11,9 @@
 .cursor/rules/eng.mdc        -> short alias for Engineer (`@eng`)
 .cursor/rules/strategist.mdc -> main Strategist role
 .cursor/rules/strat.mdc      -> short alias for Strategist (`@strat`)
+docs/STRATEGY.md             -> positioning, moat, commercialization boundary decisions
+docs/KANBAN.md               -> roadmap and priority queue, including collaboration-safe packaging
+AGENTS.md                    -> repo context + operational sharing guardrails
 ```
 
 ## Module Dependency Flow
@@ -57,34 +60,54 @@
 ```
 Store exposes: presentation, currentSlideIndex, phase
 Store mutators: setPresentation, setCurrentSlide, appendSlide, updateSlideContent, updateSlide, removeSlide, addSlide, resetPresentation
+Generation flow: page.tsx seeds an empty draft presentation before calling generatePresentation(),
+so appendSlide() can hydrate the UI immediately from incoming SSE slide events.
 ```
 
 ### page.tsx ↔ client.ts
 ```
 generatePresentation(topic, options, callbacks)
-  callbacks: onPhase, onOutline, onSlide, onComplete, onError
+  callbacks: onPhase, onOutline, onStatus, onSlide, onComplete, onError
 ```
 
 ### Known Product Gaps In Current Wiring
 ```
-client.ts already emits outline events, but page.tsx leaves onOutline as a reserved no-op,
-so the outline stage is not yet visible as a real approval step in the UI.
+EPIC-15 wiring is now live end-to-end: page.tsx seeds a draft presentation, renders
+outline review, consumes status events, and auto-follows new slides while generation is in flight.
 
-presentation-store.ts appendSlide() only mutates when presentation already exists.
-page.tsx resets presentation to null before generation and waits for onComplete(presentation),
-so slide SSE events do not currently create a true live slide-by-slide preview.
+The remaining outline gap is product-level, not transport-level: the UI now shows the outline,
+but there are still no approval controls to edit/reorder slides before generation continues.
 
 template files expose template.fonts for browser rendering, but pptx-export.ts still hardcodes Arial,
 so template differentiation and preview/export parity break at the export boundary.
 
-page.tsx still defaults to the Sovcombank template and a bank-flavored placeholder,
-which lowers perceived universality before the first generation even starts.
+UI defaults already point to `minimal`, but client.ts and /api/generate still fall back to `sovcombank`
+when templateId is omitted, so template defaults are not yet fully synchronized across UI / client / server.
+
+The repo is still effectively a single app tree, so there is no clean architectural split yet
+between personal product IP (`Private Core`) and any employer-safe `Shared Wrapper`.
+If code-sharing becomes necessary, a separate boundary layer should be introduced before access is granted.
+```
+
+### Recommended Future Split (strategic, not implemented yet)
+```
+[Private Core]
+  prompts, generation orchestration, template logic, export fidelity, internal docs/evals
+          |
+          v
+[Shared Wrapper]
+  UI shell, adapter contracts, employer-specific branding/integrations, deploy glue
+          |
+          v
+[Work Edition]
+  hosted pilot, sanitized repo, or packaged runnable build for external collaboration
 ```
 
 ### client.ts ↔ /api/generate (SSE protocol)
 ```
 Request:  POST { topic, slideCount, language, templateId }
-Response: SSE stream of lines:  data: {"event": "phase|outline|slide|presentation|error", "data": ...}
+Response: SSE stream of lines:
+  data: {"event": "phase|thinking|researching|outline|slide_start|image_search|slide|polishing|presentation|error", "data": ...}
 ```
 
 ### SlideRenderer ↔ Slide Components
@@ -111,20 +134,24 @@ ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent,
 
 | File | Lines | When to read |
 |------|-------|--------------|
-| types/presentation.ts | 107 | Always — defines all types |
-| page.tsx | 587 | When editing main UI |
-| SlideRenderer.tsx | 188 | When adding slide types or fixing rendering |
-| editor/EditableText.tsx | 62 | When fixing inline editing |
-| prompts.ts | 112 | When changing AI output format |
-| route.ts (generate) | 145 | When changing generation pipeline |
-| route.ts (images) | 18 | When changing image search API |
-| pexels.ts | 68 | When changing image provider |
-| pptx-export.ts | 562 | When fixing PPTX export |
-| presentation-store.ts | 123 | When adding state/actions |
-| templates/index.ts | 19 | When registering or reordering templates |
+| types/presentation.ts | 137 | Always — defines all types |
+| page.tsx | 1184 | When editing main UI |
+| SlideRenderer.tsx | 199 | When adding slide types or fixing rendering |
+| editor/EditableText.tsx | 69 | When fixing inline editing |
+| prompts.ts | 144 | When changing AI output format |
+| route.ts (generate) | 312 | When changing generation pipeline |
+| route.ts (images) | 22 | When changing image search API |
+| pexels.ts | 78 | When changing image provider |
+| pptx-export.ts | 581 | When fixing PPTX export |
+| presentation-store.ts | 135 | When adding state/actions |
+| templates/index.ts | 22 | When registering or reordering templates |
 | templates/*.ts | 30-31 | When editing template colors, fonts, spacing |
-| client.ts | 79 | When changing SSE parsing |
+| client.ts | 106 | When changing SSE parsing |
 | Individual slide .tsx | 40-110 | When fixing specific slide layout |
+| AGENTS.md | 265 | When you need repo context, role rules, or sharing guardrails |
+| docs/KANBAN.md | 181 | When choosing the next priority or updating task status |
+| docs/STRATEGY.md | 134 | When checking positioning, moat, or collaboration decisions |
+| docs/CODEBASE-GRAPH.md | 176 | When orienting in the codebase or updating module boundaries |
 
 ## CI and local checks
 

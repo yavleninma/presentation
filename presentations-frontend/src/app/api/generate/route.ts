@@ -6,13 +6,102 @@ import {
   SYSTEM_PROMPT,
 } from "@/lib/generation/prompts";
 import { searchSingleImage } from "@/lib/images/pexels";
-import { SlideLayoutType } from "@/types/presentation";
+import { SlideContent, SlideLayoutType } from "@/types/presentation";
 
 export const maxDuration = 60;
 
 const MIN_SLIDES = 1;
 const MAX_SLIDES = 10;
 const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type RawOutlineSlide = {
+  title?: string;
+  layout?: SlideLayoutType;
+  keyPoints?: string[];
+  speakerNotes?: string;
+};
+
+function normalizeOutlineSlides(
+  rawSlides: RawOutlineSlide[],
+  slideCount: number
+): Array<{
+  title: string;
+  layout: SlideLayoutType;
+  keyPoints?: string[];
+  speakerNotes?: string;
+}> {
+  const validSlides = rawSlides
+    .filter((slide): slide is Required<Pick<RawOutlineSlide, "title" | "layout">> & RawOutlineSlide =>
+      typeof slide?.title === "string" &&
+      slide.title.trim().length > 0 &&
+      typeof slide?.layout === "string"
+    )
+    .map((slide) => ({
+      title: slide.title.trim(),
+      layout: slide.layout,
+      keyPoints: slide.keyPoints?.filter(Boolean).slice(0, 4),
+      speakerNotes: slide.speakerNotes?.trim(),
+    }));
+
+  if (slideCount <= 1) {
+    const first = validSlides[0];
+    return [
+      {
+        title: first?.title || "Ключевой вывод",
+        layout: "title",
+        keyPoints: first?.keyPoints,
+        speakerNotes: first?.speakerNotes,
+      },
+    ];
+  }
+
+  const thankYouSlide = validSlides.findLast((slide) => slide.layout === "thank-you");
+  const bodySlides = validSlides.filter((slide) => slide.layout !== "thank-you");
+  const normalized = bodySlides.slice(0, Math.max(slideCount - 1, 1));
+
+  if (!normalized.length) {
+    normalized.push({
+      title: "Главный вывод",
+      layout: "title",
+      keyPoints: ["Кратко зафиксируйте главную мысль презентации"],
+      speakerNotes: "Коротко задайте контекст и объясните, зачем аудитории этот материал.",
+    });
+  }
+
+  normalized[0] = {
+    ...normalized[0],
+    layout: "title",
+  };
+
+  while (normalized.length < slideCount - 1) {
+    const index = normalized.length + 1;
+    normalized.push({
+      title: `Вывод ${index}`,
+      layout: index % 2 === 0 ? "content" : "section",
+      keyPoints: [
+        "Соберите один важный аргумент в пользу следующего шага",
+        "Зафиксируйте ожидаемый эффект для бизнеса",
+      ],
+      speakerNotes:
+        "Кратко свяжите этот слайд с общей логикой презентации и обозначьте переход к следующему блоку.",
+    });
+  }
+
+  return [
+    ...normalized.slice(0, slideCount - 1),
+    thankYouSlide || {
+      title: "Спасибо!",
+      layout: "thank-you",
+      keyPoints: ["Подведите итог и обозначьте следующий шаг"],
+      speakerNotes:
+        "Закройте презентацию коротким summary и пригласите аудиторию к следующему действию.",
+    },
+  ];
+}
 
 function clampSlideCount(raw: unknown): number {
   const n = typeof raw === "number" ? raw : Number(raw);
@@ -68,7 +157,17 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          send("phase", "outline");
+          send("phase", "outline-review");
+          send("thinking", {
+            message: "Анализирую запрос и собираю narrative презентации",
+            detail: "Определяю структуру, плотность контента и баланс между текстом и визуалом.",
+            progress: 6,
+          });
+          send("researching", {
+            message: "Готовлю план и ключевые тезисы",
+            detail: "Собираю outline, секции и speaker notes для будущих слайдов.",
+            progress: 14,
+          });
 
           const outlinePrompt = buildOutlinePrompt(topic, slideCount, language);
           const outlineData = await generateJSON(
@@ -77,20 +176,38 @@ export async function POST(request: NextRequest) {
             outlinePrompt
           );
 
-          send("outline", outlineData);
-          send("phase", "generating");
-
-          const outlineSlides = (outlineData.slides as Array<{
-            title: string;
-            layout: SlideLayoutType;
-            keyPoints?: string[];
-          }>) ?? [];
-
+          const outlineSlides = normalizeOutlineSlides(
+            (outlineData.slides as RawOutlineSlide[]) ?? [],
+            slideCount
+          );
           const presentationTitle = (outlineData.title as string) ?? topic;
+          const normalizedOutline = {
+            title: presentationTitle,
+            slides: outlineSlides,
+          };
+
+          send("outline", normalizedOutline);
           const slides = [];
+
+          send("researching", {
+            message: "План готов — начинаю собирать слайды по одному",
+            detail: `${outlineSlides.length} слайдов, ${new Set(outlineSlides.map((slide) => slide.layout)).size} типов layout.`,
+            progress: 22,
+          });
 
           for (let i = 0; i < outlineSlides.length; i++) {
             const os = outlineSlides[i];
+            const progress = Math.round(24 + (i / Math.max(outlineSlides.length, 1)) * 66);
+
+            send("phase", "generating");
+            send("slide_start", {
+              message: `Генерирую слайд ${i + 1} из ${outlineSlides.length}`,
+              detail: `«${os.title}»`,
+              progress,
+              slideIndex: i + 1,
+              totalSlides: outlineSlides.length,
+              slideTitle: os.title,
+            });
 
             const slidePrompt = buildSlideContentPrompt(
               os.title,
@@ -107,13 +224,27 @@ export async function POST(request: NextRequest) {
               slidePrompt
             );
 
-            const imageQuery = slideContent.imageQuery as string | undefined;
-            if (imageQuery && !slideContent.imageUrl) {
+            const {
+              speakerNotes,
+              ...contentFields
+            } = slideContent as SlideContent & { speakerNotes?: string };
+            const normalizedContent = contentFields as SlideContent;
+
+            const imageQuery = normalizedContent.imageQuery;
+            if (imageQuery && !normalizedContent.imageUrl) {
               const size =
                 os.layout === "full-image" ? "large2x" : "landscape";
+              send("image_search", {
+                message: `Подбираю визуал для слайда ${i + 1}`,
+                detail: `Поисковый запрос: ${imageQuery}`,
+                progress: Math.min(progress + 6, 92),
+                slideIndex: i + 1,
+                totalSlides: outlineSlides.length,
+                slideTitle: os.title,
+              });
               const imageUrl = await searchSingleImage(imageQuery, size);
               if (imageUrl) {
-                slideContent.imageUrl = imageUrl;
+                normalizedContent.imageUrl = imageUrl;
               }
             }
 
@@ -121,13 +252,25 @@ export async function POST(request: NextRequest) {
               id: crypto.randomUUID(),
               order: i,
               layout: os.layout,
-              content: slideContent,
-              notes: os.keyPoints?.join("; ") ?? "",
+              content: normalizedContent,
+              notes:
+                speakerNotes?.trim() ||
+                os.speakerNotes?.trim() ||
+                os.keyPoints?.join("; ") ||
+                "",
             };
 
             slides.push(slide);
             send("slide", slide);
           }
+
+          send("phase", "polishing");
+          send("polishing", {
+            message: "Финализирую презентацию",
+            detail: "Проверяю notes, изображения и общую консистентность стиля перед выдачей.",
+            progress: 96,
+          });
+          await sleep(450);
 
           const presentation = {
             id: crypto.randomUUID(),
