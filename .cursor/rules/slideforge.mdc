@@ -1,6 +1,6 @@
 ---
 description: SlideForge project conventions and architecture context
-globs: ["frontend/**/*.ts", "frontend/**/*.tsx"]
+globs: ["presentations-frontend/**/*.ts", "presentations-frontend/**/*.tsx"]
 alwaysApply: true
 ---
 
@@ -24,8 +24,8 @@ This is not optional. Outdated docs waste tokens and cause bugs for the next age
 
 ## Architecture (quick ref)
 
-- **Monorepo root:** `/presentation/`
-- **App:** `/frontend/` — Next.js 16 App Router
+- **Monorepo root:** `/presentation/` (npm: `slideforge-presentations`)
+- **App:** `/presentations-frontend/` — Next.js 16 App Router; UI + API routes in one app (npm: `slideforge-presentations-web`)
 - **Slides render at 1280×720**, scaled via CSS `transform: scale()`
 - **State:** Zustand store at `lib/store/presentation-store.ts`
 - **Generation:** SSE stream from `/api/generate` route
@@ -52,14 +52,14 @@ This is not optional. Outdated docs waste tokens and cause bugs for the next age
 ## Running the project
 
 ```bash
-cd frontend
+cd presentations-frontend
 npm run dev  # → http://localhost:3000
 ```
 
-Requires `OPENAI_API_KEY` in `frontend/.env.local`.
+Requires `OPENAI_API_KEY` in `presentations-frontend/.env.local`.
 
 ## Quality checks
 
 - **Pre-commit (repo root):** after `npm install` at root, Husky runs `npm run verify:quick` (eslint + tsc).
-- **Before push / in CI:** `npm run verify` from root or `cd frontend && npm run verify` (adds `next build`).
-- ESLint: `eslint . --max-warnings 0` in `frontend/`.
+- **Before push / in CI:** `npm run verify` from root or `cd presentations-frontend && npm run verify` (adds `next build`).
+- ESLint: `eslint . --max-warnings 0` in `presentations-frontend/`.

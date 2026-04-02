@@ -92,9 +92,9 @@ ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent,
 
 ## CI and local checks
 
-- **Root:** `npm run verify` → `frontend`: `lint` + `typecheck` + `build`
+- **Root:** `npm run verify` → `presentations-frontend`: `lint` + `typecheck` + `build`
 - **Pre-commit:** `.husky/pre-commit` → `verify:quick` (lint + typecheck, без build)
-- **GitHub:** `.github/workflows/frontend-ci.yml` on push/PR to `main`
+- **GitHub:** `.github/workflows/presentations-ci.yml` — verify on push/PR to `main`; production deploy to Vercel on push to `main` (requires `VERCEL_*` secrets)
 
 ### New slide type
 1. Add to `SlideLayoutType` union in `types/presentation.ts`

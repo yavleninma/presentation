@@ -8,16 +8,22 @@ SlideForge — SaaS-генератор презентаций для росси�
 Первый клиент — Совкомбанк (корпоративный шаблон встроен). Цель — продукт для малого/среднего бизнеса с подпиской.
 
 **Стек:** Next.js 16 (App Router) + TypeScript + Tailwind v4 + Shadcn/ui + Zustand + OpenAI API + PptxGenJS.
-**Бэкенд пока не нужен** — всё через Next.js API routes (`/api/generate`).
+
+### Where the “backend” runs
+
+There is **no separate backend repo or long‑running server process**. Server logic lives in **Next.js Route Handlers** under `presentations-frontend/src/app/api/**/route.ts` (e.g. `/api/generate`, `/api/images/search`).
+
+- **Local:** `cd presentations-frontend && npm run dev` — one Node process serves the UI and executes API routes on demand.
+- **Production (e.g. Vercel):** the same app deploys as **Serverless Functions** (or the platform’s equivalent) for those routes; the browser still talks to the same origin (`/api/...`).
 
 ## Repository layout (root)
 
 ```
-presentation/
-├── package.json              # Husky prepare; scripts: verify, lint (delegates to frontend)
+presentation/                          # npm package: slideforge-presentations
+├── package.json              # Husky prepare; scripts delegate to presentations-frontend
 ├── .husky/pre-commit         # Runs npm run verify:quick (eslint + tsc)
-├── .github/workflows/        # CI: lint + typecheck + build on main
-├── frontend/                 # Next.js app (see below)
+├── .github/workflows/presentations-ci.yml  # CI + Vercel deploy on push to main (see README)
+├── presentations-frontend/   # Next.js app: UI + API routes (npm: slideforge-presentations-web)
 ├── docs/
 └── AGENTS.md
 ```
@@ -27,13 +33,13 @@ presentation/
 ```
 User enters prompt
        ↓
-[Next.js API route: /api/generate]
+[Next.js API route: /api/generate]  (same app as UI)
        ↓
 OpenAI GPT-4o-mini (JSON mode)
   1. Generate outline (slide titles + layouts)
   2. For each slide → generate content JSON
        ↓
-SSE stream → frontend
+SSE stream → browser (React app)
        ↓
 [Zustand store] → [SlideRenderer] → visual preview
        ↓
@@ -43,7 +49,7 @@ Export: PptxGenJS (PPTX) / Puppeteer (PDF, TODO)
 ## Codebase Map
 
 ```
-frontend/
+presentations-frontend/
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx              # Main UI: prompt input + presentation viewer
@@ -110,7 +116,7 @@ Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx
 
 ## Conventions
 
-- **Quality gate:** Before pushing, run `npm run verify` from repo root (or `cd frontend && npm run verify`). Pre-commit hook runs `verify:quick` (lint + typecheck only). CI runs full `verify` on `main`.
+- **Quality gate:** Before pushing, run `npm run verify` from repo root (or `cd presentations-frontend && npm run verify`). Pre-commit hook runs `verify:quick` (lint + typecheck only). CI runs full `verify` on `main`.
 - **Language:** Russian for UI text and generated content. Code/comments in English.
 - **Styling:** All slides use inline `style={{ color: c.foreground }}` — NOT Tailwind color classes. This is intentional because colors come from the dynamic template object.
 - **Tailwind v4:** Uses `@theme inline {}` syntax. No `tailwind.config.js`.
@@ -121,9 +127,9 @@ Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx
 ## Environment
 
 - Node 20+, npm
-- `cd frontend && npm run dev` → http://localhost:3000
-- `.env.local` must have `OPENAI_API_KEY` and `PEXELS_API_KEY` (get free key at pexels.com/api)
-- From repo root: `npm install` once (enables Husky); frontend deps still via `cd frontend && npm install`
+- `cd presentations-frontend && npm run dev` → http://localhost:3000
+- `presentations-frontend/.env.local` must have `OPENAI_API_KEY` and `PEXELS_API_KEY` (get free key at pexels.com/api)
+- From repo root: `npm install` once (enables Husky); app deps via `cd presentations-frontend && npm install`
 
 ## What's Working
 
