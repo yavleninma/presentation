@@ -19,8 +19,8 @@ export const minimal: PresentationTemplate = {
     surfaceForeground: "#27272A",
   },
   fonts: {
-    heading: "'Inter', sans-serif",
-    body: "'Inter', sans-serif",
+    heading: "var(--font-bricolage-grotesque), sans-serif",
+    body: "var(--font-sans), sans-serif",
     mono: "'Geist Mono', monospace",
   },
   spacing: {

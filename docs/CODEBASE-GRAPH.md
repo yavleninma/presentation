@@ -34,12 +34,12 @@
     │
     └──reads──→ [templates/index.ts]
                       │
-                      ├──imports──→ [sovcombank.ts]
-                      ├──imports──→ [modern-dark.ts]
                       ├──imports──→ [minimal.ts]
-                      ├──imports──→ [startup.ts]       (TODO: EPIC-17)
-                      ├──imports──→ [consulting.ts]    (TODO: EPIC-17)
-                      └──imports──→ [tech.ts]          (TODO: EPIC-17)
+                      ├──imports──→ [modern-dark.ts]
+                      ├──imports──→ [sovcombank.ts]
+                      ├──imports──→ [startup.ts]
+                      ├──imports──→ [consulting.ts]
+                      └──imports──→ [tech.ts]
 ```
 
 ## Key Interfaces Between Modules

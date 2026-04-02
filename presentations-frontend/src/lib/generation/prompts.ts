@@ -45,7 +45,10 @@ ${
 - Последний слайд ВСЕГДА "thank-you"
 - Используй разнообразные типы: section для разделов, content для текста, kpi для цифр, image-text для визуальных, timeline для хронологии, quote для цитат, two-columns для сравнений`
 }
-- Не повторяй один тип подряд (кроме content)
+- LAYOUT DIVERSITY RULE: используй минимум 5 разных типов лейаутов
+- Не повторяй один тип лейаута 2 раза подряд
+- Тип "content" — не более 40% слайдов (максимум ${Math.floor(slideCount * 0.4)} из ${slideCount})
+- Предпочитай: mix из content, kpi, image-text, two-columns, quote, timeline
 
 Ответь СТРОГО в формате JSON (без markdown, без \`\`\`):
 {
