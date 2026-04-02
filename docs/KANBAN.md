@@ -118,8 +118,15 @@
 
 ## ✅ Done
 
+### EPIC-20: Public Scenario QA Enablement
+- [x] Project-scoped `.codex/config.toml` added for repeatable Codex QA with conservative sandboxing and isolated Playwright MCP
+- [x] Reusable `.agents/skills/public-scenario-qa/` skill added for no-auth browser scenario passes
+- [x] Repo-derived public scenario reference added for `/` and `/demo`
+- [x] `AGENTS.md` tightened around browser-first public UX QA rules and definition of done
+- [x] Unified local skill naming added: `slideforge-engineer`, `slideforge-strategist`, `slideforge-public-ux-qa`
+
 ### EPIC-15: "KIMI-like" Generation UX ⭐ NEW
-> Ref: `docs/KIMI-UX-PLAYBOOK.md` — полный разбор паттернов
+> Ref: `docs/KIMI-UX-PLAYBOOK.md` - полный разбор паттернов
 - [x] **Реальный live-stream preview**: инициализировать пустую презентацию и показывать `slide`-события сразу, а не только после финального `presentation`
 - [x] **Нормальный state flow генерации**: `idle → outline review → generating → polishing → complete`, без "мертвой паузы" между prompt и результатом
 - [x] **Театр прогресса**: SSE-события thinking/researching/slide_start/polishing + анимированный статус-бар

@@ -7,6 +7,11 @@
 ## Operational Files
 
 ```
+.codex/config.toml            -> project-scoped Codex config for conservative sandbox + isolated Playwright MCP
+.agents/skills/public-scenario-qa/SKILL.md -> `slideforge-public-ux-qa` workflow for public no-auth browser QA
+.agents/skills/public-scenario-qa/references/public-scenarios.md -> repo-derived scenario catalog for `/` and `/demo`
+.agents/skills/slideforge-engineer/SKILL.md -> unified engineer skill name for implementation work
+.agents/skills/slideforge-strategist/SKILL.md -> unified strategist skill name for product and prioritization work
 .cursor/rules/engineer.mdc   -> main Engineer role
 .cursor/rules/eng.mdc        -> short alias for Engineer (`@eng`)
 .cursor/rules/strategist.mdc -> main Strategist role
@@ -14,6 +19,18 @@
 docs/STRATEGY.md             -> positioning, moat, commercialization boundary decisions
 docs/KANBAN.md               -> roadmap and priority queue, including collaboration-safe packaging
 AGENTS.md                    -> repo context + operational sharing guardrails
+```
+
+## Scenario QA Flow
+
+```
+[.codex/config.toml] -> configures isolated Playwright MCP for repeatable browser sessions
+        |
+        v
+[public-scenario-qa/SKILL.md] -> reads [references/public-scenarios.md]
+        |
+        v
+Browser QA pass against public routes: `/` and `/demo`
 ```
 
 ## Module Dependency Flow
@@ -148,10 +165,15 @@ ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent,
 | templates/*.ts | 30-31 | When editing template colors, fonts, spacing |
 | client.ts | 106 | When changing SSE parsing |
 | Individual slide .tsx | 40-110 | When fixing specific slide layout |
-| AGENTS.md | 265 | When you need repo context, role rules, or sharing guardrails |
-| docs/KANBAN.md | 181 | When choosing the next priority or updating task status |
+| .codex/config.toml | 8 | When checking project-scoped Codex QA settings |
+| .agents/skills/public-scenario-qa/SKILL.md | 70 | When running `slideforge-public-ux-qa` |
+| .agents/skills/public-scenario-qa/references/public-scenarios.md | 146 | When choosing or scoping a public scenario |
+| .agents/skills/slideforge-engineer/SKILL.md | 26 | When you want the local engineer mode in skill form |
+| .agents/skills/slideforge-strategist/SKILL.md | 22 | When you want the local strategist mode in skill form |
+| AGENTS.md | 68 | When you need repo layout, commands, and QA ground rules |
+| docs/KANBAN.md | 159 | When choosing the next priority or updating task status |
 | docs/STRATEGY.md | 134 | When checking positioning, moat, or collaboration decisions |
-| docs/CODEBASE-GRAPH.md | 176 | When orienting in the codebase or updating module boundaries |
+| docs/CODEBASE-GRAPH.md | 171 | When orienting in the codebase or updating module boundaries |
 
 ## CI and local checks
 
