@@ -111,9 +111,27 @@ export interface PresentationOutline {
   slides: OutlineSlide[];
 }
 
+export type GenerationStatusEventType =
+  | "thinking"
+  | "researching"
+  | "slide_start"
+  | "image_search"
+  | "polishing";
+
+export interface GenerationStatusEvent {
+  type: GenerationStatusEventType;
+  message: string;
+  detail?: string;
+  progress?: number;
+  slideIndex?: number;
+  totalSlides?: number;
+  slideTitle?: string;
+}
+
 export type GenerationPhase =
   | "idle"
-  | "outline"
+  | "outline-review"
   | "generating"
+  | "polishing"
   | "complete"
   | "error";

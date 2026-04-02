@@ -1,4 +1,10 @@
-import { Presentation, Slide, PresentationOutline } from "@/types/presentation";
+import {
+  Presentation,
+  Slide,
+  PresentationOutline,
+  GenerationPhase,
+  GenerationStatusEvent,
+} from "@/types/presentation";
 
 const MIN_SLIDES = 1;
 const MAX_SLIDES = 10;
@@ -10,8 +16,9 @@ function clampSlideCount(n: number | undefined): number {
 }
 
 interface GenerationCallbacks {
-  onPhase: (phase: string) => void;
+  onPhase: (phase: GenerationPhase) => void;
   onOutline: (outline: PresentationOutline) => void;
+  onStatus: (status: GenerationStatusEvent) => void;
   onSlide: (slide: Slide) => void;
   onComplete: (presentation: Presentation) => void;
   onError: (error: string) => void;
@@ -66,10 +73,20 @@ export async function generatePresentation(
         const { event, data } = JSON.parse(line.slice(6));
         switch (event) {
           case "phase":
-            callbacks.onPhase(data);
+            callbacks.onPhase(data as GenerationPhase);
             break;
           case "outline":
             callbacks.onOutline(data as PresentationOutline);
+            break;
+          case "thinking":
+          case "researching":
+          case "slide_start":
+          case "image_search":
+          case "polishing":
+            callbacks.onStatus({
+              ...(data as Omit<GenerationStatusEvent, "type">),
+              type: event,
+            });
             break;
           case "slide":
             callbacks.onSlide(data as Slide);

@@ -103,11 +103,11 @@ Export: PptxGenJS (PPTX) / Puppeteer (PDF, TODO)
 presentations-frontend/
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx              # Main UI: prompt input + presentation viewer
+│   │   ├── page.tsx              # Main UI: prompt input + prompt suggestions + outline review + live generation theater + presentation viewer
 │   │   ├── demo/page.tsx         # Demo page showing all 10 slide types
 │   │   ├── layout.tsx            # Root layout + Google Fonts pack for template typography
 │   │   ├── globals.css           # Tailwind v4 + Shadcn theme vars + font CSS variables
-│   │   ├── api/generate/route.ts # SSE endpoint: OpenAI → stream slides
+│   │   ├── api/generate/route.ts # SSE endpoint: normalized outline + phase/status events + slide stream
 │   │   └── api/images/search/route.ts # Pexels image search API
 │   │
 │   ├── components/
@@ -138,7 +138,7 @@ presentations-frontend/
 │   │   │   └── tech.ts            # Terminal-inspired theme: Space Mono
 │   │   ├── generation/
 │   │   │   ├── prompts.ts        # System prompt + outline/slide prompts
-│   │   │   └── client.ts         # SSE client: fetch + parse stream
+│   │   │   └── client.ts         # SSE client: fetch + parse phase/status/outline/slide stream
 │   │   ├── images/
 │   │   │   └── pexels.ts         # Pexels API client for stock photos
 │   │   ├── export/
@@ -207,9 +207,17 @@ See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and colo
 - **Styling:** All slides use inline `style={{ color: c.foreground }}` — NOT Tailwind color classes. This is intentional because colors come from the dynamic template object.
 - **Tailwind v4:** Uses `@theme inline {}` syntax. No `tailwind.config.js`.
 - **State:** Zustand store at `lib/store/presentation-store.ts`. Single source of truth.
-- **Generation:** SSE streaming via `ReadableStream` in route handler. Client parses `data: {event, data}\n\n` lines. User-facing slide count is **1–10** (UI select + server/client clamp) to limit LLM cost.
+- **Generation:** SSE streaming via `ReadableStream` in route handler. Client parses `data: {event, data}\n\n` lines. Current event set: `phase`, `thinking`, `researching`, `outline`, `slide_start`, `image_search`, `slide`, `polishing`, `presentation`, `error`. User-facing slide count is **1–10** (UI select + server/client clamp) to limit LLM cost.
 - **Export:** Client-side PPTX via PptxGenJS. PDF export via Puppeteer is TODO.
 - **Current product priority:** quality-first. Focus order is outline UX → live generation feel → template/output fidelity → export parity.
+
+## Commercialization & Sharing Guardrail
+
+- If the code is ever shared with an employer, partner, or pilot customer, do **not** share the full monorepo by default.
+- Preferred model: **Private Core** (product IP) + **Shared Wrapper** (company-facing integration shell) + optional hosted/demo delivery.
+- Keep private by default: `.env*`, API keys, agent/system files, strategic docs, pricing notes, Kanban, prompt engineering assets, template R&D, evaluation scripts, and any commercialization playbooks.
+- If source access is unavoidable, create a separate work-safe repo/branch that can run independently and does not require read access back into the private product repo.
+- Before any external code access, write down: what existed before collaboration, what remains personal IP, what the other side may use, and whether they may copy/share/modify it further.
 
 ## Environment
 
@@ -238,6 +246,11 @@ See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and colo
 - ✅ `/api/images/search` route for client-side image search
 - ✅ Default template switched to "Минимализм"
 - ✅ Outline prompt now enforces layout diversity (min 5 types, content ≤ 40%, no back-to-back repeats)
+- ✅ Real slide-by-slide preview during generation via draft presentation + SSE `slide` events
+- ✅ KIMI-like generation theater: outline review → generating → polishing with animated progress UI
+- ✅ 6 prompt suggestion chips under the textarea for faster starts
+- ✅ Speaker notes are generated per slide and rendered in the right sidebar
+- ✅ Universal default placeholder is no longer bank-specific
 
 ## What's NOT Working Yet
 
@@ -245,9 +258,7 @@ See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and colo
 - ❌ AI image generation (Kandinsky API)
 - ❌ PDF export
 - ❌ Document upload + parsing
-- ❌ Outline editor / outline approval flow in UI (`onOutline` exists, but screen is not surfaced yet)
-- ❌ Real slide-by-slide preview during generation (UI still waits for final presentation before showing slides)
-- ❌ Universal default prompt placeholder (still bank-flavored on start screen)
+- ❌ Editable outline approval flow: outline is visible, but there are still no CTA/actions to accept, reorder, or tweak layouts before generation continues
 - ❌ Preview ↔ PPTX typography parity (`pptx-export.ts` still hardcodes Arial instead of template-driven fonts)
 - ❌ Template customizer (upload logo, pick colors)
 - ❌ Auth / user accounts

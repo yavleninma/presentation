@@ -43,17 +43,15 @@
 
 ## 🟡 To Do (в порядке приоритета)
 
-
-### EPIC-15: "KIMI-like" Generation UX ⭐ NEW
-> Ref: `docs/KIMI-UX-PLAYBOOK.md` — полный разбор паттернов
-- [ ] **Реальный live-stream preview**: инициализировать пустую презентацию и показывать `slide`-события сразу, а не только после финального `presentation`
-- [ ] **Нормальный state flow генерации**: `idle → outline review → generating → polishing → complete`, без "мертвой паузы" между prompt и результатом
-- [ ] **Театр прогресса**: SSE-события thinking/researching/slide_start/polishing + анимированный статус-бар
-- [ ] **Анимация появления слайдов**: fade-in + auto-scroll к текущему слайду при генерации
-- [ ] **Прогресс генерации**: "Генерирую слайд 3 из 8: «Анализ рынка»..."
-- [ ] **Спикер-ноуты**: генерировать `notes` в промпте + показать в правой панели (поле уже есть в типе!)
-- [ ] **Промпт-подсказки**: 6 кликабельных кнопок-примеров под textarea (из EPIC-13)
-- Контекст: У нас SSE стрим уже работает. Нужно расширить протокол событий + фронтенд-анимации.
+### EPIC-19: Collaboration-Safe Packaging ⭐ NEW
+> Conditional strategic track: do this before giving any code access to employer/partner.
+- [ ] Определить границу `Private Core` / `Shared Wrapper` / `Work Edition`
+- [ ] Зафиксировать список приватных активов: prompts, template R&D, strategy docs, agents, evals, коммерческие заметки
+- [ ] Подготовить отдельный work-safe repo/branch без `.env*`, стратегических доков и внутренних agent/system файлов
+- [ ] Выделить интерфейс/adapter boundary, чтобы shared-версия запускалась без доступа к приватному core-репо
+- [ ] Подготовить `README` + `env.example` для shared-версии без секретов
+- [ ] Подготовить короткий IP/NDA/ownership memo до любого code-sharing
+- Контекст: нужен controlled sharing с работодателем/партнёром без передачи всего moat целиком.
 
 ### EPIC-06: Outline Editor ⬆️ PRIORITY UP
 > Самый большой UX-разрыв с KIMI. `PresentationOutline` тип есть, `onOutline` callback в SSE есть.
@@ -87,7 +85,7 @@
 - [x] Сменить дефолтный шаблон на "Минимализм" (универсальнее Совкомбанка)
 - [ ] localStorage persistence — не терять презентацию при перезагрузке
 - [x] Разные шрифты для шаблонов (сейчас все на Inter — шаблоны выглядят одинаково)
-- [ ] Универсальный placeholder: "Квартальный отчёт по продажам" вместо банковского примера
+- [x] Универсальный placeholder: "Квартальный отчёт по продажам" вместо банковского примера
 - [x] Constraint в промпте: "Используй минимум 5 разных типов лейаутов, не повторяй layout > 2 раз"
 - [ ] Синхронизировать дефолты между UI / client / server, чтобы везде был один стартовый шаблон и один quality baseline
 
@@ -118,13 +116,18 @@
 
 ---
 
-## 🔵 In Progress
-
-(Nothing right now)
-
----
-
 ## ✅ Done
+
+### EPIC-15: "KIMI-like" Generation UX ⭐ NEW
+> Ref: `docs/KIMI-UX-PLAYBOOK.md` — полный разбор паттернов
+- [x] **Реальный live-stream preview**: инициализировать пустую презентацию и показывать `slide`-события сразу, а не только после финального `presentation`
+- [x] **Нормальный state flow генерации**: `idle → outline review → generating → polishing → complete`, без "мертвой паузы" между prompt и результатом
+- [x] **Театр прогресса**: SSE-события thinking/researching/slide_start/polishing + анимированный статус-бар
+- [x] **Анимация появления слайдов**: fade-in + auto-scroll к текущему слайду при генерации
+- [x] **Прогресс генерации**: "Генерирую слайд 3 из 8: «Анализ рынка»..."
+- [x] **Спикер-ноуты**: генерировать `notes` в промпте + показать в правой панели (поле уже есть в типе!)
+- [x] **Промпт-подсказки**: 6 кликабельных кнопок-примеров под textarea (из EPIC-13)
+- Результат: outline теперь виден как отдельная стадия, генерация идёт без пустой паузы, а UI показывает живой прогресс и speaker notes до финального `presentation`.
 
 ### EPIC-17: Design System Upgrade
 - [x] Загрузка шрифтов через Google Fonts `<link>` + CSS custom properties: Bricolage Grotesque, Space Grotesk, IBM Plex Sans, Syne, DM Sans, Playfair Display, Source Sans 3, Space Mono
