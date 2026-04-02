@@ -16,6 +16,20 @@ There is **no separate backend repo or long‑running server process**. Server l
 - **Local:** `cd presentations-frontend && npm run dev` — one Node process serves the UI and executes API routes on demand.
 - **Production (e.g. Vercel):** the same app deploys as **Serverless Functions** (or the platform’s equivalent) for those routes; the browser still talks to the same origin (`/api/...`).
 
+## Agent Roles
+
+The project uses two switchable roles via Cursor manual rules (`.cursor/rules/`). Reference one at the start of a chat to activate it:
+
+| Role | File | Invoke with | Purpose |
+|------|------|-------------|---------|
+| **Engineer** | `.cursor/rules/engineer.mdc` | `@engineer` | Executes tasks from kanban. Writes code, runs quality checks, updates docs. No product strategy. |
+| **Strategist** | `.cursor/rules/strategist.mdc` | `@strategist` | Business partner & growth experimenter. Analyzes product, proposes hypotheses, updates kanban & strategy. Never edits product code. |
+
+Both roles inherit project context from `slideforge.mdc` (always-applied).
+
+**Strategist CAN edit:** `docs/*`, `AGENTS.md`, `.cursor/rules/` — operational & strategic files only.
+**Engineer CAN edit:** everything in the codebase + all docs (mandatory doc updates after each task).
+
 ## Repository layout (root)
 
 ```
@@ -25,6 +39,14 @@ presentation/                          # npm package: slideforge-presentations
 ├── .github/workflows/presentations-ci.yml  # CI + Vercel deploy on push to main (see README)
 ├── presentations-frontend/   # Next.js app: UI + API routes (npm: slideforge-presentations-web)
 ├── docs/
+│   ├── KANBAN.md             # Sprint board — source of truth for task status
+│   ├── STRATEGY.md           # Product strategy, decisions, competitive landscape
+│   ├── KIMI-UX-PLAYBOOK.md   # UX benchmark: KIMI patterns to adopt (read before UX tasks!)
+│   └── CODEBASE-GRAPH.md     # File dependency graph + size guide
+├── .cursor/rules/
+│   ├── slideforge.mdc        # Always-on: architecture, conventions, quality gates
+│   ├── engineer.mdc          # Manual: executor role
+│   └── strategist.mdc        # Manual: business partner role
 └── AGENTS.md
 ```
 
@@ -35,7 +57,7 @@ User enters prompt
        ↓
 [Next.js API route: /api/generate]  (same app as UI)
        ↓
-OpenAI GPT-4o-mini (JSON mode)
+OpenAI GPT-5.4-mini (JSON mode; Chat Completions; override via OPENAI_MODEL)
   1. Generate outline (slide titles + layouts)
   2. For each slide → generate content JSON
        ↓
@@ -114,6 +136,38 @@ Each slide renders at **1280×720** (16:9) and is CSS-scaled using `transform: s
 All slides receive `(slide, template)` props. Colors come from `template.colors.*`.
 Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx`.
 
+## Design Tools & Setup
+
+> **Read `docs/DESIGN-STANDARDS.md` before any UI or template task.** It defines the aesthetics reference, font choices per template, and anti-patterns to avoid.
+
+### Claude Code design skills (install once)
+
+**Skill `frontend-design`** — Anthropic official. Solves "AI slop". 277k installs.
+- Activate per session: `/frontend-design`
+- Skill chain for UI tasks: `/frontend-design` → `/baseline-ui` → `/fixing-accessibility`
+
+**shadcn/ui MCP** — prevents prop hallucinations with shadcn components:
+```json
+// .claude/settings.json → mcpServers:
+{
+  "shadcn": {
+    "command": "npx",
+    "args": ["-y", "@shadcn-ui/mcp-server"],
+    "cwd": "./presentations-frontend"
+  }
+}
+```
+
+**Figma MCP** — POST-MVP. Connect when design system is established (requires Figma Desktop + Dev seat).
+
+### Core design rule
+
+Every template = a distinct aesthetic concept. Never a variation of the same blue.
+Heading font ≠ body font. No purple/indigo/violet gradients. Backgrounds must have atmosphere.
+See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and color palettes.
+
+---
+
 ## Conventions
 
 - **Quality gate:** Before pushing, run `npm run verify` from repo root (or `cd presentations-frontend && npm run verify`). Pre-commit hook runs `verify:quick` (lint + typecheck only). CI runs full `verify` on `main`.
@@ -129,6 +183,7 @@ Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx
 - Node 20+, npm
 - `cd presentations-frontend && npm run dev` → http://localhost:3000
 - `presentations-frontend/.env.local` must have `OPENAI_API_KEY` and `PEXELS_API_KEY` (get free key at pexels.com/api)
+- Optional: `OPENAI_MODEL` to override default model (default is `gpt-5.4-mini`)
 - From repo root: `npm install` once (enables Husky); app deps via `cd presentations-frontend && npm install`
 
 ## What's Working

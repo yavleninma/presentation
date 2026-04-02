@@ -36,16 +36,78 @@
 - [ ] Передача текста в LLM как контекст для генерации
 - Приоритет: ПОСЛЕ landing + auth. Но потенциально самый сильный use case.
 
-### EPIC-06: Outline Editor
-- [ ] UI для редактирования аутлайна перед генерацией
-- [ ] Drag-and-drop порядка слайдов
-- [ ] Выбор layout для каждого слайда в аутлайне
-- [ ] Добавление/удаление слайдов из аутлайна
-- Контекст: `PresentationOutline` тип уже есть, `onOutline` callback в SSE
+### ~~EPIC-06: Outline Editor~~ → moved to To Do (priority up)
 
 ---
 
 ## 🟡 To Do (в порядке приоритета)
+
+### EPIC-17: Design System Upgrade ⭐ FIRST ← НАЧАТЬ ОТСЮДА
+> Ref: `docs/DESIGN-STANDARDS.md` — полный эталон вкуса, шрифты, цвета, антипаттерны
+> **Почему сейчас:** шаблоны выглядят одинаково (Inter везде), Modern Dark = AI slop. Это фундамент — EPIC-15 бессмысленно анимировать некрасивые слайды.
+
+#### Шрифты (критично — все Inter везде = ноль иерархии)
+- [ ] Обновить `layout.tsx`: загрузить через `next/font/google` — Bricolage Grotesque, Space Grotesk, IBM Plex Sans, Syne, DM Sans, Playfair Display, Source Sans 3, Space Mono
+- [ ] Обновить `minimal.ts`: heading → `'Bricolage Grotesque'`, body → `'Inter'`
+- [ ] Обновить `modern-dark.ts`: heading → `'Space Grotesk'`, body → `'Inter'`
+- [ ] Обновить `sovcombank.ts`: heading → `'IBM Plex Sans'`, body → `'Inter'`
+
+#### Цвета Modern Dark (выбросить фиолетово-розовый AI slop)
+- [ ] `modern-dark.ts`: primary `#6366F1` → `#0EA5E9`, secondary `#8B5CF6` → `#10B981`, accent `#EC4899` → `#F59E0B`, background `#0F172A` → `#09090B`
+  - Новая концепция: Tech Editorial Dark (Teal + Amber on near-black)
+
+#### Новые шаблоны (из EPIC-14, делаем сейчас как часть апгрейда)
+- [ ] `presentations-frontend/src/lib/templates/startup.ts` — "Стартап / Pitch Deck": Syne + DM Sans, green+orange on black. Ref: DESIGN-STANDARDS.md §Стартап
+- [ ] `presentations-frontend/src/lib/templates/consulting.ts` — "Консалтинг / McKinsey": Playfair Display + Source Sans 3, navy+red on white. Ref: DESIGN-STANDARDS.md §Консалтинг
+- [ ] `presentations-frontend/src/lib/templates/tech.ts` — "IT / Технологии": Space Mono + Inter, terminal green on near-black. Ref: DESIGN-STANDARDS.md §IT
+- [ ] Зарегистрировать все три в `lib/templates/index.ts`
+
+#### Разнообразие лейаутов (генерация клепает content слайды подряд)
+- [ ] `prompts.ts`: добавить LAYOUT DIVERSITY RULE в system prompt — минимум 5 разных лейаутов, content не более 40%, не повторять один тип 2 раза подряд. Ref: DESIGN-STANDARDS.md §Правила разнообразия
+- [ ] `prompts.ts`: дефолтный шаблон в примерах промпта → "minimal" (не sovcombank)
+
+#### App UI (опционально, если остаётся время)
+- [ ] `globals.css` / `page.tsx`: убрать синие кнопки-дефолт, сделать sidebar тёмным (#0F0F0F), убрать любой violet/purple из UI приложения
+
+### EPIC-15: "KIMI-like" Generation UX ⭐ NEW
+> Ref: `docs/KIMI-UX-PLAYBOOK.md` — полный разбор паттернов
+- [ ] **Театр прогресса**: SSE-события thinking/researching/slide_start/polishing + анимированный статус-бар
+- [ ] **Анимация появления слайдов**: fade-in + auto-scroll к текущему слайду при генерации
+- [ ] **Прогресс генерации**: "Генерирую слайд 3 из 8: «Анализ рынка»..."
+- [ ] **Спикер-ноуты**: генерировать `notes` в промпте + показать в правой панели (поле уже есть в типе!)
+- [ ] **Промпт-подсказки**: 6 кликабельных кнопок-примеров под textarea (из EPIC-13)
+- Контекст: У нас SSE стрим уже работает. Нужно расширить протокол событий + фронтенд-анимации.
+
+### EPIC-06: Outline Editor ⬆️ PRIORITY UP
+> Самый большой UX-разрыв с KIMI. `PresentationOutline` тип есть, `onOutline` callback в SSE есть.
+- [ ] UI для показа аутлайна (заголовки слайдов + тезисы) сразу после генерации плана
+- [ ] Редактирование: изменить заголовок, удалить/добавить слайд в аутлайне
+- [ ] Drag-and-drop порядка слайдов в аутлайне
+- [ ] Выбор layout для каждого слайда в аутлайне
+- [ ] Кнопка "Выглядит хорошо, генерируй!" → запуск генерации слайдов
+- [ ] Выбор шаблона МЕЖДУ аутлайном и генерацией (перенести из начального экрана)
+
+### EPIC-16: Slide-Level Regeneration ⭐ NEW
+> Ref: KIMI-UX-PLAYBOOK.md §6 — перегенерация блоков
+- [ ] Кнопка "🔄 Переписать" при hover на заголовок → AI перегенерирует только этот текст
+- [ ] Кнопка "🔄 Переписать слайд" → перегенерация контента, сохраняя layout + шаблон
+- [ ] Quick-actions на каждом слайде: "Короче" | "Формальнее" | "Переписать"
+- [ ] API route для мини-генерации (один блок/слайд, не вся дека)
+
+### EPIC-13: UX Quick Wins
+- [x] Выбор числа слайдов при генерации: только 1–10 (меньше токенов / быстрее)
+- [ ] Сменить дефолтный шаблон на "Минимализм" (универсальнее Совкомбанка)
+- [ ] localStorage persistence — не терять презентацию при перезагрузке
+- [ ] Разные шрифты для шаблонов (сейчас все на Inter — шаблоны выглядят одинаково)
+- [ ] Универсальный placeholder: "Квартальный отчёт по продажам" вместо банковского примера
+- [ ] Constraint в промпте: "Используй минимум 5 разных типов лейаутов, не повторяй layout > 2 раз"
+
+### EPIC-14: New Templates
+- [ ] "Стартап / Pitch Deck" — яркий, с акцентом на метрики
+- [ ] "Консалтинг / McKinsey" — строгий, data-heavy
+- [ ] "IT / Технологии" — тёмный, с моноширинным акцентом
+- [ ] AI-подбор шаблона на основе темы (Freestyle-режим)
+- Зачем: разнообразие шаблонов = ощущение премиальности + каждый находит "свой"
 
 ### EPIC-10: Landing Page
 - [ ] Hero + "Попробовать бесплатно" (без регистрации!)
@@ -53,20 +115,6 @@
 - [ ] SEO: мета-теги, title "AI генератор презентаций на русском"
 - [ ] Видео/гифка процесса генерации
 - [ ] Open Graph для шеринга
-
-### EPIC-13: UX Quick Wins
-- [x] Выбор числа слайдов при генерации: только 1–10 (меньше токенов / быстрее)
-- [ ] Сменить дефолтный шаблон на "Минимализм" (универсальнее Совкомбанка)
-- [ ] localStorage persistence — не терять презентацию при перезагрузке
-- [ ] Промпт-подсказки: 6 кликабельных примеров под textarea
-- [ ] Разные шрифты для шаблонов (сейчас все на Inter — шаблоны выглядят одинаково)
-- [ ] Универсальный placeholder: "Квартальный отчёт по продажам" вместо банковского примера
-
-### EPIC-14: New Templates
-- [ ] "Стартап / Pitch Deck" — яркий, с акцентом на метрики
-- [ ] "Консалтинг / McKinsey" — строгий, data-heavy
-- [ ] "IT / Технологии" — тёмный, с моноширинным акцентом
-- Зачем: разнообразие шаблонов = ощущение премиальности + каждый находит "свой"
 
 ### EPIC-05: PDF Export
 - [ ] Серверный рендеринг слайдов через Puppeteer

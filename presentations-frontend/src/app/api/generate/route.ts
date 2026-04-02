@@ -12,6 +12,7 @@ export const maxDuration = 60;
 
 const MIN_SLIDES = 1;
 const MAX_SLIDES = 10;
+const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
 
 function clampSlideCount(raw: unknown): number {
   const n = typeof raw === "number" ? raw : Number(raw);
@@ -31,7 +32,7 @@ async function generateJSON(
   userPrompt: string
 ): Promise<Record<string, unknown>> {
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

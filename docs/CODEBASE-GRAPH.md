@@ -12,7 +12,7 @@
     │──uses──→ [client.ts] ──fetches──→ [/api/generate/route.ts]
     │                                          │
     │                                          ├──calls──→ [prompts.ts] (builds LLM prompts)
-    │                                          ├──calls──→ OpenAI API (GPT-4o-mini)
+    │                                          ├──calls──→ OpenAI API (GPT-5.4-mini; override via OPENAI_MODEL)
     │                                          └──calls──→ [pexels.ts] (auto-fetch images)
     │
     │──can fetch──→ [/api/images/search/route.ts] ──calls──→ [pexels.ts]
@@ -36,7 +36,10 @@
                       │
                       ├──imports──→ [sovcombank.ts]
                       ├──imports──→ [modern-dark.ts]
-                      └──imports──→ [minimal.ts]
+                      ├──imports──→ [minimal.ts]
+                      ├──imports──→ [startup.ts]       (TODO: EPIC-17)
+                      ├──imports──→ [consulting.ts]    (TODO: EPIC-17)
+                      └──imports──→ [tech.ts]          (TODO: EPIC-17)
 ```
 
 ## Key Interfaces Between Modules
@@ -81,7 +84,7 @@ ThemeColors: primary, primaryForeground, secondary, secondaryForeground, accent,
 | SlideRenderer.tsx | 200 | When adding slide types or fixing rendering |
 | editor/EditableText.tsx | 65 | When fixing inline editing |
 | prompts.ts | 131 | When changing AI output format |
-| route.ts (generate) | 168 | When changing generation pipeline |
+| route.ts (generate) | 169 | When changing generation pipeline |
 | route.ts (images) | 20 | When changing image search API |
 | pexels.ts | 75 | When changing image provider |
 | pptx-export.ts | 340 | When fixing PPTX export |
