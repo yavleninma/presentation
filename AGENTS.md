@@ -174,7 +174,7 @@ See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and colo
 
 ## Conventions
 
-- **Quality gate:** Before pushing, run `npm run verify` from repo root (or `cd presentations-frontend && npm run verify`). Pre-commit hook runs `verify:quick` (lint + typecheck only). CI runs full `verify` on `main`.
+- **Quality gate:** Before pushing, run `npm run verify` from repo root (or `cd presentations-frontend && npm run verify`). Pre-commit hook runs `verify:quick` (lint + typecheck only). CI runs full `verify` on `main`, and Vercel production deploy is triggered from repo root while the Vercel project Root Directory stays `presentations-frontend`.
 - **Language:** Russian for UI text and generated content. Code/comments in English.
 - **Styling:** All slides use inline `style={{ color: c.foreground }}` — NOT Tailwind color classes. This is intentional because colors come from the dynamic template object.
 - **Tailwind v4:** Uses `@theme inline {}` syntax. No `tailwind.config.js`.
