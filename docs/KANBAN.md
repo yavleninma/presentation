@@ -42,6 +42,33 @@
 
 ## 🟡 To Do (в порядке приоритета)
 
+### EPIC-17: Design System Upgrade ⭐ FIRST ← НАЧАТЬ ОТСЮДА
+> Ref: `docs/DESIGN-STANDARDS.md` — полный эталон вкуса, шрифты, цвета, антипаттерны
+> **Почему сейчас:** шаблоны выглядят одинаково (Inter везде), Modern Dark = AI slop. Это фундамент — EPIC-15 бессмысленно анимировать некрасивые слайды.
+
+#### Шрифты (критично — все Inter везде = ноль иерархии)
+- [ ] Обновить `layout.tsx`: загрузить через `next/font/google` — Bricolage Grotesque, Space Grotesk, IBM Plex Sans, Syne, DM Sans, Playfair Display, Source Sans 3, Space Mono
+- [ ] Обновить `minimal.ts`: heading → `'Bricolage Grotesque'`, body → `'Inter'`
+- [ ] Обновить `modern-dark.ts`: heading → `'Space Grotesk'`, body → `'Inter'`
+- [ ] Обновить `sovcombank.ts`: heading → `'IBM Plex Sans'`, body → `'Inter'`
+
+#### Цвета Modern Dark (выбросить фиолетово-розовый AI slop)
+- [ ] `modern-dark.ts`: primary `#6366F1` → `#0EA5E9`, secondary `#8B5CF6` → `#10B981`, accent `#EC4899` → `#F59E0B`, background `#0F172A` → `#09090B`
+  - Новая концепция: Tech Editorial Dark (Teal + Amber on near-black)
+
+#### Новые шаблоны (из EPIC-14, делаем сейчас как часть апгрейда)
+- [ ] `presentations-frontend/src/lib/templates/startup.ts` — "Стартап / Pitch Deck": Syne + DM Sans, green+orange on black. Ref: DESIGN-STANDARDS.md §Стартап
+- [ ] `presentations-frontend/src/lib/templates/consulting.ts` — "Консалтинг / McKinsey": Playfair Display + Source Sans 3, navy+red on white. Ref: DESIGN-STANDARDS.md §Консалтинг
+- [ ] `presentations-frontend/src/lib/templates/tech.ts` — "IT / Технологии": Space Mono + Inter, terminal green on near-black. Ref: DESIGN-STANDARDS.md §IT
+- [ ] Зарегистрировать все три в `lib/templates/index.ts`
+
+#### Разнообразие лейаутов (генерация клепает content слайды подряд)
+- [ ] `prompts.ts`: добавить LAYOUT DIVERSITY RULE в system prompt — минимум 5 разных лейаутов, content не более 40%, не повторять один тип 2 раза подряд. Ref: DESIGN-STANDARDS.md §Правила разнообразия
+- [ ] `prompts.ts`: дефолтный шаблон в примерах промпта → "minimal" (не sovcombank)
+
+#### App UI (опционально, если остаётся время)
+- [ ] `globals.css` / `page.tsx`: убрать синие кнопки-дефолт, сделать sidebar тёмным (#0F0F0F), убрать любой violet/purple из UI приложения
+
 ### EPIC-15: "KIMI-like" Generation UX ⭐ NEW
 > Ref: `docs/KIMI-UX-PLAYBOOK.md` — полный разбор паттернов
 - [ ] **Театр прогресса**: SSE-события thinking/researching/slide_start/polishing + анимированный статус-бар

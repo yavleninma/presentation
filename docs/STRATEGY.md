@@ -66,6 +66,8 @@
 | 2026-04-02 | UX-бенчмарк = KIMI Agentic Slides | Целевое ощущение: "умный соавтор + дизайнер". См. `docs/KIMI-UX-PLAYBOOK.md` |
 | 2026-04-02 | Outline Editor (EPIC-06) → приоритет поднят | Самый большой UX-разрыв с KIMI. onOutline callback уже есть, нужен UI. |
 | 2026-04-02 | "Театр прогресса" — новое направление | Видимые шаги мышления AI во время генерации. Чисто фронтенд, высокий ROI. |
+| 2026-04-02 | Design System Upgrade = EPIC-17, приоритет #1 в To Do | Modern Dark = AI slop (indigo/violet/pink). Все шаблоны Inter везде. Исправить до KIMI-UX работы — анимировать некрасивые слайды бессмысленно. Добавить 3 новых шаблона: Startup, Consulting, IT. Ref: `docs/DESIGN-STANDARDS.md` |
+| 2026-04-02 | Figma MCP = POST-MVP | MVP без Figma. Подключить когда будет готова дизайн-система и есть дизайнер. Уникальная фича: Code→Canvas эксклюзив Claude Code. |
 
 ## Open Questions
 

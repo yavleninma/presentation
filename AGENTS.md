@@ -136,6 +136,38 @@ Each slide renders at **1280×720** (16:9) and is CSS-scaled using `transform: s
 All slides receive `(slide, template)` props. Colors come from `template.colors.*`.
 Background patterns (geometric/dots/grid) are SVG overlays in `SlideRenderer.tsx`.
 
+## Design Tools & Setup
+
+> **Read `docs/DESIGN-STANDARDS.md` before any UI or template task.** It defines the aesthetics reference, font choices per template, and anti-patterns to avoid.
+
+### Claude Code design skills (install once)
+
+**Skill `frontend-design`** — Anthropic official. Solves "AI slop". 277k installs.
+- Activate per session: `/frontend-design`
+- Skill chain for UI tasks: `/frontend-design` → `/baseline-ui` → `/fixing-accessibility`
+
+**shadcn/ui MCP** — prevents prop hallucinations with shadcn components:
+```json
+// .claude/settings.json → mcpServers:
+{
+  "shadcn": {
+    "command": "npx",
+    "args": ["-y", "@shadcn-ui/mcp-server"],
+    "cwd": "./presentations-frontend"
+  }
+}
+```
+
+**Figma MCP** — POST-MVP. Connect when design system is established (requires Figma Desktop + Dev seat).
+
+### Core design rule
+
+Every template = a distinct aesthetic concept. Never a variation of the same blue.
+Heading font ≠ body font. No purple/indigo/violet gradients. Backgrounds must have atmosphere.
+See `docs/DESIGN-STANDARDS.md` for full spec including exact font names and color palettes.
+
+---
+
 ## Conventions
 
 - **Quality gate:** Before pushing, run `npm run verify` from repo root (or `cd presentations-frontend && npm run verify`). Pre-commit hook runs `verify:quick` (lint + typecheck only). CI runs full `verify` on `main`.

@@ -36,7 +36,10 @@
                       │
                       ├──imports──→ [sovcombank.ts]
                       ├──imports──→ [modern-dark.ts]
-                      └──imports──→ [minimal.ts]
+                      ├──imports──→ [minimal.ts]
+                      ├──imports──→ [startup.ts]       (TODO: EPIC-17)
+                      ├──imports──→ [consulting.ts]    (TODO: EPIC-17)
+                      └──imports──→ [tech.ts]          (TODO: EPIC-17)
 ```
 
 ## Key Interfaces Between Modules
