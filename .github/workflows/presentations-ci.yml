@@ -61,7 +61,7 @@ jobs:
             exit 1
           fi
           if [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "::error::Set GitHub secrets VERCEL_ORG_ID and VERCEL_PROJECT_ID (from presentations-frontend/.vercel/project.json after npx vercel link)."
+            echo "::error::Set GitHub secrets VERCEL_ORG_ID (Vercel team Settings → Team ID) and VERCEL_PROJECT_ID (Project → Settings → General → Project ID). Or run npx vercel link in presentations-frontend and copy orgId/projectId from .vercel/project.json. See README Deploy section."
             exit 1
           fi
           npx vercel@latest deploy --prod --non-interactive --token="$VERCEL_TOKEN"

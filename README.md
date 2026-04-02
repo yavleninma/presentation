@@ -39,11 +39,14 @@ Same checks run in **GitHub Actions** on push/PR to `main` (`.github/workflows/p
 
 1. Создать проект в [Vercel](https://vercel.com): импорт репозитория, **Root Directory** = `presentations-frontend`.
 2. В Vercel → Project → Settings → Environment Variables задать `OPENAI_API_KEY`, `PEXELS_API_KEY` (и при необходимости остальное).
-3. В GitHub → репозиторий → **Settings → Secrets and variables → Actions** добавить (это **не** то же самое, что переменные в Vercel — без них job деплоя падает с `no-credentials-found`):
-   - `VERCEL_TOKEN` — [Vercel → Account Settings → Tokens](https://vercel.com/account/tokens) (создать новый токен и вставить **целиком** в секрет, без пробелов)
-   - `VERCEL_ORG_ID` и `VERCEL_PROJECT_ID` — из `presentations-frontend/.vercel/project.json` после локального `cd presentations-frontend && npx vercel link` (файл в git не коммитить)
+3. В GitHub → репозиторий → **Settings → Secrets and variables → Actions** добавить (это **не** то же самое, что переменные в Vercel):
+   - **`VERCEL_TOKEN`** — [Vercel → Account Settings → Tokens](https://vercel.com/account/tokens): создать токен, вставить в секрет **целиком**, без пробелов. Без него: `no-credentials-found`.
+   - **`VERCEL_PROJECT_ID`** — Vercel → твой **проект** → **Settings** → **General** → блок **Project ID** → скопировать (часто начинается с `prj_`).
+   - **`VERCEL_ORG_ID`** — это ID команды/аккаунта, к которому привязан проект:
+     - В шапке Vercel выбери **team** (или Personal team) → **Settings** (настройки команды) → **Team ID**; или
+     - локально: `cd presentations-frontend && npx vercel link`, затем из файла `.vercel/project.json` поля `projectId` → GitHub-секрет `VERCEL_PROJECT_ID`, `orgId` → **`VERCEL_ORG_ID`** (файл `.vercel/` в git не коммитить).
 
-Без этих секретов job `deploy-vercel` упадёт; CI (`verify`) по-прежнему выполнится.
+   Без любого из трёх секретов job `deploy-vercel` упадёт; CI (`verify`) по-прежнему выполнится.
 
 **Если проект в Vercel уже был привязан к старому пути `frontend/`**, в настройках проекта смените **Root Directory** на `presentations-frontend`.
 
