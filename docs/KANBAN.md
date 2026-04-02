@@ -96,7 +96,7 @@
 - [ ] Кнопка "PDF" рядом с "PPTX" в хедере
 
 ### EPIC-11: Deploy
-- [x] Vercel production после push в `main`: job `deploy-vercel` в `.github/workflows/presentations-ci.yml` + секреты `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (см. README); Root Directory = `presentations-frontend`; альтернатива — только Git-интеграция в дашборде Vercel без этого job
+- [x] Vercel production после push в `main`: job `deploy-vercel` в `.github/workflows/presentations-ci.yml` + секреты `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (см. README); Vercel Project Root Directory = `presentations-frontend`, а GitHub Actions deploy запускается из repo root
 - [ ] Домен slideforge.ru / slideforge.app
 - [ ] Мониторинг (Sentry)
 - [x] CI: GitHub Actions — lint, typecheck, build на `main` / PR
