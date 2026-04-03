@@ -2,8 +2,8 @@ import { PresentationTemplate } from "@/types/presentation";
 
 export const tech: PresentationTemplate = {
   id: "tech",
-  name: "IT / Технологии",
-  description: "Terminal Aesthetic — тёмный, моноширинные акценты, код-культура",
+  name: "Технологичная",
+  description: "Тёмная тема с моноширинным характером и неоновыми акцентами",
   colors: {
     primary: "#00FF88",
     primaryForeground: "#0A0A0F",

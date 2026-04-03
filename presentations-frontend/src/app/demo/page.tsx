@@ -1,19 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SlideRenderer, SLIDE_HEIGHT, SLIDE_WIDTH } from "@/components/slides/SlideRenderer";
+import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
+import {
+  SlideRenderer,
+  SLIDE_HEIGHT,
+  SLIDE_WIDTH,
+} from "@/components/slides/SlideRenderer";
 import { archetypeLabels, slideRoleLabels } from "@/lib/decision-package";
 import { getTemplate } from "@/lib/templates";
-import { MeetingScenarioId, Slide, SlideArchetype, SlideLayoutType, SlideMeta } from "@/types/presentation";
-import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
+import {
+  MeetingScenarioId,
+  Slide,
+  SlideArchetype,
+  SlideLayoutType,
+  SlideMeta,
+} from "@/types/presentation";
 
-interface DemoPackage {
+interface DemoDraft {
   id: MeetingScenarioId;
   name: string;
   audience: string;
-  decision: string;
+  promise: string;
   summary: string;
-  proofPoints: string[];
   templateId: string;
   slides: Slide[];
 }
@@ -37,10 +46,10 @@ function createMeta(
     confidence: "high",
     whyThisSlide,
     regenerationIntents: [
-      "strengthen-verdict",
-      "shorten-for-execs",
-      "rewrite-for-cfo",
-      "add-business-impact",
+      "keep-meaning",
+      "make-shorter",
+      "make-more-visual",
+      "make-stricter",
     ],
   };
 }
@@ -56,275 +65,259 @@ function createSlide(
   return { id, order, layout, content, meta, notes };
 }
 
-const demoPackages: DemoPackage[] = [
+const drafts: DemoDraft[] = [
   {
     id: "steering-committee",
-    name: "Steering Committee",
-    audience: "CIO, бизнес-спонсор, PMO",
-    decision: "Закрепить owners по двум блокерам и утвердить controlled перенос milestone.",
+    name: "Новый продукт",
+    audience: "Команда, партнёры, руководство",
+    promise: "Идея быстро читается, а визуальный тон уже выглядит как живой черновик, а не пустой шаблон.",
     summary:
-      "Пакет для ежемесячного steering: статус, отклонение, риск и конкретный ask вместо общего status update.",
-    proofPoints: [
-      "headline начинает с вывода",
-      "отклонение объясняется через dependencies, а не через эмоции",
-      "финал заканчивается decision slide",
-    ],
-    templateId: "consulting",
+      "Пример для режима «Идея»: цепляющий вход, понятная структура и финальный шаг без перегруза.",
+    templateId: "startup",
     slides: [
       createSlide(
-        "steering-1",
+        "idea-1",
         0,
         "title",
         {
-          heading: "Программа держит результат, но два блокера уже сдвигают критичный milestone",
-          subheading: "Steering Committee | ERP Transformation | апрель 2026",
+          heading: "Один экран бронирования сокращает путь клиента с 7 шагов до 2",
+          subheading: "Идея сервиса для быстрых локальных бронирований",
         },
         createMeta(
-          "Программа держит результат, но два блокера уже сдвигают критичный milestone",
-          "recommend",
+          "Один экран бронирования сокращает путь клиента с 7 шагов до 2",
+          "inform",
           "headline-verdict",
-          "Что руководство должно понять в первые 30 секунд?",
-          "Без этого слайда разговор уйдёт в технические статусы вместо управленческого вывода.",
-          "Сразу поставить stakes встречи"
+          "Почему этой идее хочется дать шанс уже после первого слайда?",
+          "Сразу ставит ставку: не просто новый сервис, а заметное упрощение жизни пользователя.",
+          "Открыть историю сильным тезисом"
         ),
-        "Откройте разговор verdict-слайдом, а не темой встречи."
+        "Первый слайд должен моментально объяснять выгоду, а не пересказывать вводную."
       ),
       createSlide(
-        "steering-2",
+        "idea-2",
         1,
         "two-columns",
         {
-          heading: "Отклонение идёт из незакрытых зависимостей, а не из delivery-команды",
+          heading: "Сейчас бронирование утомляет, а новый сценарий ощущается почти мгновенным",
           leftColumn: {
-            heading: "Что идёт по плану",
+            heading: "Как сейчас",
             bullets: [
-              "Разработка core-модулей завершена на 87%",
-              "SIT закрыт без критичных дефектов",
-              "Миграция выдерживает throughput",
+              "Много экранов и повторных действий",
+              "Слабая уверенность, что бронь прошла",
+              "Слишком много мелких решений по пути",
             ],
           },
           rightColumn: {
-            heading: "Что ломает milestone",
+            heading: "Как будет",
             bullets: [
-              "Не назначен owner по UAT",
-              "Вендор не подтвердил SLA",
-              "Юр. контур задерживает интеграцию",
+              "Короткая цепочка без лишних полей",
+              "Подтверждение в один понятный момент",
+              "Чёткий визуальный фокус на выборе и оплате",
             ],
           },
         },
         createMeta(
-          "Отклонение идёт из незакрытых зависимостей, а не из delivery-команды",
-          "explain",
-          "progress-vs-plan",
-          "Что именно создаёт gap к плану?",
-          "Этот слайд переводит разговор от blame к причинам и owners.",
-          "Подготовить почву для owner-based решений"
+          "Сейчас бронирование утомляет, а новый сценарий ощущается почти мгновенным",
+          "compare",
+          "options-matrix",
+          "Что именно становится лучше для пользователя?",
+          "Сравнение делает обещание с первого слайда осязаемым.",
+          "Показать разницу между старым и новым опытом"
         ),
-        "Покажите, что проблема лежит в cross-functional execution, а не только в ИТ."
+        "Контраст между двумя состояниями помогает идее выглядеть реальной, а не абстрактной."
       ),
       createSlide(
-        "steering-3",
+        "idea-3",
         2,
         "content",
         {
-          heading: "Нужно три решения сегодня: owner, SLA и перенос одного milestone на 3 недели",
+          heading: "Дальше нужен быстрый прототип и тест на 20 реальных пользователях",
           body:
-            "Рекомендация: сохранить общий scope и целевой результат, но локально передвинуть integration freeze, чтобы не сорвать go-live.",
+            "Черновик идеи уже понятен. Следующий шаг — собрать прототип и проверить, действительно ли новый сценарий экономит время и снижает отказы.",
           bullets: [
-            "Назначить sponsor-level owner по UAT",
-            "Подтвердить SLA вендора до пятницы",
-            "Утвердить controlled перенос milestone",
+            "Собрать кликабельный прототип за 1 неделю",
+            "Проверить сценарий на первых 20 пользователях",
+            "Зафиксировать, где ещё остаётся трение",
           ],
         },
         createMeta(
-          "Нужно три решения сегодня: owner, SLA и перенос одного milestone на 3 недели",
+          "Дальше нужен быстрый прототип и тест на 20 реальных пользователях",
           "decide",
           "decision-slide",
-          "Что именно комитет должен одобрить сейчас?",
-          "Это кульминация пакета: сильный апдейт без ясного ask не имеет управленческой ценности.",
-          "Закрыть разговор конкретным набором решений"
+          "Что делать после презентации?",
+          "Финал оставляет ощущение движения, а не красивой картинки без продолжения.",
+          "Закрыть презентацию конкретным следующим шагом"
         ),
-        "Формулируйте ask так, чтобы его можно было принять на встрече без дополнительной декодировки."
+        "Завершайте даже творческую презентацию ясным действием."
       ),
     ],
   },
   {
     id: "budget-defense",
-    name: "Budget Defense",
-    audience: "CFO, инвесткомитет, CEO",
-    decision: "Одобрить CAPEX 240M и выбрать вариант B как preferred option.",
+    name: "Квартальный отчёт",
+    audience: "Команда, руководитель, заказчик",
+    promise: "Спокойный отчёт может выглядеть современно и ясно, если не прятать выводы за сухими формулировками.",
     summary:
-      "Пакет на защиту бюджета: не про красоту цифр, а про downside, ROI и честный trade-off между вариантами.",
-    proofPoints: [
-      "CFO-язык: effect, payback, downside",
-      "варианты сравниваются по критериям, а не по вкусу",
-      "ask отделён от обоснования",
-    ],
-    templateId: "minimal",
+      "Пример для режима «Отчёт»: цифры, выводы и следующий шаг без ощущения бюрократии.",
+    templateId: "consulting",
     slides: [
       createSlide(
-        "budget-1",
+        "report-1",
         0,
         "title",
         {
-          heading: "Без CAPEX на data platform программа теряет 40% ожидаемого эффекта уже в 2026 году",
-          subheading: "Budget Defense | Enterprise Data Platform",
+          heading: "Команда ускорилась: релизы стали чаще, а входящих блокеров заметно меньше",
+          subheading: "Квартальный обзор продуктовой команды",
         },
         createMeta(
-          "Без CAPEX на data platform программа теряет 40% ожидаемого эффекта уже в 2026 году",
-          "recommend",
-          "headline-verdict",
-          "Почему это решение нельзя отложить без потери value?",
-          "Открывает budget defense через ставку бизнеса, а не через внутренние нужды ИТ.",
-          "Поставить финансовую ставку разговора"
+          "Команда ускорилась: релизы стали чаще, а входящих блокеров заметно меньше",
+          "inform",
+          "executive-summary",
+          "Какой главный итог квартала нужно унести с собой?",
+          "Хороший отчёт тоже начинается с вывода, а не с нейтрального заголовка.",
+          "Открыть отчёт коротким итогом"
         ),
-        "Начните с последствий no-decision, а не с детализации затрат."
+        "Даже в отчёте первый слайд должен давать ощущение понятной картины."
       ),
       createSlide(
-        "budget-2",
+        "report-2",
         1,
         "kpi",
         {
-          heading: "CAPEX окупается за 14 месяцев и снимает 120M руб. операционных потерь в год",
+          heading: "Частота релизов выросла, а время на исправление заметных проблем сократилось почти вдвое",
+          subheading: "Три показателя, которые лучше всего объясняют квартал",
           kpiValues: [
-            { value: "14 мес.", label: "Payback", trend: "up" },
-            { value: "120M", label: "Потери, которые снимаем", trend: "up" },
-            { value: "27%", label: "Снижение ручных операций", trend: "up" },
-            { value: "2.3x", label: "ROI за 3 года", trend: "up" },
+            { value: "18", label: "Релизов за квартал", trend: "up" },
+            { value: "1.8 дня", label: "Среднее время до исправления", trend: "down" },
+            { value: "92%", label: "Задач, закрытых в срок", trend: "up" },
           ],
         },
         createMeta(
-          "CAPEX окупается за 14 месяцев и снимает 120M руб. операционных потерь в год",
+          "Частота релизов выросла, а время на исправление заметных проблем сократилось почти вдвое",
           "justify",
-          "budget-waterfall",
-          "Какая экономика делает ask разумным?",
-          "Этот слайд превращает бюджет из расхода в инвестиционное решение.",
-          "Подкрепить recommendation цифрами, понятными CFO"
+          "kpi-dashboard-commentary",
+          "Какие цифры лучше всего подтверждают итог квартала?",
+          "Цифры поддерживают основной вывод и не живут отдельно от него.",
+          "Подкрепить вывод краткой метрикой"
         ),
-        "Экономика должна подтверждать решение, а не существовать отдельно от него."
+        "Показывайте только те метрики, которые реально двигают историю."
       ),
       createSlide(
-        "budget-3",
+        "report-3",
         2,
         "content",
         {
-          heading: "Рекомендуем вариант B и просим одобрить CAPEX 240M с двумя checkpoint по эффекту",
+          heading: "Следующий квартал стоит посвятить стабильности и ускорению обратной связи",
           body:
-            "Ask: утвердить preferred option, CAPEX 240M и checkpoint на 90 и 180 день для проверки эффекта.",
+            "База уже выглядит уверенно. Теперь сильнее всего повлияет работа над стабильностью и более коротким циклом получения обратной связи от пользователей.",
           bullets: [
-            "Одобрить вариант B как target architecture",
-            "Утвердить CAPEX двумя tranche",
-            "Зафиксировать KPI-checkpoint на 90 и 180 день",
+            "Поддержать текущий ритм релизов",
+            "Выделить время на стабилизацию двух узких мест",
+            "Запустить более быстрый цикл сбора обратной связи",
           ],
         },
         createMeta(
-          "Рекомендуем вариант B и просим одобрить CAPEX 240M с двумя checkpoint по эффекту",
-          "decide",
+          "Следующий квартал стоит посвятить стабильности и ускорению обратной связи",
+          "recommend",
           "decision-slide",
-          "Что именно комитет должен проголосовать?",
-          "Сильный business case без decision slide так и останется хорошим memo.",
-          "Сделать решение управляемым и голосуемым"
+          "Что делать после такого отчёта?",
+          "Финал отчёта переводит факты в фокус на следующий период.",
+          "Закрыть отчёт понятным ориентиром"
         ),
-        "Финальный ask должен включать не только деньги, но и механику контроля результата."
+        "Отчёт становится сильнее, когда даёт не только ретроспективу, но и вектор дальше."
       ),
     ],
   },
   {
     id: "incident-risk-update",
-    name: "Incident / Risk Update",
-    audience: "CIO, COO, risk committee",
-    decision: "Утвердить remediation-план и funding на закрытие системной причины инцидента.",
+    name: "Обучение",
+    audience: "Слушатели, новая команда, стажёры",
+    promise: "Даже обучающий материал можно собрать как аккуратную визуальную историю, а не как сплошной лист текста.",
     summary:
-      "Пакет для эскалации инцидента: честный timeline, business impact и решение, которое снижает риск повторения.",
-    proofPoints: [
-      "без защитного тона и technical log noise",
-      "impact и root cause разведены явно",
-      "финал ведёт к remediation ask",
-    ],
-    templateId: "tech",
+      "Пример для режима «Обучение»: одна тема, три понятных блока и мягкая подача.",
+    templateId: "minimal",
     slides: [
       createSlide(
-        "incident-1",
+        "edu-1",
         0,
         "title",
         {
-          heading: "Инцидент локализован, но корневая причина остаётся и создаёт риск повторения в течение 30 дней",
-          subheading: "Incident Update | Core Payments | 02 апреля 2026",
+          heading: "Нейросети полезны не тогда, когда знают всё, а когда экономят время на рутине",
+          subheading: "Короткое введение в практическое использование ИИ",
         },
         createMeta(
-          "Инцидент локализован, но корневая причина остаётся и создаёт риск повторения в течение 30 дней",
-          "escalate",
+          "Нейросети полезны не тогда, когда знают всё, а когда экономят время на рутине",
+          "inform",
           "headline-verdict",
-          "Насколько ситуация реально под контролем?",
-          "Сразу честно разделяет локализацию инцидента и полное закрытие риска.",
-          "Вернуть разговор в рамку риска, а не оправданий"
+          "Как сформулировать тему без тяжёлого вводного блока?",
+          "Первый слайд задаёт спокойную, но живую рамку всей теме.",
+          "Сделать тему понятной с первой секунды"
         ),
-        "Честный headline усиливает доверие к последующему remediation plan."
+        "Начинайте обучение с ясной идеи, а не с длинного определения."
       ),
       createSlide(
-        "incident-2",
+        "edu-2",
         1,
         "timeline",
         {
-          heading: "За 4 часа сервис восстановлен, но timeline показывает системный разрыв в failover-процессе",
+          heading: "Освоение ИИ проще всего проходит в три шага: понять задачу, подобрать инструмент, проверить результат",
           timelineItems: [
-            { year: "09:12", title: "Падение primary cluster", description: "Рост ошибок на шлюзе" },
-            { year: "09:24", title: "Ручной failover", description: "Автоматический сценарий не сработал" },
-            { year: "11:05", title: "Сервис восстановлен", description: "Платежи пошли через резерв" },
-            { year: "13:10", title: "Подтверждена root cause", description: "Policy failover не покрывает новый контур" },
+            { year: "1", title: "Понять задачу", description: "Где именно уходит лишнее время" },
+            { year: "2", title: "Подобрать инструмент", description: "Какой формат помогает лучше всего" },
+            { year: "3", title: "Проверить результат", description: "Что сработало, а что нет" },
           ],
         },
         createMeta(
-          "За 4 часа сервис восстановлен, но timeline показывает системный разрыв в failover-процессе",
+          "Освоение ИИ проще всего проходит в три шага: понять задачу, подобрать инструмент, проверить результат",
           "explain",
-          "incident-timeline",
-          "Что реально произошло и где система дала сбой?",
-          "Timeline нужен как доказательство системной проблемы, а не как технический лог.",
-          "Перевести эмоции в factual backbone"
+          "roadmap-milestones",
+          "Как разложить тему по шагам без сложной схемы?",
+          "Таймлайн помогает сделать обучение последовательным и спокойным.",
+          "Показать порядок действий"
         ),
-        "Timeline должен объяснять управленческий смысл событий, а не перечислять их."
+        "В обучении хорошо работают простые последовательности, которые можно удержать в голове."
       ),
       createSlide(
-        "incident-3",
+        "edu-3",
         2,
         "content",
         {
-          heading: "Просим утвердить remediation-план и funding на автоматизацию failover до конца месяца",
+          heading: "Начать стоит с одного повторяющегося процесса, а не с попытки автоматизировать всё сразу",
           body:
-            "Рекомендация: не ограничиваться локальным фиксoм. Нужен системный remediation-пакет с owner, сроком и финансированием.",
+            "Лучший вход в тему — выбрать одну задачу, где ИИ уже сегодня сэкономит время, и проверить это на практике.",
           bullets: [
-            "Утвердить funding на автоматизацию failover",
-            "Закрепить single owner за resilience roadmap",
-            "Провести review после завершения remediation",
+            "Выберите один повторяющийся процесс",
+            "Попробуйте 2-3 формулировки запроса",
+            "Оцените результат и зафиксируйте выводы",
           ],
         },
         createMeta(
-          "Просим утвердить remediation-план и funding на автоматизацию failover до конца месяца",
+          "Начать стоит с одного повторяющегося процесса, а не с попытки автоматизировать всё сразу",
           "decide",
           "decision-slide",
-          "Какое решение снижает вероятность повторения?",
-          "Превращает incident update в контролируемое решение, а не просто отчёт о случившемся.",
-          "Закрыть эскалацию remediation ask"
+          "Какой первый шаг сделать после мини-урока?",
+          "Финал переводит теорию в простое действие.",
+          "Закончить обучение практическим шагом"
         ),
-        "Закрывайте инцидентный пакет не объяснениями, а решением на устранение системной причины."
+        "Обучение лучше заканчивать маленьким практическим действием, а не абстрактным выводом."
       ),
     ],
   },
 ];
 
 export default function DemoPage() {
-  const [selectedPackageId, setSelectedPackageId] =
+  const [selectedDraftId, setSelectedDraftId] =
     useState<MeetingScenarioId>("steering-committee");
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [scale, setScale] = useState(0.62);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const activePackage = useMemo(
-    () => demoPackages.find((item) => item.id === selectedPackageId) ?? demoPackages[0],
-    [selectedPackageId]
+  const activeDraft = useMemo(
+    () => drafts.find((item) => item.id === selectedDraftId) ?? drafts[0],
+    [selectedDraftId]
   );
-  const activeSlide = activePackage.slides[currentSlideIndex];
-  const template = getTemplate(activePackage.templateId);
+  const activeSlide = activeDraft.slides[currentSlideIndex];
+  const template = getTemplate(activeDraft.templateId);
 
   useEffect(() => {
     function recalc() {
@@ -340,36 +333,38 @@ export default function DemoPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-neutral-100 px-4 py-8 md:px-6">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.18),transparent_26%),linear-gradient(180deg,#fffaf3_0%,#f6eee1_100%)] px-4 py-8 md:px-6">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 max-w-4xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-white">
+          <div className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-white">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Публичное демо
+            Примеры
           </div>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950 md:text-5xl">
-            Демо управленческих пакетов, а не выставка типов слайдов.
+          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950 md:text-5xl [font-family:var(--font-bricolage-grotesque)]">
+            Три примера того, как может выглядеть первый черновик.
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-relaxed text-neutral-600 md:text-lg">
-            SlideForge показывает, как ИТ-руководитель собирает позицию для CEO,
-            CFO и комитетов: от verdict и риска до конкретного решения.
+            SlideForge не заставляет начинать со сложной анкеты. Ниже можно
+            посмотреть, как одна тема превращается в уже приятную для работы
+            презентацию.
           </p>
         </div>
 
         <div className="mb-8 grid gap-3 lg:grid-cols-3">
-          {demoPackages.map((item) => {
-            const active = item.id === selectedPackageId;
+          {drafts.map((item) => {
+            const active = item.id === selectedDraftId;
             return (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => {
-                  setSelectedPackageId(item.id);
+                  setSelectedDraftId(item.id);
                   setCurrentSlideIndex(0);
                 }}
                 className={`rounded-[28px] border p-5 text-left transition-all ${
                   active
-                    ? "border-neutral-900 bg-neutral-900 text-white shadow-lg"
-                    : "border-neutral-200 bg-white text-neutral-900 hover:border-neutral-300"
+                    ? "border-neutral-950 bg-neutral-950 text-white shadow-lg"
+                    : "border-black/8 bg-white text-neutral-900 hover:border-black/16"
                 }`}
               >
                 <div className="text-xs font-medium uppercase tracking-[0.16em] opacity-70">
@@ -390,72 +385,45 @@ export default function DemoPage() {
 
         <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
           <aside className="space-y-4">
-            <section className="rounded-[28px] border border-neutral-200 bg-white p-6 shadow-sm">
+            <section className="rounded-[28px] border border-black/8 bg-white p-6 shadow-sm">
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-                Решение
+                Что в этом примере важно
               </div>
-              <p className="mt-3 text-base font-medium leading-relaxed text-neutral-950">
-                {activePackage.decision}
+              <p className="mt-3 text-base leading-relaxed text-neutral-900">
+                {activeDraft.promise}
               </p>
             </section>
 
-            <section className="rounded-[28px] border border-neutral-200 bg-white p-6 shadow-sm">
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-                Почему пакет работает
-              </div>
-              <ul className="mt-3 space-y-2 text-sm leading-relaxed text-neutral-600">
-                {activePackage.proofPoints.map((point) => (
-                  <li key={point} className="flex gap-2">
-                    <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-neutral-900" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="rounded-[28px] border border-neutral-200 bg-white p-6 shadow-sm">
+            <section className="rounded-[28px] border border-black/8 bg-white p-6 shadow-sm">
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
                 Текущий слайд
               </div>
-              {activeSlide.meta && (
-                <>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-neutral-900 px-3 py-1 text-xs font-medium text-white">
-                      {slideRoleLabels[activeSlide.meta.role]}
-                    </span>
-                    <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
-                      {archetypeLabels[activeSlide.meta.archetype]}
-                    </span>
-                  </div>
-                  <div className="mt-4 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-                    Зачем он здесь
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-                    {activeSlide.meta.whyThisSlide}
-                  </p>
-                  <div className="mt-4 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-                    Какой вопрос закрывает
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-                    {activeSlide.meta.managementQuestion}
-                  </p>
-                </>
-              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-neutral-950 px-3 py-1 text-xs font-medium text-white">
+                  {slideRoleLabels[activeSlide.meta?.role ?? "inform"]}
+                </span>
+                <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
+                  {archetypeLabels[activeSlide.meta?.archetype ?? "headline-verdict"]}
+                </span>
+              </div>
+              <p className="mt-4 text-sm leading-relaxed text-neutral-600">
+                {activeSlide.meta?.whyThisSlide}
+              </p>
             </section>
           </aside>
 
-          <section className="rounded-[32px] border border-neutral-200 bg-white p-5 shadow-sm">
+          <section className="rounded-[32px] border border-black/8 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-                  Превью пакета
+                  Превью черновика
                 </div>
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">
-                  {activePackage.name}
+                  {activeDraft.name}
                 </h2>
               </div>
               <div className="rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-600">
-                {currentSlideIndex + 1} / {activePackage.slides.length}
+                {currentSlideIndex + 1} / {activeDraft.slides.length}
               </div>
             </div>
 
@@ -473,37 +441,40 @@ export default function DemoPage() {
 
             <div className="mt-5 flex items-center justify-between gap-4">
               <button
+                type="button"
                 onClick={() => setCurrentSlideIndex((current) => Math.max(0, current - 1))}
                 disabled={currentSlideIndex === 0}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 disabled:opacity-30"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 bg-white text-neutral-600 disabled:opacity-30"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
 
               <div className="flex gap-2 overflow-x-auto py-1">
-                {activePackage.slides.map((slide, index) => (
+                {activeDraft.slides.map((slide, index) => (
                   <button
                     key={slide.id}
+                    type="button"
                     onClick={() => setCurrentSlideIndex(index)}
                     className={`rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap ${
                       index === currentSlideIndex
-                        ? "bg-neutral-900 text-white"
+                        ? "bg-neutral-950 text-white"
                         : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
                     }`}
                   >
-                    {slide.meta?.headlineVerdict || slide.content.heading || `Slide ${index + 1}`}
+                    {slide.content.heading || `Слайд ${index + 1}`}
                   </button>
                 ))}
               </div>
 
               <button
+                type="button"
                 onClick={() =>
                   setCurrentSlideIndex((current) =>
-                    Math.min(activePackage.slides.length - 1, current + 1)
+                    Math.min(activeDraft.slides.length - 1, current + 1)
                   )
                 }
-                disabled={currentSlideIndex === activePackage.slides.length - 1}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-600 disabled:opacity-30"
+                disabled={currentSlideIndex === activeDraft.slides.length - 1}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 bg-white text-neutral-600 disabled:opacity-30"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>

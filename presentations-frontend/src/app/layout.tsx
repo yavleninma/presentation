@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SlideForge - decision package для CIO и ИТ-руководителей",
+  title: "SlideForge — красивый черновик презентации с ИИ",
   description:
-    "SlideForge превращает ИТ-статусы, KPI, риски и документы в управленческий пакет для CEO, CFO и комитетов.",
+    "SlideForge помогает быстро собрать красивую русскоязычную презентацию: тема, пара настроек, черновик и живая доработка в чате.",
 };
 
 export default function RootLayout({

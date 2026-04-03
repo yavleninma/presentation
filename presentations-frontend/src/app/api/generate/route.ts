@@ -19,11 +19,13 @@ import {
   OutlineSlide,
   PresentationBrief,
   PresentationOutline,
+  PresentationLengthId,
   Slide,
   SlideArchetype,
   SlideConfidence,
   SlideLayoutType,
   SlideMeta,
+  SlideRegenerationIntent,
 } from "@/types/presentation";
 
 export const maxDuration = 60;
@@ -60,7 +62,7 @@ async function generateJSON(
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.45,
+    temperature: 0.55,
     response_format: { type: "json_object" },
   });
 
@@ -70,6 +72,7 @@ async function generateJSON(
 
 function isMeetingScenarioId(value: unknown): value is MeetingScenarioId {
   return typeof value === "string" && value in {
+    "simple-presentation": true,
     "steering-committee": true,
     "quarterly-it-review": true,
     "budget-defense": true,
@@ -80,6 +83,10 @@ function isMeetingScenarioId(value: unknown): value is MeetingScenarioId {
   };
 }
 
+function isPresentationLength(value: unknown): value is PresentationLengthId {
+  return value === "short" || value === "medium" || value === "detailed";
+}
+
 function normalizeBrief(raw: unknown): PresentationBrief {
   const source = (raw && typeof raw === "object" ? raw : {}) as Record<
     string,
@@ -87,26 +94,40 @@ function normalizeBrief(raw: unknown): PresentationBrief {
   >;
   const scenarioId = isMeetingScenarioId(source.scenarioId)
     ? source.scenarioId
-    : "steering-committee";
+    : "simple-presentation";
   const scenario = getScenarioDefinition(scenarioId);
 
   const read = (key: string, fallback = "") =>
     typeof source[key] === "string" ? String(source[key]).trim() : fallback;
 
+  const mainThesis = read("mainThesis");
+  const desiredOutcome = read("desiredOutcome", scenario.desiredOutcomeHint);
+
   return {
     scenarioId,
-    meetingName: read("meetingName", scenario.name),
+    meetingName: read("meetingName", mainThesis || scenario.name),
     audience: read("audience", scenario.audienceHint),
-    desiredOutcome: read("desiredOutcome", scenario.desiredOutcomeHint),
+    desiredOutcome,
     deadline: read("deadline"),
-    mainThesis: read("mainThesis"),
-    leadershipAsk: read("leadershipAsk"),
+    mainThesis,
+    leadershipAsk: read("leadershipAsk", desiredOutcome),
     workingWell: read("workingWell"),
     notWorking: read("notWorking"),
     criticalNumbers: read("criticalNumbers"),
     risks: read("risks"),
     dependencies: read("dependencies"),
-    sourceMaterial: read("sourceMaterial"),
+    sourceMaterial: read("sourceMaterial", mainThesis),
+    presentationFormat:
+      source.presentationFormat === "report" ||
+      source.presentationFormat === "idea" ||
+      source.presentationFormat === "education" ||
+      source.presentationFormat === "talk"
+        ? source.presentationFormat
+        : "talk",
+    presentationLength: isPresentationLength(source.presentationLength)
+      ? source.presentationLength
+      : "medium",
+    visualTheme: read("visualTheme", "minimal"),
   };
 }
 
@@ -145,6 +166,7 @@ function normalizeMeta(
 
   const read = (key: string, fallback = "") =>
     typeof source[key] === "string" ? String(source[key]).trim() : fallback;
+
   const evidence = Array.isArray(source.evidence)
     ? source.evidence
         .filter((item): item is string => typeof item === "string")
@@ -152,15 +174,19 @@ function normalizeMeta(
         .filter(Boolean)
         .slice(0, 4)
     : [];
+
   const confidence = ["high", "medium", "low"].includes(
     String(source.confidence)
   )
     ? (source.confidence as SlideConfidence)
     : "medium";
+
   const regenerationIntents = Array.isArray(source.regenerationIntents)
     ? source.regenerationIntents
-        .filter((item): item is Slide["meta"] extends { regenerationIntents: infer T } ? T extends Array<infer U> ? U : never : never => typeof item === "string")
-        .slice(0, 8)
+        .filter((item): item is SlideRegenerationIntent =>
+          typeof item === "string"
+        )
+        .slice(0, 5)
     : DEFAULT_REGEN_INTENTS;
 
   const archetype =
@@ -174,25 +200,27 @@ function normalizeMeta(
         ? (source.role as SlideMeta["role"])
         : index === 0
           ? "inform"
-          : "recommend",
+          : index >= 4
+            ? "recommend"
+            : "explain",
     archetype,
     audience: read("audience", audience),
     headlineVerdict: read("headlineVerdict", title),
     managementQuestion: read(
       "managementQuestion",
-      "Какой управленческий вопрос этот слайд закрывает?"
+      "Что человек должен быстро считать с этого слайда?"
     ),
     decisionIntent: read(
       "decisionIntent",
       index === 0
-        ? "Задать рамку решения"
-        : "Подвинуть аудиторию к следующему решению"
+        ? "Ввести в тему и задать тон презентации"
+        : "Продвинуть историю и сделать вывод понятнее"
     ),
     evidence,
     confidence,
     whyThisSlide: read(
       "whyThisSlide",
-      "Поддерживает логику decision package и делает вывод явным."
+      "Усиливает историю презентации и делает следующий шаг естественным."
     ),
     storylinePosition: read("storylinePosition"),
     regenerationIntents,
@@ -215,7 +243,7 @@ function normalizeOutlineSlides(
       const title =
         typeof slide.title === "string" && slide.title.trim()
           ? slide.title.trim()
-          : `Вывод ${index + 1}`;
+          : `${brief.mainThesis || "Новая презентация"} — слайд ${index + 1}`;
       const meta = normalizeMeta(slide.meta, title, brief.audience, index);
       const preferredLayout =
         typeof slide.layout === "string" &&
@@ -244,13 +272,17 @@ function normalizeOutlineSlides(
 
   if (!normalized.length) {
     normalized.push({
-      title:
-        brief.mainThesis || "Решение требует управленческого выравнивания",
+      title: brief.mainThesis || "Новая презентация",
       layout: "title",
-      keyPoints: [brief.desiredOutcome || "Собрать позицию к встрече"],
+      keyPoints: [brief.desiredOutcome || "Коротко и ясно раскрыть тему"],
       speakerNotes:
-        "Откройте разговор сильным выводом, а затем быстро задайте stakes.",
-      meta: normalizeMeta(undefined, brief.mainThesis || "Решение требует управленческого выравнивания", brief.audience, 0),
+        "Откройте презентацию сильным тезисом и сразу обозначьте, зачем слушать дальше.",
+      meta: normalizeMeta(
+        undefined,
+        brief.mainThesis || "Новая презентация",
+        brief.audience,
+        0
+      ),
     });
   }
 
@@ -260,10 +292,7 @@ function normalizeOutlineSlides(
     meta: {
       ...normalized[0].meta,
       role: "inform",
-      archetype:
-        normalized[0].meta?.archetype === "executive-summary"
-          ? "executive-summary"
-          : "headline-verdict",
+      archetype: "headline-verdict",
     },
   };
 
@@ -272,19 +301,19 @@ function normalizeOutlineSlides(
     normalized.push({
       title:
         index === slideCount - 1
-          ? "Решение требуется сейчас, иначе риски закрепятся"
-          : `Вывод ${index + 1}`,
+          ? "Короткий итог и следующий шаг"
+          : `Смысловой блок ${index + 1}`,
       layout: index === slideCount - 1 ? "content" : "content",
       keyPoints:
         index === slideCount - 1
-          ? [brief.leadershipAsk || "Зафиксируйте конкретный ask к руководству"]
-          : ["Добавьте ещё один блок доказательств или объяснения"],
+          ? [brief.leadershipAsk || "Сформулируйте итог или следующий шаг"]
+          : ["Добавьте ещё одну опорную мысль, которая усиливает историю"],
       speakerNotes:
         index === slideCount - 1
-          ? "Закройте разговор жёстким ask и обозначьте цену бездействия."
-          : "Свяжите этот блок с предыдущим и следующим решением.",
+          ? "Закройте историю одним ясным выводом или действием."
+          : "Свяжите этот слайд с предыдущим и следующим блоком.",
       meta: {
-        ...normalizeMeta(undefined, `Вывод ${index + 1}`, brief.audience, index),
+        ...normalizeMeta(undefined, `Слайд ${index + 1}`, brief.audience, index),
         role: index === slideCount - 1 ? "decide" : "explain",
         archetype: index === slideCount - 1 ? "decision-slide" : "appendix-detail",
       },
@@ -324,7 +353,9 @@ function normalizePackage(
         .map((item, index) => ({
           id: item.id?.trim() || `option-${index + 1}`,
           title: item.title?.trim() || `Вариант ${index + 1}`,
-          rationale: item.rationale?.trim() || "Собирает narrative в управленческую историю.",
+          rationale:
+            item.rationale?.trim() ||
+            "Помогает посмотреть на тему под немного другим углом.",
         }))
         .slice(0, 3)
     : [];
@@ -337,18 +368,20 @@ function normalizePackage(
           ): item is { label?: string; severity?: string; detail?: string } =>
             typeof item === "object" && item !== null
         )
-        .map((item): ExtractionFinding => ({
-          label: item.label?.trim() || "Пробел",
-          severity:
-            item.severity === "critical" ||
-            item.severity === "warning" ||
-            item.severity === "info"
-              ? item.severity
-              : "warning",
-          detail:
-            item.detail?.trim() ||
-            "AI видит пробел или противоречие, которое стоит закрыть до встречи.",
-        }))
+        .map(
+          (item): ExtractionFinding => ({
+            label: item.label?.trim() || "Что можно усилить",
+            severity:
+              item.severity === "critical" ||
+              item.severity === "warning" ||
+              item.severity === "info"
+                ? item.severity
+                : "warning",
+            detail:
+              item.detail?.trim() ||
+              "Черновик уже можно использовать, но его можно сделать сильнее с дополнительными фактами или примерами.",
+          })
+        )
         .slice(0, 6)
     : [];
 
@@ -361,16 +394,22 @@ function normalizePackage(
     executiveSummary:
       typeof source.executiveSummary === "string" && source.executiveSummary.trim()
         ? source.executiveSummary.trim()
-        : brief.mainThesis || "Пакет требует управленческого решения.",
+        : `Черновик по теме "${brief.mainThesis}" с упором на ясную структуру и красивую подачу.`,
     storylineOptions:
       storylineOptions.length > 0
         ? storylineOptions
         : [
             {
-              id: "option-1",
-              title: "От статуса к решению",
+              id: "calm",
+              title: "Спокойная подача",
               rationale:
-                "Сначала фиксирует ситуацию, затем отклонение, риск и выводит к ask.",
+                "Ровный и понятный вариант, который хорошо подходит для первого черновика.",
+            },
+            {
+              id: "bold",
+              title: "Смелее и ярче",
+              rationale:
+                "Более резкая и цепляющая подача с сильными акцентами.",
             },
           ],
     extractionFindings:
@@ -378,10 +417,10 @@ function normalizePackage(
         ? extractionFindings
         : [
             {
-              label: "Проверьте тезис",
-              severity: "warning",
+              label: "Можно усилить фактуру",
+              severity: "info",
               detail:
-                "Если тезис или ask звучат слишком общо, пакет будет слабым на встрече.",
+                "Если добавить цифры, примеры или короткие тезисы из материалов, презентация станет убедительнее.",
             },
           ],
     followUpQuestions: Array.isArray(source.followUpQuestions)
@@ -401,11 +440,26 @@ function normalizePackage(
   };
 }
 
-function getRequestedSlideCount(body: Record<string, unknown>, brief: PresentationBrief) {
-  const raw = typeof body.slideCount === "number" ? body.slideCount : Number(body.slideCount);
-  const scenario = getScenarioDefinition(brief.scenarioId);
-  if (!Number.isFinite(raw)) return scenario.defaultSlideCount;
-  return Math.min(10, Math.max(4, Math.round(raw)));
+function getRequestedSlideCount(
+  body: Record<string, unknown>,
+  brief: PresentationBrief
+) {
+  const raw =
+    typeof body.slideCount === "number"
+      ? body.slideCount
+      : Number(body.slideCount);
+
+  if (Number.isFinite(raw)) {
+    return Math.min(10, Math.max(4, Math.round(raw)));
+  }
+
+  const byLength: Record<PresentationLengthId, number> = {
+    short: 5,
+    medium: 7,
+    detailed: 9,
+  };
+
+  return byLength[brief.presentationLength];
 }
 
 function normalizeOutline(
@@ -429,10 +483,9 @@ function normalizeOutline(
 
 async function createOutline(body: Record<string, unknown>) {
   const brief = normalizeBrief(body.brief);
-  if (!brief.mainThesis || !brief.leadershipAsk || !brief.sourceMaterial) {
-    throw new Error(
-      "Для outline нужны главный тезис, ask к руководству и исходный материал."
-    );
+
+  if (!brief.mainThesis) {
+    throw new Error("Нужна хотя бы тема презентации.");
   }
 
   const language =
@@ -457,8 +510,9 @@ async function streamSlides(
   const openai = getOpenAI();
   const encoder = new TextEncoder();
   const storyline =
-    outline.package.storylineOptions.find((option) => option.id === selectedStorylineId) ||
-    outline.package.storylineOptions[0];
+    outline.package.storylineOptions.find(
+      (option) => option.id === selectedStorylineId
+    ) || outline.package.storylineOptions[0];
 
   return new ReadableStream({
     async start(controller) {
@@ -471,10 +525,10 @@ async function streamSlides(
       try {
         send("phase", "generating");
         send("thinking", {
-          message: "Собираю decision package из утверждённой структуры",
+          message: "Собираю черновик презентации",
           detail:
-            "Структура уже согласована. Теперь превращаю narrative в рабочие слайды, notes и пакет для решения.",
-          progress: 24,
+            "Сначала раскладываю историю по слайдам, затем уплотняю подачу и добавляю визуальные акценты.",
+          progress: 18,
         });
 
         const slides: Slide[] = [];
@@ -483,11 +537,11 @@ async function streamSlides(
           const outlineSlide = outline.slides[i];
           const progress = Math.min(
             92,
-            26 + Math.round((i / Math.max(outline.slides.length, 1)) * 60)
+            20 + Math.round((i / Math.max(outline.slides.length, 1)) * 62)
           );
 
           send("slide_start", {
-            message: `Генерирую слайд ${i + 1} из ${outline.slides.length}`,
+            message: `Собираю слайд ${i + 1} из ${outline.slides.length}`,
             detail: outlineSlide.meta?.headlineVerdict || outlineSlide.title,
             progress,
             slideIndex: i + 1,
@@ -550,9 +604,9 @@ async function streamSlides(
 
         send("phase", "polishing");
         send("polishing", {
-          message: "Финализирую пакет: notes, appendix hooks и decision logic",
+          message: "Дошлифовываю презентацию",
           detail:
-            "Проверяю, чтобы storyline не распадался и финальный ask звучал однозначно.",
+            "Проверяю ритм истории, силу заголовков и чтобы финал выглядел завершённым.",
           progress: 96,
         });
         await sleep(300);
@@ -598,7 +652,7 @@ export async function POST(request: NextRequest) {
     const outlineSource = body.outline;
     if (!outlineSource || typeof outlineSource !== "object") {
       return Response.json(
-        { error: "Approved outline is required for slide generation." },
+        { error: "Нужна структура презентации для генерации слайдов." },
         { status: 400 }
       );
     }

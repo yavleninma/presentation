@@ -2,8 +2,8 @@ import { PresentationTemplate } from "@/types/presentation";
 
 export const modernDark: PresentationTemplate = {
   id: "modern-dark",
-  name: "Modern Dark",
-  description: "Tech Editorial Dark — тёмный, teal + amber, для технологичных презентаций",
+  name: "Тёмная",
+  description: "Глубокая контрастная тема с холодными световыми акцентами",
   colors: {
     primary: "#0EA5E9",
     primaryForeground: "#FFFFFF",

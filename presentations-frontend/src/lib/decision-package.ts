@@ -1,8 +1,11 @@
 import {
+  ManagementSlideRole,
   MeetingScenarioId,
   PresentationBrief,
+  PresentationFormatId,
+  PresentationLengthId,
   SlideArchetype,
-  ManagementSlideRole,
+  SlideLayoutType,
   SlideRegenerationIntent,
 } from "@/types/presentation";
 
@@ -22,253 +25,244 @@ export interface ScenarioDefinition {
 }
 
 export const DEFAULT_REGEN_INTENTS: SlideRegenerationIntent[] = [
-  "strengthen-verdict",
-  "shorten-for-execs",
-  "rewrite-for-cfo",
-  "add-business-impact",
-  "make-risk-clearer",
-  "remove-jargon",
-  "strengthen-evidence",
-  "turn-into-decision-slide",
+  "keep-meaning",
+  "make-shorter",
+  "make-more-visual",
+  "make-stricter",
+  "focus-on-numbers",
 ];
 
 export const slideRoleLabels: Record<ManagementSlideRole, string> = {
-  inform: "Информирует",
+  inform: "Знакомит",
   explain: "Объясняет",
   compare: "Сравнивает",
-  justify: "Обосновывает",
-  escalate: "Эскалирует",
-  recommend: "Рекомендует",
+  justify: "Подкрепляет",
+  escalate: "Подсвечивает риск",
+  recommend: "Ведёт к выводу",
   decide: "Подводит к решению",
-  close: "Закрывает разговор",
+  close: "Завершает",
 };
 
 export const archetypeLabels: Record<SlideArchetype, string> = {
-  "headline-verdict": "Headline + Verdict",
-  "kpi-dashboard-commentary": "KPI Dashboard + Commentary",
-  "progress-vs-plan": "Progress vs Plan",
-  "risk-heatmap": "Risk Heatmap",
-  "options-matrix": "Options Matrix",
-  "budget-waterfall": "Budget Waterfall",
-  "roadmap-milestones": "Roadmap / Milestones",
-  "incident-timeline": "Incident Timeline",
-  "dependency-map": "Dependency Map",
-  "decision-slide": "Decision Slide",
-  "executive-summary": "Executive Summary",
-  "appendix-detail": "Appendix Detail",
+  "headline-verdict": "Главный акцент",
+  "kpi-dashboard-commentary": "Цифры и вывод",
+  "progress-vs-plan": "Статус и динамика",
+  "risk-heatmap": "Риски",
+  "options-matrix": "Сравнение",
+  "budget-waterfall": "Экономика",
+  "roadmap-milestones": "План и этапы",
+  "incident-timeline": "Ход событий",
+  "dependency-map": "Связи и блокеры",
+  "decision-slide": "Финальный вывод",
+  "executive-summary": "Короткое резюме",
+  "appendix-detail": "Дополнительный блок",
+};
+
+export const slideLayoutLabels: Record<SlideLayoutType, string> = {
+  title: "Титульный",
+  section: "Раздел",
+  content: "Содержание",
+  "two-columns": "Две колонки",
+  "image-text": "Визуал и текст",
+  kpi: "Ключевые цифры",
+  timeline: "Ход по этапам",
+  quote: "Цитата",
+  "full-image": "Полноэкранный визуал",
+  "thank-you": "Финальный",
 };
 
 export const regenerationIntentLabels: Record<
   SlideRegenerationIntent,
   string
 > = {
-  tighten: "Сделать жёстче",
-  "shorten-for-execs": "Сократить для топов",
-  "rewrite-for-cfo": "Переписать под CFO",
-  "remove-jargon": "Убрать технарский жаргон",
-  "add-business-impact": "Добавить бизнес-эффект",
-  "make-risk-clearer": "Сделать риск явнее",
-  "strengthen-evidence": "Усилить доказательность",
-  "offer-structure-alternatives": "Предложить 2 структуры",
-  "turn-into-decision-slide": "Превратить в decision slide",
-  "strengthen-verdict": "Сделать сильнее вывод",
+  "keep-meaning": "Сохранить смысл",
+  "make-shorter": "Сделать короче",
+  "make-more-visual": "Сделать визуальнее",
+  "make-stricter": "Сделать строже",
+  "focus-on-numbers": "Акцент на цифрах",
+  custom: "Своё указание",
+};
+
+export const presentationFormatLabels: Record<PresentationFormatId, string> = {
+  report: "Отчёт",
+  idea: "Идея",
+  education: "Обучение",
+  talk: "Доклад",
+};
+
+export const presentationLengthLabels: Record<PresentationLengthId, string> = {
+  short: "Короткая",
+  medium: "Средняя",
+  detailed: "Развёрнутая",
 };
 
 export const scenarioDefinitions: ScenarioDefinition[] = [
   {
-    id: "steering-committee",
-    name: "Steering Committee",
-    shortName: "Steering",
+    id: "simple-presentation",
+    name: "Быстрый черновик",
+    shortName: "Черновик",
     description:
-      "Ежемесячный пакет по программе: статус, отклонения, риски, зависимости и решения для спонсора.",
-    audienceHint: "CIO, бизнес-спонсор, PMO, руководители потоков",
+      "Лёгкий режим для красивой русскоязычной презентации: одна мысль на входе, аккуратная структура на выходе.",
+    audienceHint: "Команда, клиент или аудитория презентации",
     desiredOutcomeHint:
-      "Подтвердить текущий план, снять блокировки и получить решения по красным зонам.",
-    thesisHint:
-      "Программа держит курс по ключевому результату, но требует решения по двум критичным блокерам.",
+      "Быстро получить понятный черновик и доработать его дальше в диалоге.",
+    thesisHint: "Например: как запустить новый продукт без лишних рисков",
     askHint:
-      "Утвердить перенос одного milestone, назначить владельца по зависимости и подтвердить ресурс на remediation.",
+      "Например: помочь понять идею, принять решение или объяснить тему шаг за шагом",
     sourceHint:
-      "Вставьте статусы потоков, KPI, блокеры, решения прошлой встречи и комментарии PMO.",
+      "Коротко опишите тему, факты, цифры или заметки. Если материалов нет, достаточно одной мысли.",
     promptSeed:
-      "Строй материал как steering-committee pack: коротко, жёстко, с выводом и ask на каждом критичном блоке.",
+      "Собирай презентацию как красивый и живой черновик: ясный вход, ритм, аккуратные слайды, без бюрократического тона.",
+    defaultSlideCount: 7,
+    defaultArchetypes: [
+      "headline-verdict",
+      "executive-summary",
+      "progress-vs-plan",
+      "options-matrix",
+      "kpi-dashboard-commentary",
+      "roadmap-milestones",
+      "decision-slide",
+    ],
+  },
+  {
+    id: "steering-committee",
+    name: "Комитет",
+    shortName: "Комитет",
+    description: "Спрятанный продвинутый режим для управленческого пакета.",
+    audienceHint: "Руководство, спонсоры, PMO",
+    desiredOutcomeHint: "Собрать управленческую позицию для встречи.",
+    thesisHint: "Что сейчас главное в ситуации",
+    askHint: "Какое решение или действие нужно от аудитории",
+    sourceHint: "Факты, статусы, риски, заметки и исходные материалы",
+    promptSeed:
+      "Строй материал как управленческий пакет: кратко, доказательно и с ясным выводом.",
     defaultSlideCount: 7,
     defaultArchetypes: [
       "headline-verdict",
       "progress-vs-plan",
-      "kpi-dashboard-commentary",
       "risk-heatmap",
-      "dependency-map",
       "decision-slide",
       "appendix-detail",
     ],
   },
   {
     id: "quarterly-it-review",
-    name: "Quarterly IT Review",
-    shortName: "Quarterly",
-    description:
-      "Квартальный пакет для CEO/ExCom: результаты, провалы, основные инициативы и следующий квартал.",
-    audienceHint: "CEO, COO, CFO, ExCom",
-    desiredOutcomeHint:
-      "Дать короткий executive view по ИТ-функции и согласовать приоритеты следующего квартала.",
-    thesisHint:
-      "ИТ выполнило критичные обязательства квартала, но два направления требуют управленческого вмешательства.",
-    askHint:
-      "Подтвердить приоритет на следующий квартал и согласовать действия по двум зонам риска.",
-    sourceHint:
-      "Вставьте KPI, major initiatives, квартальные статусы, ключевые риски и lessons learned.",
+    name: "Квартальный обзор ИТ",
+    shortName: "Квартал",
+    description: "Спрятанный продвинутый режим для квартального обзора.",
+    audienceHint: "CEO, COO, CFO, руководство",
+    desiredOutcomeHint: "Дать короткий обзор и согласовать фокус следующего периода.",
+    thesisHint: "Главный итог квартала в одной мысли",
+    askHint: "Какой следующий шаг нужен от руководства",
+    sourceHint: "KPI, инициативы, риски и ключевые выводы",
     promptSeed:
-      "Строй материал как quarterly review для топ-менеджмента: цифры, выводы, отклонения и следующая управленческая ставка.",
+      "Строй материал как квартальный обзор: цифры, выводы, риски и следующий шаг.",
     defaultSlideCount: 8,
     defaultArchetypes: [
       "executive-summary",
       "kpi-dashboard-commentary",
       "progress-vs-plan",
       "roadmap-milestones",
-      "risk-heatmap",
-      "dependency-map",
       "decision-slide",
-      "appendix-detail",
     ],
   },
   {
     id: "budget-defense",
-    name: "Budget Defense",
-    shortName: "Budget",
-    description:
-      "Пакет для защиты бюджета: зачем нужны деньги, какие есть варианты и какой эффект даёт решение.",
-    audienceHint: "CFO, инвестиционный комитет, CEO",
-    desiredOutcomeHint:
-      "Получить одобрение бюджета или нового этапа программы с ясным business case.",
-    thesisHint:
-      "Без дополнительного финансирования программа теряет целевой эффект, а предложенный вариант окупается за разумный срок.",
-    askHint:
-      "Одобрить CAPEX/OPEX, выбрать preferred option и зафиксировать expected ROI.",
-    sourceHint:
-      "Вставьте смету, сценарии, эффект, ограничения, риски, зависимости и прошлые финансовые допущения.",
+    name: "Защита бюджета",
+    shortName: "Бюджет",
+    description: "Спрятанный продвинутый режим для бюджетной аргументации.",
+    audienceHint: "CFO, инвесткомитет, руководство",
+    desiredOutcomeHint: "Обосновать инвестицию и предложить понятный выбор.",
+    thesisHint: "Почему проект или расход нельзя откладывать",
+    askHint: "Какое одобрение нужно получить",
+    sourceHint: "Смета, варианты, эффекты, ограничения и риски",
     promptSeed:
-      "Строй материал как budget-defense deck: жёсткий ask, waterfall, trade-offs, downside и рекомендация.",
+      "Строй материал как защиту бюджета: цифры, компромиссы, последствия и вывод.",
     defaultSlideCount: 7,
     defaultArchetypes: [
       "headline-verdict",
       "options-matrix",
       "budget-waterfall",
-      "kpi-dashboard-commentary",
-      "risk-heatmap",
       "decision-slide",
-      "appendix-detail",
     ],
   },
   {
     id: "incident-risk-update",
-    name: "Incident / Risk Update",
-    shortName: "Incident",
-    description:
-      "Честный пакет для эскалации инцидента или риска: таймлайн, impact, mitigation и следующий ask.",
-    audienceHint: "CIO, COO, risk committee, sponsor",
-    desiredOutcomeHint:
-      "Быстро восстановить контроль над нарративом и согласовать remediation plan.",
-    thesisHint:
-      "Инцидент локализован, но остаётся один системный риск, который требует решения руководства.",
-    askHint:
-      "Утвердить remediation plan, владельцев и меры по снижению повторения.",
-    sourceHint:
-      "Вставьте таймлайн, impact, root cause, статус mitigation, владельцев и открытые риски.",
+    name: "Инцидент и риск",
+    shortName: "Инцидент",
+    description: "Спрятанный продвинутый режим для кризисного апдейта.",
+    audienceHint: "CIO, COO, риск-комитет, спонсор",
+    desiredOutcomeHint: "Честно показать статус и согласовать план действий.",
+    thesisHint: "Что произошло и почему это важно",
+    askHint: "Какой план нужно утвердить",
+    sourceHint: "Таймлайн, impact, root cause, меры и открытые риски",
     promptSeed:
-      "Строй материал как incident update: без оправданий, с прозрачным impact и управленческим планом восстановления.",
+      "Строй материал как честный апдейт по инциденту: без оправданий, с ясным планом.",
     defaultSlideCount: 6,
     defaultArchetypes: [
       "headline-verdict",
       "incident-timeline",
       "risk-heatmap",
-      "progress-vs-plan",
       "decision-slide",
-      "appendix-detail",
     ],
   },
   {
     id: "vendor-decision",
-    name: "Architecture / Vendor Decision",
-    shortName: "Vendor",
-    description:
-      "Decision memo по платформе, вендору или migration path с критериями и рекомендацией.",
-    audienceHint: "CIO, архитектурный комитет, закупки, инвесткомитет",
-    desiredOutcomeHint:
-      "Структурировать выбор и получить решение по preferred option.",
-    thesisHint:
-      "Опция B даёт лучший баланс скорости, риска и total cost, несмотря на более сложный переход.",
-    askHint:
-      "Утвердить preferred option и зафиксировать boundary conditions для контракта/архитектуры.",
-    sourceHint:
-      "Вставьте критерии, альтернативы, стоимости, риски, ограничения и требования к миграции.",
+    name: "Выбор платформы",
+    shortName: "Выбор",
+    description: "Спрятанный продвинутый режим для выбора решения или поставщика.",
+    audienceHint: "Архитектурный комитет, закупки, руководство",
+    desiredOutcomeHint: "Сравнить варианты и предложить лучший путь.",
+    thesisHint: "Какой вариант выглядит сильнее и почему",
+    askHint: "Что нужно утвердить",
+    sourceHint: "Критерии, варианты, стоимость, риски и ограничения",
     promptSeed:
-      "Строй материал как decision memo: чёткие критерии, honest trade-offs и recommendation, которую можно утвердить.",
+      "Строй материал как memo по выбору: критерии, trade-offs и рекомендация.",
     defaultSlideCount: 7,
     defaultArchetypes: [
       "headline-verdict",
       "options-matrix",
       "dependency-map",
-      "risk-heatmap",
-      "roadmap-milestones",
       "decision-slide",
-      "appendix-detail",
     ],
   },
   {
     id: "program-recovery",
-    name: "Program Recovery / Rebaseline",
-    shortName: "Recovery",
-    description:
-      "Пакет на пересборку программы: gap vs baseline, причины, сценарии восстановления и rebaseline ask.",
+    name: "Пересборка программы",
+    shortName: "Пересборка",
+    description: "Спрятанный продвинутый режим для rebaseline и recovery.",
     audienceHint: "Steering committee, sponsor, CFO",
-    desiredOutcomeHint:
-      "Честно показать масштаб проблемы и получить решение по новому базовому плану.",
-    thesisHint:
-      "Программа не укладывается в исходный baseline и требует controlled reset, чтобы сохранить целевой эффект.",
-    askHint:
-      "Одобрить новый baseline, снять лишний scope и закрепить критичные зависимости.",
-    sourceHint:
-      "Вставьте baseline, actual, причины отклонений, сценарии восстановления, ресурсы и trade-offs.",
+    desiredOutcomeHint: "Показать разрыв и согласовать новый план.",
+    thesisHint: "Что нужно признать и как выйти в новую траекторию",
+    askHint: "Какой новый baseline или scope нужно утвердить",
+    sourceHint: "Baseline, actual, причины, варианты и trade-offs",
     promptSeed:
-      "Строй материал как recovery pack: без защитного тона, с gap analysis, вариантами и жёстким ask на rebaseline.",
+      "Строй материал как recovery-пакет: честно о разрыве и ясно о новом плане.",
     defaultSlideCount: 8,
     defaultArchetypes: [
       "headline-verdict",
       "progress-vs-plan",
-      "risk-heatmap",
-      "dependency-map",
       "options-matrix",
-      "roadmap-milestones",
       "decision-slide",
-      "appendix-detail",
     ],
   },
   {
     id: "update-previous-package",
-    name: "Update Previous Package",
-    shortName: "Update",
-    description:
-      "Режим обновления прошлого пакета: что изменилось, что ухудшилось и какие решения нужно пересмотреть.",
-    audienceHint: "Та же аудитория, что и в предыдущем пакете",
-    desiredOutcomeHint:
-      "Сохранить знакомую структуру, но быстро показать изменения и новые решения.",
-    thesisHint:
-      "С прошлого пакета ключевая картина не изменилась, но появились две новые зоны, требующие обновлённого решения.",
-    askHint:
-      "Подтвердить, что остаётся в силе, и пересмотреть два решения на основании новых фактов.",
-    sourceHint:
-      "Вставьте фрагменты прошлого пакета, новые данные, изменения по KPI, рискам и зависимостям.",
+    name: "Обновление пакета",
+    shortName: "Обновление",
+    description: "Спрятанный продвинутый режим для обновления существующей презентации.",
+    audienceHint: "Та же аудитория, что и у исходной презентации",
+    desiredOutcomeHint: "Показать, что изменилось и что делать дальше.",
+    thesisHint: "Как изменилась картина по сравнению с прошлой версией",
+    askHint: "Что нужно пересмотреть или подтвердить",
+    sourceHint: "Предыдущий пакет, новые факты, изменения по метрикам и рискам",
     promptSeed:
-      "Строй материал как update mode: опирайся на прошлый narrative, но явно маркируй, что изменилось, ухудшилось и требует пересмотра.",
+      "Строй материал как update-режим: сохрани контекст, но явно покажи изменения.",
     defaultSlideCount: 6,
     defaultArchetypes: [
       "executive-summary",
       "progress-vs-plan",
-      "kpi-dashboard-commentary",
-      "risk-heatmap",
       "decision-slide",
-      "appendix-detail",
     ],
   },
 ];
@@ -284,7 +278,7 @@ export function getScenarioDefinition(
 }
 
 export function createEmptyBrief(
-  scenarioId: MeetingScenarioId = "steering-committee"
+  scenarioId: MeetingScenarioId = "simple-presentation"
 ): PresentationBrief {
   const scenario = getScenarioDefinition(scenarioId);
 
@@ -302,24 +296,30 @@ export function createEmptyBrief(
     risks: "",
     dependencies: "",
     sourceMaterial: "",
+    presentationFormat: "talk",
+    presentationLength: "medium",
+    visualTheme: "minimal",
   };
 }
 
 export function formatBriefPrompt(brief: PresentationBrief): string {
   return [
     `Сценарий: ${getScenarioDefinition(brief.scenarioId).name}`,
-    `Встреча: ${brief.meetingName}`,
+    `Формат: ${presentationFormatLabels[brief.presentationFormat]}`,
+    `Объём: ${presentationLengthLabels[brief.presentationLength]}`,
+    `Тема оформления: ${brief.visualTheme}`,
+    `Тема: ${brief.mainThesis}`,
+    `Название: ${brief.meetingName}`,
     `Аудитория: ${brief.audience}`,
-    `Желаемый результат: ${brief.desiredOutcome}`,
+    `Цель: ${brief.desiredOutcome}`,
     brief.deadline ? `Дедлайн: ${brief.deadline}` : "",
-    `Главный тезис: ${brief.mainThesis}`,
-    `Что должно сделать руководство: ${brief.leadershipAsk}`,
-    `Что идёт хорошо: ${brief.workingWell}`,
-    `Что идёт плохо: ${brief.notWorking}`,
-    `Критичные цифры: ${brief.criticalNumbers}`,
-    `Риски: ${brief.risks}`,
-    `Зависимости: ${brief.dependencies}`,
-    `Исходный материал: ${brief.sourceMaterial}`,
+    `Что должно получиться: ${brief.leadershipAsk}`,
+    brief.workingWell ? `Что уже есть: ${brief.workingWell}` : "",
+    brief.notWorking ? `Что мешает: ${brief.notWorking}` : "",
+    brief.criticalNumbers ? `Ключевые цифры: ${brief.criticalNumbers}` : "",
+    brief.risks ? `Риски: ${brief.risks}` : "",
+    brief.dependencies ? `Ограничения и зависимости: ${brief.dependencies}` : "",
+    `Материалы: ${brief.sourceMaterial}`,
   ]
     .filter(Boolean)
     .join("\n");

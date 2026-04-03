@@ -40,7 +40,7 @@ export async function generateOutline(
   };
 
   if (!response.ok || !data.outline) {
-    throw new Error(data.error ?? "Failed to generate outline");
+    throw new Error(data.error ?? "Не удалось собрать структуру презентации");
   }
 
   return data.outline;
@@ -133,6 +133,7 @@ export async function regenerateSlide(
   presentation: Presentation,
   brief: PresentationBrief,
   intent: SlideRegenerationIntent,
+  customInstruction?: string,
   previousSlide?: Slide,
   nextSlide?: Slide
 ): Promise<Slide> {
@@ -144,6 +145,7 @@ export async function regenerateSlide(
       presentation,
       brief,
       intent,
+      customInstruction,
       previousSlide,
       nextSlide,
     }),
@@ -156,4 +158,43 @@ export async function regenerateSlide(
   }
 
   return data.slide;
+}
+
+export async function chatWithPresentation(
+  presentation: Presentation,
+  brief: PresentationBrief,
+  message: string,
+  currentSlideId?: string
+): Promise<{
+  reply: string;
+  focusSlideId?: string;
+  presentation: Presentation;
+}> {
+  const response = await fetch("/api/generate/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      presentation,
+      brief,
+      message,
+      currentSlideId,
+    }),
+  });
+
+  const data = (await response.json()) as {
+    reply?: string;
+    focusSlideId?: string;
+    presentation?: Presentation;
+    error?: string;
+  };
+
+  if (!response.ok || !data.presentation) {
+    throw new Error(data.error ?? "Не удалось обновить презентацию");
+  }
+
+  return {
+    reply: data.reply ?? "Я обновил презентацию.",
+    focusSlideId: data.focusSlideId,
+    presentation: data.presentation,
+  };
 }

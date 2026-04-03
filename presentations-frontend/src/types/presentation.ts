@@ -11,6 +11,7 @@ export type SlideLayoutType =
   | "thank-you";
 
 export type MeetingScenarioId =
+  | "simple-presentation"
   | "steering-committee"
   | "quarterly-it-review"
   | "budget-defense"
@@ -18,6 +19,14 @@ export type MeetingScenarioId =
   | "vendor-decision"
   | "program-recovery"
   | "update-previous-package";
+
+export type PresentationFormatId =
+  | "report"
+  | "idea"
+  | "education"
+  | "talk";
+
+export type PresentationLengthId = "short" | "medium" | "detailed";
 
 export type ManagementSlideRole =
   | "inform"
@@ -46,16 +55,12 @@ export type SlideArchetype =
 export type SlideConfidence = "high" | "medium" | "low";
 
 export type SlideRegenerationIntent =
-  | "tighten"
-  | "shorten-for-execs"
-  | "rewrite-for-cfo"
-  | "remove-jargon"
-  | "add-business-impact"
-  | "make-risk-clearer"
-  | "strengthen-evidence"
-  | "offer-structure-alternatives"
-  | "turn-into-decision-slide"
-  | "strengthen-verdict";
+  | "keep-meaning"
+  | "make-shorter"
+  | "make-more-visual"
+  | "make-stricter"
+  | "focus-on-numbers"
+  | "custom";
 
 export interface KPIValue {
   value: string;
@@ -164,6 +169,9 @@ export interface PresentationBrief {
   risks: string;
   dependencies: string;
   sourceMaterial: string;
+  presentationFormat: PresentationFormatId;
+  presentationLength: PresentationLengthId;
+  visualTheme: string;
 }
 
 export interface ExtractionFinding {

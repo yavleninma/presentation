@@ -2,8 +2,8 @@ import { PresentationTemplate } from "@/types/presentation";
 
 export const minimal: PresentationTemplate = {
   id: "minimal",
-  name: "Минимализм",
-  description: "Чистый светлый шаблон — универсальный для любого бизнеса",
+  name: "Светлая",
+  description: "Чистая светлая тема с большим количеством воздуха",
   colors: {
     primary: "#18181B",
     primaryForeground: "#FFFFFF",

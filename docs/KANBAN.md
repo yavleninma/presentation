@@ -5,7 +5,7 @@
 > Each epic = separate chat session. Read `AGENTS.md` for full context before starting.
 > Role shortcuts: Cursor — `@eng` = engineer, `@strat` = strategist. Codex — просто пиши `Инженер, ...` или `Стратег, ...`.
 >
-> **Priority logic:** ICP fit for enterprise IT leaders → decision-package workflow → outline approval → output quality → export fidelity → landing → persistence. Billing stays secondary until the wedge is sharp.
+> **Priority logic:** fast Russian-first value → beautiful draft quality → live workspace/chat → output fidelity → browser-first public UX → landing/growth → persistence. Heavy enterprise branches stay hidden until the simple product feels great.
 > Everything else is secondary until we have paying users.
 
 ---
@@ -125,6 +125,14 @@
 ---
 
 ## ✅ Done
+
+### EPIC-23: Quick-Start Draft Experience
+- [x] `/` rebuilt around one big Russian prompt field plus three minimal settings: length, format, and visual theme
+- [x] First-run flow no longer exposes a long guided brief or enterprise wizard language
+- [x] Draft workspace now centers on slide list + large preview + presentation-scoped AI chat + compact top actions
+- [x] Added `/api/generate/chat` so chat can update the current presentation instead of feeling like a detached bot
+- [x] Slide rebuild flow simplified into user-friendly intents plus a custom instruction path
+- [x] `/demo` refreshed into public draft examples that match the new lighter product direction
 
 ### EPIC-21: Decision Package Reset
 - [x] `/` rebuilt from generic prompt flow into a scenario-first guided brief for enterprise IT leadership communication

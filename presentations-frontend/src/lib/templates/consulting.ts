@@ -2,8 +2,8 @@ import { PresentationTemplate } from "@/types/presentation";
 
 export const consulting: PresentationTemplate = {
   id: "consulting",
-  name: "Консалтинг / McKinsey",
-  description: "Authoritative Intelligence — строгий, data-heavy, для C-level",
+  name: "Строгая",
+  description: "Собранная тема с акцентом на ясную логику и спокойный ритм",
   colors: {
     primary: "#1E3A5F",
     primaryForeground: "#FFFFFF",
