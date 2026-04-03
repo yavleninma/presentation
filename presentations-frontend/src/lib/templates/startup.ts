@@ -2,8 +2,8 @@ import { PresentationTemplate } from "@/types/presentation";
 
 export const startup: PresentationTemplate = {
   id: "startup",
-  name: "Стартап / Pitch Deck",
-  description: "High Energy — для питч-деков и инвесторских презентаций",
+  name: "Акцентная",
+  description: "Смелая тема с яркими контрастами и эмоциональной энергией",
   colors: {
     primary: "#FFFFFF",
     primaryForeground: "#09090B",

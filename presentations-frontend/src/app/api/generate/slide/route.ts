@@ -5,7 +5,12 @@ import {
   normalizeGeneratedContent,
   SYSTEM_PROMPT,
 } from "@/lib/generation/prompts";
-import { Presentation, PresentationBrief, Slide, SlideRegenerationIntent } from "@/types/presentation";
+import {
+  Presentation,
+  PresentationBrief,
+  Slide,
+  SlideRegenerationIntent,
+} from "@/types/presentation";
 
 const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
 
@@ -23,7 +28,7 @@ async function generateJSON(userPrompt: string) {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.35,
+    temperature: 0.5,
     response_format: { type: "json_object" },
   });
 
@@ -31,20 +36,18 @@ async function generateJSON(userPrompt: string) {
   return JSON.parse(text) as Record<string, unknown>;
 }
 
-function isSlideRegenerationIntent(value: unknown): value is SlideRegenerationIntent {
+function isSlideRegenerationIntent(
+  value: unknown
+): value is SlideRegenerationIntent {
   return (
     typeof value === "string" &&
     [
-      "tighten",
-      "shorten-for-execs",
-      "rewrite-for-cfo",
-      "remove-jargon",
-      "add-business-impact",
-      "make-risk-clearer",
-      "strengthen-evidence",
-      "offer-structure-alternatives",
-      "turn-into-decision-slide",
-      "strengthen-verdict",
+      "keep-meaning",
+      "make-shorter",
+      "make-more-visual",
+      "make-stricter",
+      "focus-on-numbers",
+      "custom",
     ].includes(value)
   );
 }
@@ -56,13 +59,19 @@ export async function POST(request: Request) {
       presentation?: Presentation;
       brief?: PresentationBrief;
       intent?: SlideRegenerationIntent;
+      customInstruction?: string;
       previousSlide?: Slide;
       nextSlide?: Slide;
     };
 
-    if (!body.slide || !body.presentation || !body.brief || !isSlideRegenerationIntent(body.intent)) {
+    if (
+      !body.slide ||
+      !body.presentation ||
+      !body.brief ||
+      !isSlideRegenerationIntent(body.intent)
+    ) {
       return Response.json(
-        { error: "slide, presentation, brief and valid intent are required." },
+        { error: "Нужны slide, presentation, brief и корректный intent." },
         { status: 400 }
       );
     }
@@ -73,6 +82,7 @@ export async function POST(request: Request) {
         body.presentation,
         body.brief,
         body.intent,
+        body.customInstruction,
         body.previousSlide,
         body.nextSlide
       )
@@ -85,7 +95,9 @@ export async function POST(request: Request) {
     const normalizedContent = normalizeGeneratedContent(
       body.slide.layout,
       contentSource,
-      body.slide.meta?.headlineVerdict || body.slide.content.heading || "Updated slide"
+      body.slide.meta?.headlineVerdict ||
+        body.slide.content.heading ||
+        "Обновлённый слайд"
     );
     const { speakerNotes, ...contentPatch } = normalizedContent;
 
@@ -112,7 +124,10 @@ export async function POST(request: Request) {
     return Response.json({ slide: updatedSlide });
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Slide regeneration failed" },
+      {
+        error:
+          error instanceof Error ? error.message : "Не удалось пересобрать слайд",
+      },
       { status: 500 }
     );
   }

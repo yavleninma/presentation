@@ -4,13 +4,14 @@
 
 ## Repo Layout
 
-- `presentations-frontend/` - Next.js 16 app with the public UI and Route Handlers
-- `presentations-frontend/src/app/page.tsx` - public decision-package flow at `/`
-- `presentations-frontend/src/app/demo/page.tsx` - public scenario-led demo route at `/demo`
-- `presentations-frontend/src/app/api/generate/route.ts` - outline-first generation endpoint used by `/`
-- `presentations-frontend/src/app/api/generate/slide/route.ts` - slide-level intent-based regeneration endpoint
+- `presentations-frontend/` - Next.js 16 app with the public UI and route handlers
+- `presentations-frontend/src/app/page.tsx` - public Russian quick-start flow at `/`: one idea, minimal settings, generation, draft workspace, chat, slide rebuild
+- `presentations-frontend/src/app/demo/page.tsx` - public examples route at `/demo` with ready-made draft presentations
+- `presentations-frontend/src/app/api/generate/route.ts` - outline + streaming slide generation for the quick-start flow
+- `presentations-frontend/src/app/api/generate/chat/route.ts` - presentation-scoped chat editing endpoint
+- `presentations-frontend/src/app/api/generate/slide/route.ts` - single-slide rebuild endpoint
 - `presentations-frontend/src/app/api/images/search/route.ts` - public image lookup endpoint used by the UI
-- `presentations-frontend/src/lib/decision-package.ts` - scenario definitions, labels, and guided-brief defaults
+- `presentations-frontend/src/lib/decision-package.ts` - shared labels, defaults, hidden advanced scenario definitions, format/length labels
 - `docs/` - roadmap, strategy, design notes, and codebase map
 - `.cursor/rules/` - project role definitions (`engineer`, `strategist`)
 - `.agents/skills/public-scenario-qa/` - repo folder for the `slideforge-public-ux-qa` skill
@@ -31,25 +32,27 @@
 ## Environment
 
 - Full generation testing on `/` expects `presentations-frontend/.env.local` with `OPENAI_API_KEY` and `PEXELS_API_KEY`.
-- Public shell checks can still inspect `/` and `/demo` without finishing the generate flow, but do not fake a successful generation pass if the env is missing or broken.
+- Public shell checks can still inspect `/` and `/demo` without finishing the AI flow, but do not fake a successful generation pass if the env is missing or broken.
 - On this machine, `next dev` or `next build` may fail inside the sandbox with `spawn EPERM`. If that happens, rerun outside the sandbox before filing a product bug.
 
 ## Public Routes And Core Journeys
 
-- `/` - choose a committee scenario, fill the guided brief, generate an outline, review extraction findings and storyline options, adjust the narrative, generate the decision package, regenerate individual slides by intent, export PPTX
-- `/demo` - inspect scenario-led decision-package examples for steering, budget defense, and incident update without generating anything
-- Public API calls behind the UI: `/api/generate`, `/api/generate/slide`, `/api/images/search`
+- `/` - user enters one topic, picks length/format/theme, generates a draft presentation, refines it in a presentation-scoped chat, and rebuilds single slides with light guidance
+- `/demo` - inspect three public example drafts without generating anything
+- Public API calls behind the UI: `/api/generate`, `/api/generate/chat`, `/api/generate/slide`, `/api/images/search`
 
 ## Product Reality
 
-- SlideForge is no longer positioned as a generic AI slide maker.
-- The public product now aims at CIO/CDTO-level enterprise communication: guided brief, outline approval, decision package, and slide-level regeneration by intent.
-- The core output is a management package for leadership, not a visually decorative deck.
+- SlideForge is currently a light, beautiful, Russian-first AI presentation service.
+- The public experience should feel like a fast conversation, not like a long form or enterprise wizard.
+- Complexity is allowed, but it must appear later and softly. The first-run experience should stay simple.
+- The main output is a good-looking draft presentation that is refined inside one workspace through chat and slide-level rebuilds.
+- Advanced enterprise IT scenarios are hidden for later expansion and must not dominate the public UX.
 
 ## Public UX QA Rules
 
 - Browser scenario testing matters more than code-only assumptions.
-- Judge clarity, friction, trust, and momentum, not just whether the code technically runs.
+- Judge clarity, friction, trust, momentum, and visual quality, not just whether the code technically runs.
 - Scope is public, non-authenticated flows only. Auth, billing, admin, and future private areas are out of scope unless the user explicitly expands scope.
 - The QA role is test-and-report only. Fixes belong to the engineer role, not QA.
 - If browser MCP or the local app cannot run, report the exact blocker. Do not claim browser coverage you did not get.
@@ -82,7 +85,7 @@ Copy and reuse these as your default prompts:
 
 Quick phrasing also works:
 
-- `Используй skill slideforge-engineer и сделай EPIC-18`
+- `Используй skill slideforge-engineer и сделай следующую задачу`
 - `Используй skill slideforge-strategist и пересобери приоритеты`
 - `Используй skill slideforge-public-ux-qa и прогони public UX QA на главной`
 
@@ -97,4 +100,4 @@ Quick phrasing also works:
 
 - No dedicated repo-owned unit or e2e test suite is wired today.
 - `npm run verify` is the engineering safety net for lint, typecheck, and build.
-- Public product quality should be judged mainly through scenario-first browser passes, not through shallow checklist thinking alone.
+- Public product quality should be judged mainly through browser-first passes and real generation flows, not through shallow checklist thinking alone.
