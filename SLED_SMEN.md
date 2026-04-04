@@ -60,15 +60,15 @@
 
 ### 002 Деплой main
 
-**Что уложено** Рабочее состояние переведено на `main`; в `AGENTS.md` и `README.md` зафиксировано правило одной ветки, коммитов только по явной команде пользователя и нумерации коммитов по номеру смены; добавлен `presentations-frontend/vercel.json`, который отключает автодеплой веток кроме `main`; расширен `.gitignore`, чтобы локальные профили, логи и тестовые хвосты не попадали в общий коммит; production-сборка проходит через `npm run verify`.
+**Что уложено** Репозиторий переведён на работу только через `main`; в `AGENTS.md` и `README.md` закреплены правила одной ветки, коммитов по явной команде пользователя и нумерации коммитов по номеру смены; старый SlideForge вынесен в `old/`, а текущий продукт оставлен как новый минимальный `Next.js`-прототип; в `presentations-frontend/vercel.json` отключён Git auto-deploy Vercel; добавлен workflow `.github/workflows/presentations-ci.yml`, который на каждый push в `main` делает `npm run verify`, затем `vercel deploy --prod` и после этого переводит `vnyatno.vercel.app` на свежий production deployment; сделаны и запушены коммиты `002.1 feat: lock main deploy flow` и `002.2 chore: harden github actions runtime`.
 
-**Статус слоя** Идти можно
+**Статус слоя** Внятно
 
-**Что стало внятнее** Теперь у репозитория есть явное правило `main only`, а у Vercel — repo-опора, где branch deployments для побочных веток выключены прямо в конфиге проекта; подтверждено, что проект `presentation-frontend` в Vercel смотрит в `Root Directory = presentations-frontend`.
+**Что стало внятнее** Теперь production-дорога одна и проверена на живом прогоне: push в `main` запускает workflow `Presentation Deploy`, `verify` и `deploy` проходят успешно, а `vercel inspect https://vnyatno.vercel.app` подтверждает, что домен смотрит на свежий production deployment `presentation-frontend-l22d51avr-mad1gds-4955s-projects.vercel.app`, созданный `2026-04-04 14:27:17` по Бангкоку.
 
-**Что ещё мутно** Текущий production deployment в Vercel всё ещё несёт alias `frontend-one-ecru-55.vercel.app`, а `vnyatno.vercel.app` на нём не подтверждён; кроме того, старые ветки ещё не дочищены и не удалены после перевода всей нужной работы в `main`.
+**Что ещё мутно** В логах GitHub Actions остаётся предупреждение, что `actions/checkout@v4` и `actions/setup-node@v4` сами ещё таргетят старый runtime Node 20, хотя раннер уже принудительно переведён на Node 24; это не ломает деплой сейчас, но позже можно обновить major-версии actions, когда они появятся.
 
-**Передача смены** Следующий шаг — по команде пользователя сделать коммит прямо в `main`, пушнуть всё текущее состояние, затем в Vercel вернуть `vnyatno.vercel.app` на актуальный production deployment и только после этого дочищать старые ветки.
+**Передача смены** Ближайший следующий шаг уже не про деплой, а про гигиену репозитория: по отдельной команде пользователя можно дочистить старые удалённые ветки, которые больше не нужны после перехода на `main only`; production-маршрут трогать не нужно, пока он продолжает идти через `.github/workflows/presentations-ci.yml` и `vnyatno.vercel.app`.
 
 **Проблемы**
-- `vnyatno.vercel.app` не подтвердился на текущем production deployment -> проверка через `vercel inspect` показала только alias `frontend-one-ecru-55.vercel.app` и служебные project-domain URL.
+- `vnyatno.vercel.app` конфликтовал как domain project-level -> обошли это надёжным маршрутом через workflow: после каждого production deploy workflow явно ставит alias `vnyatno.vercel.app` на свежий deployment.
