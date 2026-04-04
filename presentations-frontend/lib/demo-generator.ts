@@ -1,20 +1,17 @@
 import type {
   BuildStage,
-  OutlineStep,
   PresentationDraft,
   PresentationSlide,
-  RequestUnderstanding,
   SlideMetric,
   SlidePanel,
+  WorkingDraft,
 } from "@/lib/presentation-types";
 
 const STOP_WORDS = new Set([
-  "за",
   "для",
   "что",
   "чтобы",
   "если",
-  "где",
   "когда",
   "или",
   "как",
@@ -24,25 +21,65 @@ const STOP_WORDS = new Set([
   "надо",
   "нужно",
   "очень",
-  "команда",
-  "статус",
-  "квартальный",
-  "нужен",
   "собери",
   "подготовь",
   "покажи",
+  "сделай",
+  "рабочую",
+  "рабочий",
+  "презентацию",
+  "квартальный",
+  "статус",
   "quarterly",
   "status",
-  "team",
   "with",
   "from",
-  "into",
   "about",
   "show",
   "need",
   "please",
   "presentation",
 ]);
+
+const CANONICAL_OUTLINE = [
+  {
+    id: "cover",
+    title: "Обложка",
+    purpose: "Период, аудитория и фокус разговора.",
+  },
+  {
+    id: "summary",
+    title: "Главный вывод и запрос",
+    purpose: "Один вывод периода и решение, которое нужно сейчас.",
+  },
+  {
+    id: "metrics",
+    title: "Ключевые метрики",
+    purpose: "Цифры, по которым видно ход работы.",
+  },
+  {
+    id: "work",
+    title: "Что сделали за период",
+    purpose: "Главные результаты команды без длинного отчёта.",
+  },
+  {
+    id: "risks",
+    title: "Риски и блокеры",
+    purpose: "Что тормозит следующий шаг и где нужна помощь.",
+  },
+  {
+    id: "next-step",
+    title: "Следующий период",
+    purpose: "Короткий план, зависимости и точка решения.",
+  },
+] as const;
+
+const BUILD_STAGES: BuildStage[] = [
+  { id: "understand", title: "Понял задачу", detail: "" },
+  { id: "outline", title: "Собрал план", detail: "" },
+  { id: "rhythm", title: "Собираю ритм слайдов", detail: "" },
+  { id: "slides", title: "Готовлю черновик", detail: "" },
+];
 
 export const EXAMPLE_PROMPTS = [
   "Собери квартальный статус backend platform team за Q1 2026: снизили MTTR, мигрировали 18 сервисов и упёрлись в найм QA.",
@@ -58,68 +95,55 @@ export const SCREEN_FLOW = [
   { id: "editor", title: "Черновик" },
 ] as const;
 
-const CANONICAL_OUTLINE: OutlineStep[] = [
-  {
-    id: "cover",
-    index: "01",
-    title: "Обложка",
-    purpose: "Команда, период и контекст разговора.",
-  },
-  {
-    id: "summary",
-    index: "02",
-    title: "Главный вывод и запрос к руководителю",
-    purpose: "Ключевой вывод периода и одно решение сверху.",
-  },
-  {
-    id: "metrics",
-    index: "03",
-    title: "Ключевые метрики",
-    purpose: "Фактура по стабильности, скорости и нагрузке.",
-  },
-  {
-    id: "work",
-    index: "04",
-    title: "Что сделали за период",
-    purpose: "Основные результаты команды.",
-  },
-  {
-    id: "risks",
-    index: "05",
-    title: "Риски и блокеры",
-    purpose: "Ограничения, которые влияют на следующий шаг.",
-  },
-  {
-    id: "next-step",
-    index: "06",
-    title: "Фокус следующего периода",
-    purpose: "Приоритеты, зависимости и решение.",
-  },
-];
-
-const BUILD_STAGES: BuildStage[] = [
-  { id: "understand", title: "Понял задачу", detail: "" },
-  { id: "outline", title: "Собрал план", detail: "" },
-  { id: "rhythm", title: "Подбираю визуальный ритм", detail: "" },
-  { id: "slides", title: "Генерирую слайды", detail: "" },
-];
-
-export function buildPresentationDraft(rawPrompt: string): PresentationDraft {
+export function buildWorkingDraft(rawPrompt: string): WorkingDraft {
   const prompt = normalizePrompt(rawPrompt);
   const fragments = extractFragments(prompt);
   const numbers = extractNumbers(prompt);
   const keywords = extractKeywords(prompt);
-  const understanding = buildUnderstanding(prompt, fragments);
-  const summaryTitle = buildSummaryTitle(understanding.team, prompt);
-  const leadershipAsk = buildLeadershipAsk(prompt, keywords);
-  const missingFacts = buildMissingFacts(numbers, prompt);
-  const documentTitle = `${understanding.team}: квартальный статус`;
-  const documentSubtitle = `${understanding.period} • ${understanding.audience}`;
-  const summaryBullets = buildSummaryBullets(fragments, leadershipAsk);
-  const metrics = buildMetrics(numbers, keywords);
-  const workPanels = buildWorkPanels(fragments, keywords, numbers, understanding.team);
-  const riskPanels = buildRiskPanels(prompt, keywords);
-  const nextPanels = buildNextStepPanels(keywords, leadershipAsk, prompt);
+  const audience = extractAudience(prompt);
+  const period = extractPeriod(prompt);
+  const goal = extractGoal(prompt);
+  const decisionNeeded = extractDecisionNeeded(prompt, keywords);
+  const coreMessage = buildCoreMessage(fragments, keywords, decisionNeeded);
+  const openQuestions = buildOpenQuestions(numbers, prompt, decisionNeeded);
+
+  return {
+    audience,
+    period,
+    goal,
+    decisionNeeded,
+    coreMessage,
+    outline: CANONICAL_OUTLINE.map((item) => ({
+      id: item.id,
+      title: item.title,
+      purpose: item.purpose,
+      bullets: buildOutlineBullets({
+        outlineId: item.id,
+        fragments,
+        numbers,
+        keywords,
+        audience,
+        period,
+        goal,
+        decisionNeeded,
+        coreMessage,
+        openQuestions,
+      }),
+    })),
+    openQuestions,
+  };
+}
+
+export function buildPresentationDraft(workingDraft: WorkingDraft): PresentationDraft {
+  const serializedDraft = serializeWorkingDraft(workingDraft);
+  const numbers = extractNumbers(serializedDraft);
+  const keywords = extractKeywords(serializedDraft);
+  const decisionText =
+    workingDraft.decisionNeeded ?? "Зафиксировать один следующий шаг на период.";
+
+  const documentTitle = buildDocumentTitle(workingDraft);
+  const documentSubtitle = `${workingDraft.period} • ${workingDraft.audience}`;
+  const missingFacts = workingDraft.openQuestions;
 
   const slides: PresentationSlide[] = [
     {
@@ -127,14 +151,16 @@ export function buildPresentationDraft(rawPrompt: string): PresentationDraft {
       index: "01",
       shortLabel: "Обложка",
       layout: "cover",
-      eyebrow: understanding.period,
+      eyebrow: workingDraft.period,
       title: documentTitle,
-      subtitle: "Прогресс, риски и следующий шаг",
-      lead: `Материал для ${understanding.audience.toLowerCase()}.`,
+      subtitle: "Фокус разговора",
+      lead: workingDraft.coreMessage,
       bullets: [
-        `Команда: ${understanding.team}`,
-        `Период: ${understanding.period}`,
-        `Фокус: ${understanding.goal}`,
+        `Аудитория: ${workingDraft.audience}`,
+        `Цель: ${workingDraft.goal}`,
+        workingDraft.decisionNeeded
+          ? `Решение: ${workingDraft.decisionNeeded}`
+          : "Решение: уточним после первого черновика",
       ],
     },
     {
@@ -143,15 +169,13 @@ export function buildPresentationDraft(rawPrompt: string): PresentationDraft {
       shortLabel: "Главный вывод",
       layout: "summary",
       eyebrow: "Главный вывод",
-      title: summaryTitle,
-      subtitle: "Ключевой вывод периода",
-      lead:
-        fragments[0] ??
-        `${understanding.team} показала прогресс по основным задачам периода и требует одного управленческого решения.`,
-      bullets: summaryBullets,
+      title: trimSentence(workingDraft.coreMessage),
+      subtitle: "Главный вывод периода",
+      lead: workingDraft.goal,
+      bullets: getOutlineBullets(workingDraft, "summary"),
       ask: {
-        title: "Запрос к руководителю",
-        body: leadershipAsk,
+        title: "Что нужно решить",
+        body: decisionText,
       },
       missingFacts,
     },
@@ -161,11 +185,10 @@ export function buildPresentationDraft(rawPrompt: string): PresentationDraft {
       shortLabel: "Метрики",
       layout: "metrics",
       eyebrow: "Ключевые метрики",
-      title: `Ключевые метрики ${understanding.period}`,
-      subtitle: "Стабильность, скорость и нагрузка",
-      lead:
-        "Метрики показывают текущий ритм работы команды и зоны, где нужен следующий шаг.",
-      metrics,
+      title: `Ключевые метрики ${workingDraft.period}`,
+      subtitle: "Что подтверждает вывод",
+      lead: "На этом слайде держим только те цифры, которые помогают быстро понять прогресс и риск.",
+      metrics: buildMetrics(numbers, keywords),
       missingFacts,
     },
     {
@@ -173,12 +196,11 @@ export function buildPresentationDraft(rawPrompt: string): PresentationDraft {
       index: "04",
       shortLabel: "Что сделали",
       layout: "work",
-      eyebrow: `Что сделали за ${understanding.period}`,
-      title: `Что сделали за ${understanding.period}`,
-      subtitle: "Основные результаты команды",
-      lead:
-        "Период собран вокруг нескольких результатов, которые уже влияют на скорость и устойчивость работы.",
-      panels: workPanels,
+      eyebrow: `Что сделали за ${workingDraft.period}`,
+      title: `Что сделали за ${workingDraft.period}`,
+      subtitle: "Главные результаты команды",
+      lead: "Показываем только те результаты, по которым уже можно говорить о движении вперёд.",
+      panels: buildWorkPanels(workingDraft),
     },
     {
       id: "risks",
@@ -187,29 +209,28 @@ export function buildPresentationDraft(rawPrompt: string): PresentationDraft {
       layout: "risks",
       eyebrow: "Риски и блокеры",
       title: "Риски и блокеры",
-      subtitle: "Что ограничивает следующий шаг",
-      lead:
-        "Следующий период упрётся в несколько ограничений, если их не закрыть сейчас.",
-      panels: riskPanels,
+      subtitle: "Что мешает следующему шагу",
+      lead: "Риски лучше назвать отдельно, чем прятать их внутрь общего статуса.",
+      panels: buildRiskPanels(workingDraft, keywords),
       ask: {
-        title: "Где нужен шаг сверху",
-        body: leadershipAsk,
+        title: "Где нужна помощь",
+        body: decisionText,
       },
+      missingFacts,
     },
     {
       id: "next-step",
       index: "06",
       shortLabel: "Следующий период",
       layout: "next-step",
-      eyebrow: "Фокус следующего периода",
-      title: "Фокус следующего периода",
-      subtitle: "Приоритеты, зависимости и решение",
-      lead:
-        "Следующий период требует короткого фокуса и одного понятного решения сверху.",
-      panels: nextPanels,
+      eyebrow: "Следующий период",
+      title: "Следующий период",
+      subtitle: "Приоритеты и точка решения",
+      lead: "Следующий шаг должен помещаться в короткий список действий и зависимостей.",
+      panels: buildNextStepPanels(workingDraft),
       ask: {
         title: "Решение",
-        body: leadershipAsk,
+        body: decisionText,
       },
       missingFacts,
     },
@@ -218,9 +239,8 @@ export function buildPresentationDraft(rawPrompt: string): PresentationDraft {
   return {
     documentTitle,
     documentSubtitle,
-    scenarioLabel: "Квартальный статус команды",
-    understanding,
-    outline: CANONICAL_OUTLINE,
+    scenarioLabel: "Рабочая презентация",
+    workingDraft,
     buildStages: BUILD_STAGES,
     slides,
     missingFacts,
@@ -235,7 +255,7 @@ function extractFragments(prompt: string) {
   return prompt
     .split(/[\n.;:!?]+/)
     .map((item) => item.trim())
-    .filter((item) => item.length > 12 && !isDirectiveFragment(item))
+    .filter((item) => item.length > 14 && !isDirectiveFragment(item))
     .slice(0, 6);
 }
 
@@ -243,37 +263,21 @@ function isDirectiveFragment(fragment: string) {
   return /^(собери|подготовь|нужен|сделай|покажи)\b/i.test(fragment.trim());
 }
 
-function extractNumbers(prompt: string) {
-  const matches = prompt.match(
+function extractNumbers(source: string) {
+  const matches = source.match(
     /\b\d+[.,]?\d*\s?(?:%|x|ч|час(?:а|ов)?|дн(?:я|ей)?|мин(?:ут)?|сервис(?:а|ов)?|релиз(?:а|ов)?|инцидент(?:а|ов)?|тикет(?:а|ов)?|эпик(?:а|ов)?|чел(?:овек|.)?)?\b/gi
   );
 
   return Array.from(new Set(matches ?? [])).slice(0, 4);
 }
 
-function extractKeywords(prompt: string) {
-  return prompt
+function extractKeywords(source: string) {
+  return source
     .toLowerCase()
     .replace(/[^a-zа-яё0-9\s-]/gi, " ")
     .split(/\s+/)
     .filter((word) => word.length > 3 && !STOP_WORDS.has(word))
     .slice(0, 8);
-}
-
-function buildUnderstanding(
-  prompt: string,
-  fragments: string[]
-): RequestUnderstanding {
-  return {
-    period: extractPeriod(prompt),
-    team: extractTeam(prompt),
-    audience: extractAudience(prompt),
-    goal: extractGoal(prompt),
-    tone: extractTone(prompt),
-    sourceSummary:
-      fragments[0] ??
-      "Команда просит собрать квартальный статус с прогрессом, рисками и следующим шагом.",
-  };
 }
 
 function extractPeriod(prompt: string) {
@@ -283,24 +287,6 @@ function extractPeriod(prompt: string) {
     prompt.match(/\bQ[1-4]\b/i);
 
   return match?.[0] ?? "Текущий период";
-}
-
-function extractTeam(prompt: string) {
-  const match =
-    prompt.match(/(?:команд[аы]|team)\s+([^,.!]+)/i) ??
-    prompt.match(/([^,.!]{3,40})\s+team/i);
-
-  if (!match?.[1]) {
-    return "Команда продукта";
-  }
-
-  return toTitleCase(
-    trimLabel(match[1])
-      .replace(/\bза\s+q[1-4].*/i, "")
-      .replace(/\bдля\s+.*/i, "")
-      .replace(/\bпо\s+итогам.*/i, "")
-      .trim()
-  );
 }
 
 function extractAudience(prompt: string) {
@@ -320,113 +306,156 @@ function extractAudience(prompt: string) {
 }
 
 function extractGoal(prompt: string) {
+  if (/решени|budget|бюджет|priority|приоритет|hire|найм/i.test(prompt)) {
+    return "Показать прогресс и получить одно решение по следующему шагу.";
+  }
+
   if (/риск|blocker|блокер/i.test(prompt)) {
     return "Показать прогресс, риски и следующий шаг.";
   }
 
-  if (/решени|budget|priority|hire|найм/i.test(prompt)) {
-    return "Показать прогресс и получить решение по следующему шагу.";
-  }
-
-  return "Показать прогресс, риски и следующий шаг.";
+  return "Показать прогресс периода и короткий план дальше.";
 }
 
-function extractTone(prompt: string) {
-  if (/коротк|короче|short/i.test(prompt)) {
-    return "Строгий и короткий";
-  }
-
-  if (/board|совет|директор/i.test(prompt)) {
-    return "Строгий и руководительский";
-  }
-
-  return "Строгий и рабочий";
-}
-
-function trimLabel(value: string) {
-  return value
-    .replace(/\s+/g, " ")
-    .split(/(?:\s+-\s+|\s+\|\s+)/)[0]
-    .trim();
-}
-
-function toTitleCase(value: string) {
-  return value
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function buildSummaryTitle(team: string, prompt: string) {
+function extractDecisionNeeded(prompt: string, keywords: string[]) {
   if (/найм|hire|hiring/i.test(prompt)) {
-    return `${team} удержала темп, но следующий период упирается в найм`;
+    return "Подтвердить найм на следующий период.";
   }
 
   if (/бюджет|budget/i.test(prompt)) {
-    return `${team} удержала темп, но следующий период зависит от бюджета`;
+    return "Согласовать бюджет следующего периода.";
   }
 
   if (/приоритет|priority/i.test(prompt)) {
-    return `${team} показала прогресс, но требует одного приоритета сверху`;
+    return "Зафиксировать один верхний приоритет.";
   }
 
-  return `${team} показала прогресс и требует одного решения на следующий период`;
+  if (/решени|approve|утверд/i.test(prompt)) {
+    return "Подтвердить решение по следующему шагу.";
+  }
+
+  return keywords[0]
+    ? `Подтвердить следующий шаг по теме «${keywords[0]}».`
+    : undefined;
 }
 
-function buildLeadershipAsk(prompt: string, keywords: string[]) {
-  if (/найм|hire|hiring/i.test(prompt)) {
-    return "Подтвердить найм или перераспределить ресурс, чтобы не просел следующий период.";
+function buildCoreMessage(
+  fragments: string[],
+  keywords: string[],
+  decisionNeeded?: string
+) {
+  if (fragments[0]) {
+    return normalizeSentence(fragments[0]);
   }
 
-  if (/бюджет|budget/i.test(prompt)) {
-    return "Подтвердить бюджет следующего периода и не сдвигать критический фокус вправо.";
+  if (decisionNeeded) {
+    return `Есть прогресс по периоду, но следующий шаг зависит от решения: ${trimSentence(decisionNeeded).toLowerCase()}.`;
   }
 
-  if (/приоритет|priority/i.test(prompt)) {
-    return "Зафиксировать один верхний приоритет периода и снять конкурирующие ожидания.";
-  }
-
-  const keyword = keywords[0] ?? "ключевому направлению";
-  return `Подтвердить следующий шаг по ${keyword} и убрать неопределённость на уровне руководителя.`;
+  return `Есть прогресс по ${keywords[0] ?? "главным задачам периода"}, и теперь важно коротко зафиксировать следующий шаг.`;
 }
 
-function buildMissingFacts(numbers: string[], prompt: string) {
-  const facts = [
-    numbers[0] ? null : "Нужна цифра по стабильности.",
-    numbers[1] ? null : "Нужна цифра по скорости поставки.",
-    /найм|budget|бюджет|приоритет|priority/i.test(prompt)
+function buildOpenQuestions(
+  numbers: string[],
+  prompt: string,
+  decisionNeeded?: string
+) {
+  const questions = [
+    numbers[0] ? null : "Добавить одну цифру по результату периода.",
+    numbers[1] ? null : "Добавить одну цифру по скорости или качеству.",
+    decisionNeeded
       ? null
-      : "Уточнить решение, которое нужно от руководителя.",
+      : /решени|budget|бюджет|priority|приоритет|hire|найм/i.test(prompt)
+        ? "Уточнить формулировку решения, которое нужно согласовать."
+        : "Уточнить, какое решение или следующий шаг нужен после статуса.",
   ].filter(Boolean);
 
-  return facts.slice(0, 3) as string[];
+  return questions.slice(0, 3) as string[];
 }
 
-function buildSummaryBullets(fragments: string[], leadershipAsk: string) {
-  const bullets = fragments
-    .slice(0, 3)
-    .map((item) => normalizeSentence(item))
-    .slice(0, 3);
-
-  while (bullets.length < 3) {
-    const fallback = [
-      "Прогресс по ключевым задачам есть и требует короткой фактуры по цифрам.",
-      "Риски названы отдельно и влияют на следующий период уже сейчас.",
-      leadershipAsk,
-    ][bullets.length];
-
-    bullets.push(fallback);
+function buildOutlineBullets({
+  outlineId,
+  fragments,
+  numbers,
+  keywords,
+  audience,
+  period,
+  goal,
+  decisionNeeded,
+  coreMessage,
+  openQuestions,
+}: {
+  outlineId: string;
+  fragments: string[];
+  numbers: string[];
+  keywords: string[];
+  audience: string;
+  period: string;
+  goal: string;
+  decisionNeeded?: string;
+  coreMessage: string;
+  openQuestions: string[];
+}) {
+  switch (outlineId) {
+    case "cover":
+      return [
+        `Период: ${period}.`,
+        `Аудитория: ${audience}.`,
+        `Фокус: ${goal}`,
+      ];
+    case "summary":
+      return [
+        trimSentence(coreMessage),
+        decisionNeeded ?? "Следующий шаг нужно уточнить вместе с руководителем.",
+        normalizeSentence(fragments[1] ?? "На втором слайде держим один вывод и один запрос."),
+      ];
+    case "metrics":
+      return [
+        numbers[0]
+          ? `Взять в слайд ключевую цифру: ${numbers[0]}.`
+          : "Нужна первая цифра, которая подтверждает результат периода.",
+        numbers[1]
+          ? `Добавить вторую опорную цифру: ${numbers[1]}.`
+          : "Нужна вторая цифра по скорости, качеству или объёму.",
+        `Собрать метрики вокруг темы «${keywords[0] ?? "прогресса"}».`,
+      ];
+    case "work":
+      return [
+        normalizeSentence(fragments[0] ?? "Показать 2-3 результата без длинного перечня задач."),
+        normalizeSentence(fragments[1] ?? "Оставить только то, что уже влияет на следующий период."),
+        normalizeSentence(fragments[2] ?? "Под каждую карточку результата нужна короткая опора."),
+      ];
+    case "risks":
+      return [
+        normalizeSentence(fragments[3] ?? "Отдельно назвать главный риск периода."),
+        decisionNeeded
+          ? `Показать, почему без решения «${trimSentence(decisionNeeded).toLowerCase()}» риск остаётся открытым.`
+          : "Показать, где команда зависит от внешнего решения.",
+        openQuestions[0] ?? "Отдельно пометить, что ещё нужно уточнить.",
+      ];
+    case "next-step":
+      return [
+        `Следующий шаг: ${trimSentence(goal).replace(/\.$/, "").toLowerCase()}.`,
+        decisionNeeded ?? "После статуса нужен один подтверждённый следующий шаг.",
+        `Фокус периода: ${keywords[0] ?? "ключевое направление"}.`,
+      ];
+    default:
+      return [];
   }
+}
 
-  return bullets;
+function buildDocumentTitle(workingDraft: WorkingDraft) {
+  return workingDraft.period === "Текущий период"
+    ? "Рабочая презентация"
+    : `Статус за ${workingDraft.period}`;
 }
 
 function buildMetrics(numbers: string[], keywords: string[]): SlideMetric[] {
   const labels = [
-    "Стабильность",
-    "Скорость поставки",
-    "Нагрузка команды",
-    "Риск периода",
+    "Результат",
+    "Скорость",
+    "Нагрузка",
+    "Риск",
   ];
 
   const tones: SlideMetric["tone"][] = [
@@ -445,12 +474,12 @@ function buildMetrics(numbers: string[], keywords: string[]): SlideMetric[] {
         value: "Уточнить",
         note:
           index === 0
-            ? "Нужна цифра, чтобы показать устойчивость периода."
+            ? "Нужна цифра, чтобы показать основной результат периода."
             : index === 1
-              ? "Нужна цифра, чтобы показать скорость поставки."
+              ? "Нужна цифра по скорости или времени цикла."
               : index === 2
-                ? "Нужна цифра, чтобы показать текущую нагрузку."
-                : "Нужна короткая фактура по главному риску периода.",
+                ? "Нужна цифра по нагрузке или объёму работы."
+                : `Нужна короткая цифра по теме «${keywords[0] ?? "риска"}».`,
         tone: tones[index],
         placeholder: true,
       };
@@ -461,137 +490,136 @@ function buildMetrics(numbers: string[], keywords: string[]): SlideMetric[] {
       value,
       note:
         index === 0
-          ? "Показывает текущую устойчивость сервиса и процессов."
+          ? "Подтверждает основной результат периода."
           : index === 1
-            ? "Показывает ритм поставки и скорость изменений."
+            ? "Показывает ритм поставки."
             : index === 2
-              ? "Показывает, насколько напряжён текущий объём работы."
-              : `Связан с темой ${keywords[0] ?? "следующего периода"}.`,
+              ? "Помогает увидеть текущую нагрузку."
+              : "Показывает, где остаётся напряжение.",
       tone: tones[index],
     };
   });
 }
 
-function buildWorkPanels(
-  fragments: string[],
-  keywords: string[],
-  numbers: string[],
-  team: string
-): SlidePanel[] {
-  const titles = ["Поставка", "Стабильность", "Команда"];
-  const fallbacks = [
-    `${team} удержала движение по ключевым задачам периода.`,
-    "Отдельный фокус был на стабильности и снижении операционного шума.",
-    "Команда закрывала текущий период без потери фокуса на следующем шаге.",
-  ];
-
-  return titles.map((title, index) => ({
-    title,
-    body: normalizeSentence(fragments[index] ?? fallbacks[index]),
-    items: [
-      `Фокус: ${keywords[index] ?? defaultKeywordByIndex(index)}.`,
-      numbers[index]
-        ? `Фактура: ${numbers[index]}.`
-        : "Для финальной версии нужна одна цифра.",
-    ],
-    tone: index === 1 ? "success" : index === 2 ? "warning" : "primary",
-  }));
-}
-
-function defaultKeywordByIndex(index: number) {
-  return ["ключевые поставки", "устойчивость", "ресурс"][index] ?? "фокус периода";
-}
-
-function buildRiskPanels(prompt: string, keywords: string[]): SlidePanel[] {
-  const resourceRisk = /найм|hire|hiring/i.test(prompt)
-    ? "Темп следующего периода зависит от закрытия роли, без которой команда упрётся в ресурс."
-    : "Есть риск перегруза, если следующий период останется без одного явного приоритета.";
-
-  const qualityRisk = /qa|quality|flaky|тест/i.test(prompt)
-    ? "Качество уже влияет на скорость поставки и требует отдельного решения по проверкам."
-    : "Нужна короткая фактура по качеству, чтобы риск не остался общим словом.";
-
-  const dependencyRisk = /миграц|migration|platform|infra|инфра/i.test(prompt)
-    ? "Инфраструктурный переход может съесть внимание команды, если не ограничить объём."
-    : "Есть внешняя зависимость, которая влияет на ход следующего периода.";
+function buildWorkPanels(workingDraft: WorkingDraft): SlidePanel[] {
+  const bullets = getOutlineBullets(workingDraft, "work");
 
   return [
     {
-      title: "Ресурс",
-      body: resourceRisk,
-      items: [
-        "Влияние: проседает фокус следующего периода.",
-        "Что нужно: закрепить один ресурсный шаг.",
-      ],
-      tone: "warning",
-      badge: "Средний",
+      title: "Результат 1",
+      body: bullets[0] ?? "Показать первый результат периода.",
+      items: ["Одна короткая опора.", "Один смысл для руководителя."],
+      tone: "primary",
     },
     {
-      title: "Качество",
-      body: qualityRisk,
-      items: [
-        "Влияние: замедляется скорость поставки.",
-        "Что нужно: назвать одну цифру и один шаг по качеству.",
-      ],
+      title: "Результат 2",
+      body: bullets[1] ?? "Показать второй результат периода.",
+      items: ["Без длинного перечня задач.", "Только то, что влияет на следующий шаг."],
+      tone: "success",
+    },
+    {
+      title: "Что важно помнить",
+      body: bullets[2] ?? "Отдельно показать, что ещё требует внимания.",
+      items: ["Если есть пробел в цифрах, пометить его коротко."],
+      tone: "warning",
+    },
+  ];
+}
+
+function buildRiskPanels(workingDraft: WorkingDraft, keywords: string[]): SlidePanel[] {
+  const bullets = getOutlineBullets(workingDraft, "risks");
+
+  return [
+    {
+      title: "Главный риск",
+      body: bullets[0] ?? "Нужно отдельно назвать главный риск периода.",
+      items: ["Влияние: может замедлить следующий шаг."],
       tone: "danger",
       badge: "Высокий",
     },
     {
-      title: "Зависимость",
-      body: dependencyRisk,
-      items: [
-        `Влияние: тормозит направление ${keywords[0] ?? "следующего периода"}.`,
-        "Что нужно: вынести решение на уровень руководителя.",
-      ],
+      title: "Что зависит снаружи",
+      body: bullets[1] ?? "Есть зависимость от внешнего решения.",
+      items: [`Тема: ${keywords[0] ?? "следующий период"}.`],
+      tone: "warning",
+      badge: "Нужен шаг",
+    },
+    {
+      title: "Что ещё уточнить",
+      body: bullets[2] ?? "Нужно быстро закрыть один пробел по фактам.",
+      items:
+        workingDraft.openQuestions.length > 0
+          ? workingDraft.openQuestions
+          : ["Уточнить один недостающий факт до финальной версии."],
       tone: "primary",
-      badge: "Нужен шаг сверху",
     },
   ];
 }
 
-function buildNextStepPanels(
-  keywords: string[],
-  leadershipAsk: string,
-  prompt: string
-): SlidePanel[] {
-  const firstFocus = keywords[0] ?? "ключевой фокус периода";
-  const secondFocus = keywords[1] ?? "качество";
-  const thirdFocus = keywords[2] ?? "скорость поставки";
+function buildNextStepPanels(workingDraft: WorkingDraft): SlidePanel[] {
+  const bullets = getOutlineBullets(workingDraft, "next-step");
 
   return [
     {
       title: "Приоритеты",
-      body: "Следующий период должен быть собран вокруг короткого набора задач, а не вокруг длинного списка ожиданий.",
+      body: bullets[0] ?? "Следующий шаг должен быть коротким и понятным.",
       items: [
-        `Удержать фокус по ${firstFocus}.`,
-        `Дожать фактуру по ${secondFocus}.`,
-        `Не просадить ритм по ${thirdFocus}.`,
+        bullets[2] ?? "Нужен один главный фокус периода.",
       ],
       tone: "primary",
     },
     {
       title: "Зависимости",
       body:
-        /найм|hire|budget|бюджет|priority|приоритет/i.test(prompt)
-          ? "У следующего периода уже есть одна внешняя зависимость, которую нужно закрыть заранее."
-          : "Команда зависит не только от себя, и это лучше зафиксировать до старта следующего периода.",
-      items: [
-        "Один управленческий приоритет.",
-        "Один внешний шаг по ресурсу, бюджету или очередности.",
-      ],
+        workingDraft.decisionNeeded ??
+        "Нужно заранее назвать, от какого решения зависит следующий период.",
+      items:
+        workingDraft.openQuestions.length > 0
+          ? [workingDraft.openQuestions[0]]
+          : ["Если нужна цифра, договориться, кто её приносит."],
       tone: "warning",
     },
     {
       title: "Решение",
-      body: leadershipAsk,
-      items: ["После этого решения можно переводить статус в точечные правки и финальную отдачу."],
+      body: bullets[1] ?? "После статуса нужен один подтверждённый следующий шаг.",
+      items: ["После этого слайд можно переводить в финальные правки."],
       tone: "success",
     },
   ];
 }
 
+function getOutlineBullets(workingDraft: WorkingDraft, outlineId: string) {
+  return workingDraft.outline.find((item) => item.id === outlineId)?.bullets ?? [];
+}
+
+function serializeWorkingDraft(workingDraft: WorkingDraft) {
+  return [
+    workingDraft.audience,
+    workingDraft.period,
+    workingDraft.goal,
+    workingDraft.decisionNeeded,
+    workingDraft.coreMessage,
+    ...workingDraft.outline.flatMap((item) => [
+      item.title,
+      item.purpose,
+      ...item.bullets,
+    ]),
+    ...workingDraft.openQuestions,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function normalizeSentence(value: string) {
   const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
   const sentence = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
   return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`;
+}
+
+function trimSentence(value: string) {
+  return value.trim().replace(/[.!?]+$/, "");
 }

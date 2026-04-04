@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  useTransition,
+  type RefObject,
+} from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,14 +18,18 @@ import {
 } from "lucide-react";
 import {
   buildPresentationDraft,
+  buildWorkingDraft,
   EXAMPLE_PROMPTS,
   SCREEN_FLOW,
 } from "@/lib/demo-generator";
 import type {
   PresentationDraft,
   PrototypeScreen,
+  WorkingDraft,
 } from "@/lib/presentation-types";
 import { SlideCanvas, SlideThumbnail } from "@/components/slide-canvas";
+
+const AUTO_ADVANCE_MS = 1350;
 
 const screenOrder: PrototypeScreen[] = [
   "start",
@@ -57,43 +68,96 @@ const START_PREVIEW_SLIDES = [
     id: "cover",
     index: "01",
     eyebrow: "Обложка",
-    title: "Q1 2026 · Backend Platform",
-    subtitle: "Команда, период и фокус разговора.",
-    tags: ["Период", "Команда", "Фокус"],
+    title: "Статус за Q1 2026",
+    subtitle: "Период, аудитория и главный фокус разговора.",
+    tags: ["Период", "Аудитория", "Фокус"],
   },
   {
     id: "summary",
     index: "02",
     eyebrow: "Главный вывод",
-    title: "Удержали стабильность и ускорили релизы",
-    subtitle: "Один тезис, опоры и запрос к руководителю.",
-    tags: ["Главный тезис", "3 опоры", "1 решение"],
+    title: "Один вывод периода и одно решение",
+    subtitle: "Короткий тезис, опоры и точка решения.",
+    tags: ["Главный тезис", "Опоры", "Решение"],
   },
   {
     id: "metrics",
     index: "03",
     eyebrow: "Ключевые метрики",
-    title: "MTTR, скорость поставки и нагрузка",
-    subtitle: "Фактура, по которой видно прогресс и риск.",
-    tags: ["Стабильность", "Поставка", "Риск"],
+    title: "Цифры, по которым видно прогресс",
+    subtitle: "Только те метрики, которые помогают быстро понять статус.",
+    tags: ["Результат", "Скорость", "Риск"],
   },
 ] as const;
 
 export function PresentationPrototype() {
   const [prompt, setPrompt] = useState("");
   const [screen, setScreen] = useState<PrototypeScreen>("start");
+  const [workingDraft, setWorkingDraft] = useState<WorkingDraft | null>(null);
   const [draft, setDraft] = useState<PresentationDraft | null>(null);
   const [selectedSlideId, setSelectedSlideId] = useState<string | null>(null);
   const [buildStageIndex, setBuildStageIndex] = useState(0);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [autoAdvanceReview, setAutoAdvanceReview] = useState(false);
   const [isTransitionPending, startTransition] = useTransition();
+  const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const activeSlide =
     draft?.slides.find((slide) => slide.id === selectedSlideId) ??
     draft?.slides[0] ??
     null;
 
-  const canReset = prompt.trim().length > 0 || draft !== null || screen !== "start";
+  const canReset =
+    prompt.trim().length > 0 ||
+    workingDraft !== null ||
+    draft !== null ||
+    screen !== "start";
+
+  useEffect(() => {
+    if (screen === "start" && prompt.trim()) {
+      promptInputRef.current?.focus();
+    }
+  }, [prompt, screen]);
+
+  const beginBuilding = useEffectEvent(() => {
+    if (!workingDraft) {
+      return;
+    }
+
+    const nextDraft = buildPresentationDraft(workingDraft);
+    setDraft(nextDraft);
+    setSelectedSlideId(nextDraft.slides[0]?.id ?? null);
+    setBuildStageIndex(0);
+    setScreen("building");
+  });
+
+  useEffect(() => {
+    if (!workingDraft || !autoAdvanceReview) {
+      return;
+    }
+
+    if (screen !== "understanding" && screen !== "outline") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (screen === "understanding") {
+        startTransition(() => {
+          setScreen("outline");
+        });
+        return;
+      }
+
+      setAutoAdvanceReview(false);
+      startTransition(() => {
+        beginBuilding();
+      });
+    }, AUTO_ADVANCE_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [autoAdvanceReview, beginBuilding, screen, startTransition, workingDraft]);
 
   useEffect(() => {
     if (screen !== "building" || !draft) {
@@ -124,19 +188,39 @@ export function PresentationPrototype() {
 
   function buildFromPrompt() {
     if (!prompt.trim()) {
-      setPromptError("Нужен рабочий запрос, иначе черновик не из чего собрать.");
+      setPromptError("Нужен рабочий запрос, иначе не из чего собрать первый черновик.");
       return;
     }
 
-    const nextDraft = buildPresentationDraft(prompt);
-    setDraft(nextDraft);
-    setSelectedSlideId(nextDraft.slides[0]?.id ?? null);
+    const nextWorkingDraft = buildWorkingDraft(prompt);
+    setWorkingDraft(nextWorkingDraft);
+    setDraft(null);
+    setSelectedSlideId(null);
     setBuildStageIndex(0);
     setPromptError(null);
+    setAutoAdvanceReview(true);
     setScreen("understanding");
   }
 
+  function continueFromReview() {
+    setAutoAdvanceReview(false);
+    startTransition(() => {
+      beginBuilding();
+    });
+  }
+
+  function editUnderstanding() {
+    setAutoAdvanceReview(false);
+    setDraft(null);
+    setSelectedSlideId(null);
+    setBuildStageIndex(0);
+    setPromptError(null);
+    setScreen("start");
+  }
+
   function goBack() {
+    setAutoAdvanceReview(false);
+
     const previousScreen: Record<PrototypeScreen, PrototypeScreen> = {
       start: "start",
       understanding: "start",
@@ -150,10 +234,12 @@ export function PresentationPrototype() {
 
   function resetFlow() {
     setPrompt("");
+    setWorkingDraft(null);
     setDraft(null);
     setSelectedSlideId(null);
     setBuildStageIndex(0);
     setPromptError(null);
+    setAutoAdvanceReview(false);
     setScreen("start");
   }
 
@@ -196,6 +282,7 @@ export function PresentationPrototype() {
           <StartScreen
             prompt={prompt}
             promptError={promptError}
+            textareaRef={promptInputRef}
             onChangePrompt={setPrompt}
             onGenerate={buildFromPrompt}
             onUseExample={(value) => {
@@ -205,18 +292,13 @@ export function PresentationPrototype() {
           />
         ) : null}
 
-        {screen === "understanding" && draft ? (
-          <UnderstandingScreen
-            draft={draft}
+        {(screen === "understanding" || screen === "outline") && workingDraft ? (
+          <WorkingDraftScreen
+            phase={screen}
             prompt={prompt}
-            onContinue={() => setScreen("outline")}
-          />
-        ) : null}
-
-        {screen === "outline" && draft ? (
-          <OutlineScreen
-            draft={draft}
-            onContinue={() => setScreen("building")}
+            workingDraft={workingDraft}
+            onEditUnderstanding={editUnderstanding}
+            onContinue={continueFromReview}
           />
         ) : null}
 
@@ -290,12 +372,14 @@ function StepRail({ currentScreen }: { currentScreen: PrototypeScreen }) {
 function StartScreen({
   prompt,
   promptError,
+  textareaRef,
   onChangePrompt,
   onGenerate,
   onUseExample,
 }: {
   prompt: string;
   promptError: string | null;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
   onChangePrompt: (value: string) => void;
   onGenerate: () => void;
   onUseExample: (value: string) => void;
@@ -309,8 +393,8 @@ function StartScreen({
           <section className="stage-card start-intro-block">
             <h1>Соберите рабочий квартальный статус</h1>
             <p className="start-intro">
-              Напишите как есть. На выходе: структура, тезисы и первый черновик
-              слайдов.
+              Напишите как есть. Сначала покажем понимание и план, потом соберём
+              первый черновик слайдов.
             </p>
           </section>
 
@@ -324,6 +408,7 @@ function StartScreen({
             >
               <div className="composer-box">
                 <textarea
+                  ref={textareaRef}
                   value={prompt}
                   onChange={(event) => onChangePrompt(event.target.value)}
                   onKeyDown={(event) => {
@@ -334,12 +419,12 @@ function StartScreen({
                   }}
                   rows={5}
                   className="prompt-input"
-                  placeholder="Напишите, что произошло за квартал, где прогресс, какие риски и какое решение нужно."
+                  placeholder="Напишите, что произошло за квартал, где прогресс, какие риски и какое решение нужно сейчас."
                 />
 
                 <div className="composer-box-footer">
                   <p className="composer-helper">
-                    6-8 слайдов · сначала покажем понимание и план
+                    5-7 слайдов • сначала проверим понимание, потом покажем план
                   </p>
                   <button type="submit" className="primary-button composer-submit">
                     Собрать рабочий черновик
@@ -403,75 +488,104 @@ function StartScreen({
   );
 }
 
-function UnderstandingScreen({
-  draft,
+function WorkingDraftScreen({
+  phase,
   prompt,
+  workingDraft,
+  onEditUnderstanding,
   onContinue,
 }: {
-  draft: PresentationDraft;
+  phase: Extract<PrototypeScreen, "understanding" | "outline">;
   prompt: string;
+  workingDraft: WorkingDraft;
+  onEditUnderstanding: () => void;
   onContinue: () => void;
 }) {
-  const items = [
-    { label: "Период", value: draft.understanding.period },
-    { label: "Команда", value: draft.understanding.team },
-    { label: "Аудитория", value: draft.understanding.audience },
-    { label: "Цель", value: draft.understanding.goal },
-    { label: "Тон", value: draft.understanding.tone },
-  ];
+  const chips = [
+    { label: "Аудитория", value: workingDraft.audience },
+    { label: "Период", value: workingDraft.period },
+    { label: "Цель", value: workingDraft.goal },
+    workingDraft.decisionNeeded
+      ? { label: "Решение", value: workingDraft.decisionNeeded }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
     <div className="single-stage-layout">
-      <section className="stage-card compact-stage-card">
-        <h2>Ваш запрос</h2>
-        <blockquote className="prompt-quote">“{prompt}”</blockquote>
+      <section
+        className={`stage-card compact-stage-card review-stage-card is-${phase}-phase`}
+      >
+        <div className="review-stage-head">
+          <div>
+            <div className="support-label">
+              {phase === "understanding" ? "Понимание" : "План"}
+            </div>
+            <h2>Понимание и план</h2>
+          </div>
 
-        <div className="understanding-summary">
-          <div className="support-label">Понял задачу так:</div>
-          <ul className="understanding-list">
-            {items.map((item) => (
-              <li key={item.label}>
-                <span>{item.label}:</span> {item.value}
-              </li>
+          <blockquote className="prompt-quote">“{prompt}”</blockquote>
+        </div>
+
+        <article className="understanding-focus-card">
+          <div className="support-label">Понял задачу так</div>
+          <p className="working-core-message">{workingDraft.coreMessage}</p>
+
+          <div className="working-chip-row">
+            {chips.map((item) => (
+              <div key={item.label} className="working-chip">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
             ))}
-          </ul>
-        </div>
+          </div>
+        </article>
+
+        <section className="working-outline-section">
+          <div className="support-label">План презентации</div>
+
+          <div className="working-outline-grid">
+            {workingDraft.outline.map((item, index) => (
+              <article key={item.id} className="outline-card">
+                <div className="working-outline-head">
+                  <div className="outline-index">
+                    {String(index + 1).padStart(2, "0")}
+                  </div>
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.purpose}</p>
+                  </div>
+                </div>
+
+                <ul>
+                  {item.bullets.map((bullet) => (
+                    <li key={bullet}>{bullet}</li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {workingDraft.openQuestions.length ? (
+          <section className="working-open-questions">
+            <div className="support-label">Нужно уточнить</div>
+            <div className="missing-facts-row">
+              {workingDraft.openQuestions.map((question) => (
+                <span key={question} className="missing-fact-chip">
+                  {question}
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <div className="stage-actions">
-          <button type="button" className="primary-button" onClick={onContinue}>
-            Собрать план
-            <ArrowRight aria-hidden="true" />
+          <button type="button" className="ghost-button" onClick={onEditUnderstanding}>
+            Поправить понимание
           </button>
-        </div>
-      </section>
-    </div>
-  );
-}
 
-function OutlineScreen({
-  draft,
-  onContinue,
-}: {
-  draft: PresentationDraft;
-  onContinue: () => void;
-}) {
-  return (
-    <div className="single-stage-layout">
-      <section className="stage-card compact-stage-card">
-        <h2>План презентации</h2>
-
-        <div className="outline-plain-list">
-          {draft.outline.map((item) => (
-            <article key={item.id} className="outline-plain-item">
-              <div className="outline-index">{item.index}</div>
-              <h3>{item.title}</h3>
-            </article>
-          ))}
-        </div>
-
-        <div className="stage-actions">
           <button type="button" className="primary-button" onClick={onContinue}>
-            Подтвердить и собрать черновик
+            Продолжить сборку
             <ArrowRight aria-hidden="true" />
           </button>
         </div>
@@ -554,8 +668,8 @@ function EditorScreen({
     draft.slides.find((slide) => slide.id === activeSlideId) ?? draft.slides[0];
   const factLabel =
     draft.missingFacts.length === 1
-      ? "1 место требует фактуры"
-      : `${draft.missingFacts.length} места требуют фактуры`;
+      ? "1 место требует уточнения"
+      : `${draft.missingFacts.length} места требуют уточнения`;
 
   return (
     <div className="editor-layout">

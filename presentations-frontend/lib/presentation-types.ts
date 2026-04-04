@@ -15,14 +15,20 @@ export type SlideLayout =
 
 export type ToneId = "primary" | "success" | "warning" | "danger";
 
-export interface RequestUnderstanding {
-  period: string;
-  team: string;
+export type WorkingDraft = {
   audience: string;
+  period: string;
   goal: string;
-  tone: string;
-  sourceSummary: string;
-}
+  decisionNeeded?: string;
+  coreMessage: string;
+  outline: Array<{
+    id: string;
+    title: string;
+    purpose: string;
+    bullets: string[];
+  }>;
+  openQuestions: string[];
+};
 
 export interface SlideMetric {
   label: string;
@@ -61,13 +67,6 @@ export interface PresentationSlide {
   missingFacts?: string[];
 }
 
-export interface OutlineStep {
-  id: string;
-  index: string;
-  title: string;
-  purpose: string;
-}
-
 export interface BuildStage {
   id: string;
   title: string;
@@ -78,8 +77,7 @@ export interface PresentationDraft {
   documentTitle: string;
   documentSubtitle: string;
   scenarioLabel: string;
-  understanding: RequestUnderstanding;
-  outline: OutlineStep[];
+  workingDraft: WorkingDraft;
   buildStages: BuildStage[];
   slides: PresentationSlide[];
   missingFacts: string[];

@@ -297,6 +297,109 @@ button {
   font-weight: 600;
 }
 
+.review-stage-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.review-stage-head {
+  display: grid;
+  gap: 1rem;
+}
+
+.review-stage-card .prompt-quote {
+  margin-top: 0;
+}
+
+.understanding-focus-card {
+  padding: 1.1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(141, 151, 255, 0.26);
+  background:
+    radial-gradient(circle at top left, rgba(126, 137, 255, 0.14), transparent 28%),
+    rgba(7, 11, 22, 0.88);
+}
+
+.working-core-message {
+  margin: 0.85rem 0 0;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.working-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.working-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 3.6rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.working-chip span {
+  color: var(--text-tertiary);
+  font-size: 0.82rem;
+}
+
+.working-chip strong {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.working-outline-section,
+.working-open-questions {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.working-outline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.working-outline-grid .outline-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.review-stage-card.is-outline-phase .outline-card {
+  border-color: rgba(141, 151, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.working-outline-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.95rem;
+  align-items: start;
+}
+
+.working-outline-grid .outline-card p {
+  margin-top: 0.45rem;
+}
+
+.working-outline-grid .outline-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.working-outline-grid .outline-card li + li {
+  margin-top: 0.35rem;
+}
+
 .compact-stage-card h2 {
   max-width: none;
   font-size: clamp(1.9rem, 2.7vw, 2.6rem);
@@ -1160,6 +1263,7 @@ button {
   .hero-layout,
   .outline-layout,
   .build-layout,
+  .working-outline-grid,
   .editor-grid,
   .understanding-grid,
   .signal-row,
