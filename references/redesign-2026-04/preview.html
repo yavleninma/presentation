@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Внятно · MVP Canonical V1</title>
+<style>
+  :root{
+    --bg:#edf2f7;
+    --panel:#f8fbff;
+    --surface:#ffffff;
+    --surface-2:#f4f7fb;
+    --line:#d9e2ec;
+    --line-2:#e7edf4;
+    --text:#162130;
+    --muted:#6a778b;
+    --accent:#4568f6;
+    --accent-soft:#ebf1ff;
+    --green:#5d9f74;
+    --green-soft:#eef8f1;
+    --sand:#fff6e5;
+    --shadow:0 18px 44px rgba(17,35,61,.08);
+    --shadow-soft:0 8px 24px rgba(17,35,61,.06);
+    --r-xl:30px;
+    --r-lg:22px;
+    --r-md:18px;
+    --r-sm:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  body{padding:26px 22px 80px}
+  .page{max-width:1480px;margin:0 auto;display:grid;gap:24px}
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,.94) 0%, rgba(248,251,255,.98) 100%);
+    border:1px solid var(--line);
+    border-radius:32px;
+    box-shadow:var(--shadow);
+  }
+  .mast{padding:28px;display:grid;gap:18px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .brand{display:inline-flex;align-items:center;gap:12px;font-weight:800;font-size:18px;letter-spacing:-.03em}
+  .brand-mark{width:34px;height:34px;border-radius:12px;background:linear-gradient(180deg,#6687ff 0%,#3b61f0 100%);display:inline-flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 10px 24px rgba(69,104,246,.22)}
+  .meta{display:inline-flex;gap:10px;align-items:center;color:var(--muted);font-size:13px;flex-wrap:wrap}
+  .dot{width:4px;height:4px;border-radius:999px;background:#aab6c4;display:inline-block}
+  .hero{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
+  h1{margin:0;font-size:42px;line-height:1.02;letter-spacing:-.05em;max-width:820px}
+  h2{margin:0;font-size:34px;line-height:1.06;letter-spacing:-.045em}
+  h3{margin:0;font-size:18px;letter-spacing:-.03em}
+  p{margin:0}
+  .sub{color:var(--muted);font-size:15px;line-height:1.6}
+  .kicker,.label{
+    display:inline-flex;align-items:center;gap:8px;width:max-content;max-width:100%;
+    padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.9);
+    color:var(--muted);font-size:13px;box-shadow:var(--shadow-soft)
+  }
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .info{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:16px;display:grid;gap:8px;box-shadow:var(--shadow-soft)}
+  .info ul{margin:0;padding-left:18px;display:grid;gap:6px}
+  .info li{font-size:13px;line-height:1.55;color:#314155}
+  .side{display:grid;gap:14px;align-content:start;padding:18px;border-radius:24px;background:linear-gradient(180deg,#fcfdff 0%,#f5f8fd 100%);border:1px solid var(--line);box-shadow:var(--shadow-soft)}
+  .side ul{margin:0;padding-left:18px;display:grid;gap:8px}
+  .side li{font-size:14px;line-height:1.55;color:#334155}
+  .pills,.chips{display:flex;gap:8px;flex-wrap:wrap}
+  .pill,.chip{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:13px;box-shadow:var(--shadow-soft)}
+  .pill.accent,.chip.accent{background:var(--accent-soft);border-color:#cfd9ff;color:#2b4cb7}
+  .pill.green{background:var(--green-soft);border-color:#d3e7da;color:#2a6d41}
+  .section{display:grid;gap:12px}
+  .boards{display:grid;gap:26px}
+  .board{background:var(--panel);border:1px solid var(--line);border-radius:32px;box-shadow:var(--shadow);overflow:hidden}
+  .board-shell{min-height:860px;padding:24px;display:flex;flex-direction:column;gap:18px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;min-height:64px}
+  .topbar .brand{font-size:17px}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:18px 0}
+  .ghost{display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:13px}
+  .entry{width:100%;max-width:760px;display:grid;gap:16px}
+  .composer{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:14px 14px 14px 16px;display:grid;gap:12px;box-shadow:var(--shadow-soft)}
+  textarea{width:100%;background:transparent;border:none;outline:none;resize:none;color:var(--text);font:inherit}
+  .composer textarea{min-height:90px;font-size:18px;line-height:1.55}
+  .composer-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .hint{color:var(--muted);font-size:13px;line-height:1.45}
+  .button{border:none;border-radius:14px;padding:12px 18px;font-weight:700;font-size:14px;letter-spacing:-.01em;cursor:default}
+  .button.primary{background:var(--accent);color:#fff;box-shadow:0 10px 24px rgba(69,104,246,.22)}
+  .chat-shell{width:100%;max-width:900px;display:grid;gap:18px}
+  .chat-card{background:var(--surface);border:1px solid var(--line);border-radius:26px;padding:18px;display:grid;gap:14px;box-shadow:var(--shadow-soft)}
+  .msg{display:flex;gap:12px;align-items:flex-start}
+  .ava{width:34px;height:34px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex:0 0 auto}
+  .ava.user{background:#edf3f8;border:1px solid #dbe4ee;color:#334152}
+  .ava.ai{background:var(--accent-soft);border:1px solid #d1dcff;color:#2947b0}
+  .bubble{background:var(--surface-2);border:1px solid var(--line-2);border-radius:18px;padding:12px 14px;max-width:720px;display:grid;gap:10px}
+  .bubble.user{background:#f8fafc}
+  .bubble p{font-size:14px;line-height:1.55}
+  .muted-box{background:#fafcfe;border:1px dashed var(--line);border-radius:18px;padding:15px;color:var(--muted);font-size:13px;line-height:1.5}
+  .cta-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+
+  .system{width:100%;max-width:1140px;display:grid;gap:16px}
+  .sys-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:18px;display:grid;gap:14px;box-shadow:var(--shadow-soft)}
+  .panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+  .panel-head h3{font-size:22px}
+  .panel-head .sub{max-width:560px}
+  .steps{display:grid;gap:10px}
+  .step{background:#fbfcff;border:1px solid var(--line);border-radius:18px;padding:14px;display:grid;gap:6px}
+  .num{font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+  .title{font-size:15px;font-weight:700}
+  .desc{font-size:13px;color:#334153;line-height:1.5}
+  .checks{display:grid;gap:10px}
+  .check{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;background:#fbfcff;border:1px solid var(--line);border-radius:18px;padding:14px}
+  .ic{width:34px;height:34px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;color:#2c4d87;font-size:16px;flex:0 0 auto}
+  .ic.blue{background:#edf2ff;border-color:#d6e0ff;color:#3558da}
+  .ic.green{background:#edf8f0;border-color:#d4e8da;color:#317e4f}
+  .ic.sand{background:#fff8e9;border-color:#efdeaf;color:#9a711a}
+  .check h4{margin:0;font-size:15px}
+  .check p{margin-top:3px;font-size:13px;line-height:1.5;color:#334153}
+  .note{padding:14px 16px;border-radius:18px;background:linear-gradient(180deg,#f6f9ff 0%,#eef4ff 100%);border:1px solid #d4deff;color:#2943a8;font-size:13px;line-height:1.5}
+
+  .editor{display:grid;grid-template-columns:248px minmax(0,1fr) auto;gap:18px;flex:1}
+  .rail{background:rgba(255,255,255,.78);border:1px solid var(--line);border-radius:20px;padding:14px;display:grid;gap:14px;align-content:start;box-shadow:var(--shadow-soft)}
+  .rail-title{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .slides{display:grid;gap:10px}
+  .slide-item{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;gap:8px;box-shadow:var(--shadow-soft)}
+  .slide-item.active{border-color:#cad6ff;box-shadow:0 0 0 2px rgba(69,104,246,.1),var(--shadow-soft)}
+  .slide-item .desc{font-size:12px;color:var(--muted)}
+  .canvas-area{display:grid;gap:14px;min-width:0}
+  .doc-head{min-height:64px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.8);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;box-shadow:var(--shadow-soft)}
+  .group{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .group-label{font-size:13px;color:var(--muted)}
+  .segmented{display:inline-flex;gap:6px;align-items:center;padding:6px;border-radius:999px;background:#f5f8fc;border:1px solid var(--line)}
+  .seg{padding:9px 12px;border-radius:999px;font-size:13px;color:#526174;border:1px solid transparent;background:transparent}
+  .seg.active{background:var(--surface);border-color:var(--line);color:var(--text);box-shadow:var(--shadow-soft)}
+  .seg.blue{background:#edf2ff;border-color:#d1dbff;color:#3054d8}
+  .seg.green{background:#edf8f0;border-color:#d5e9db;color:#317c4e}
+  .canvas-wrap{min-height:720px;border:1px solid var(--line);border-radius:24px;background:#edf3f8;padding:28px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-soft)}
+  .slide{
+    width:min(100%,980px);aspect-ratio:16/9;border:1px solid var(--line);border-radius:26px;padding:32px 36px;
+    background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);position:relative;overflow:hidden;
+    box-shadow:0 24px 52px rgba(16,31,52,.08);display:grid;grid-template-rows:auto 1fr auto;gap:18px
+  }
+  .slide:before{content:"";position:absolute;inset:0;background:radial-gradient(160px 160px at 84% 16%, rgba(69,104,246,.07) 0%, rgba(69,104,246,0) 72%), linear-gradient(180deg, rgba(237,243,255,.46) 0%, rgba(255,255,255,0) 34%);pointer-events:none}
+  .slide.template-rhythm:before{background:radial-gradient(180px 180px at 82% 14%, rgba(93,159,116,.08) 0%, rgba(93,159,116,0) 72%), linear-gradient(180deg, rgba(238,247,241,.5) 0%, rgba(255,255,255,0) 34%)}
+  .slide-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;position:relative;z-index:1}
+  .slide-top h3{font-size:30px;line-height:1.08;max-width:640px}
+  .tags{display:flex;gap:8px;flex-wrap:wrap;max-width:300px;justify-content:flex-end}
+  .tag{font-size:12px;color:var(--muted);padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:#f8fafc}
+  .content{display:grid;grid-template-columns:1fr 1fr;gap:16px;position:relative;z-index:1}
+  .stack{display:grid;gap:14px;align-content:start}
+  .block{background:rgba(255,255,255,.88);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:10px}
+  .block.blue{background:linear-gradient(180deg,#f7f9ff 0%,#f2f6ff 100%);border-color:#d8e1ff}
+  .block.green{background:linear-gradient(180deg,#f4fbf6 0%,#edf7f0 100%);border-color:#d4eadb}
+  .block.sand{background:linear-gradient(180deg,#fffaf1 0%,#fff6e5 100%);border-color:#f0dfb3}
+  .b-head{display:flex;align-items:center;gap:10px}
+  .b-ic{width:34px;height:34px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;color:#2c4d87;font-size:16px;flex:0 0 auto}
+  .block h4{margin:0;font-size:15px}
+  .block p,.block li{font-size:14px;line-height:1.55;color:#2c3948}
+  .block ul{margin:0;padding-left:18px;display:grid;gap:8px}
+  .metric{font-size:24px;line-height:1.1;font-weight:800;letter-spacing:-.035em}
+  .placeholder{border-style:dashed}
+  .speaker{background:linear-gradient(180deg,#eef8f1 0%,#e8f4ec 100%);border-color:#cde4d5}
+  .slide-foot{display:flex;justify-content:space-between;gap:14px;align-items:center;position:relative;z-index:1;border-top:1px solid var(--line-2);padding-top:12px;color:var(--muted);font-size:13px}
+  .drawer-trigger{writing-mode:vertical-rl;transform:rotate(180deg);padding:16px 10px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:13px;box-shadow:var(--shadow-soft)}
+  .drawer{width:300px;background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:20px;padding:16px;display:grid;gap:16px;align-content:start;box-shadow:var(--shadow-soft)}
+  .drawer p{font-size:13px;line-height:1.5;color:var(--muted)}
+  .regen{display:grid;gap:10px}
+  .regen-btn{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:6px;box-shadow:var(--shadow-soft)}
+  .regen-btn.accent{border-color:#cfd9ff;background:linear-gradient(180deg,#f7f9ff 0%,#eef3ff 100%)}
+  .regen-btn .title{font-size:14px;font-weight:700}
+  .regen-btn .desc{font-size:12px;color:var(--muted);line-height:1.45}
+  .drawer-space{min-height:390px;border:1px dashed var(--line);border-radius:18px;background:rgba(250,252,255,.58)}
+  .spec-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .code{background:#111827;color:#ecf2ff;border-radius:24px;padding:22px;display:grid;gap:12px;box-shadow:var(--shadow)}
+  .code ol{margin:0;padding-left:20px;display:grid;gap:8px}
+  .code li{font-size:14px;line-height:1.55;color:#d8e3f8}
+  @media (max-width:1200px){
+    .hero,.grid-3,.sys-grid,.spec-grid{grid-template-columns:1fr}
+    .editor{grid-template-columns:1fr}
+    .drawer-trigger{display:none}
+    .drawer{width:100%}
+    .content{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="card mast">
+    <div class="row">
+      <div class="brand"><span class="brand-mark">В</span>Внятно</div>
+      <div class="meta"><span>канонический MVP-файл</span><span class="dot"></span><span>light office UI</span><span class="dot"></span><span>V1</span></div>
+    </div>
+    <div class="hero">
+      <div style="display:grid;gap:14px;align-content:start">
+        <div class="kicker">Prompt → мини-чат → черновик → редактор → локальная пересборка слайда</div>
+        <h1>Внятно превращает сырой рабочий запрос в собранную презентацию, которая помогает провести разговор, а не просто заполняет слайды.</h1>
+        <p class="sub">MVP делает одну вещь. Из короткого prompt собирает офисный 6-слайдовый draft, удерживает спикерскую полезность, не выдумывает цифры, даёт минимум выбора на входе и переносит умность в сам редактор.</p>
+        <div class="grid-3">
+          <div class="info">
+            <h3>Что входит</h3>
+            <ul>
+              <li>Тихий первый экран с логотипом и одним действием.</li>
+              <li>Мини-чат на 1–3 сообщения, максимум 5.</li>
+              <li>6 слайдов по умолчанию.</li>
+              <li>Редактор: left rail, center canvas, скрытая правая панель.</li>
+            </ul>
+          </div>
+          <div class="info">
+            <h3>Чего нет сейчас</h3>
+            <ul>
+              <li>Каталога сценариев на старте.</li>
+              <li>Картинок по умолчанию.</li>
+              <li>Истории диалога в правой панели.</li>
+              <li>Фейковых графиков, цифр и AI-пены.</li>
+            </ul>
+          </div>
+          <div class="info">
+            <h3>Жёсткие правила</h3>
+            <ul>
+              <li>Если данных нет, оставляем честный placeholder.</li>
+              <li>Один слайд отвечает на один вопрос.</li>
+              <li>Шаблон и цвет выбираются отдельно и комбинируются свободно.</li>
+              <li>После генерации есть скрытый fit-pass на качество раскладки.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <aside class="side">
+        <div class="label">Канон генерации</div>
+        <ul>
+          <li><strong>6 слайдов по умолчанию:</strong> обложка, главный вывод, что изменилось, доказательства, риски, следующий шаг.</li>
+          <li><strong>Три фокуса разговора:</strong> апдейт, объяснить, добиться решения. Они управляют мини-чатом и локальной пересборкой текущего слайда.</li>
+          <li><strong>Светлая офисная сцена:</strong> чистые поверхности, мягкие подложки, акцентный цвет в деталях, не тёмная галерея.</li>
+          <li><strong>Шаблон + цвет:</strong> шаблон задаёт ритм, иконпак и характер блоков. Цвет даёт подложку и акцент, не ломая layout.</li>
+          <li><strong>Скрытый служебный прогон:</strong> overflow, contrast, card density, слишком длинные заголовки, broken alignment.</li>
+        </ul>
+        <div class="pills">
+          <div class="pill accent">office balance</div>
+          <div class="pill green">speaker-first</div>
+          <div class="pill">no fake data</div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="boards">
+    <section class="section">
+      <div class="label">Экран 1 · тихий вход</div>
+      <div class="board"><div class="board-shell">
+        <div class="topbar">
+          <div class="brand"><span class="brand-mark">В</span>Внятно</div>
+          <div class="ghost"><span>без stepper</span><span class="dot"></span><span>без промо-героя</span><span class="dot"></span><span>сразу одно действие</span></div>
+        </div>
+        <div class="stage">
+          <div class="entry">
+            <div class="kicker">Сначала prompt. Всё лишнее убрано с первого кадра.</div>
+            <h2>О чём презентация?</h2>
+            <p class="sub">Напиши как есть. После отправки Внятно коротко доберёт фокус разговора и соберёт черновик.</p>
+            <div class="composer">
+              <textarea spellcheck="false">Нужно собрать презентацию для руководителя по итогам квартала: что реально сдвинули, где риск, и какое решение нужно сверху.</textarea>
+              <div class="composer-foot">
+                <div class="hint">По умолчанию будет 6 слайдов. Без картинок, с иконками и офисными placeholder’ами.</div>
+                <button class="button primary">Продолжить</button>
+              </div>
+            </div>
+            <div class="chips">
+              <div class="chip">Квартальный статус</div>
+              <div class="chip">Защита решения</div>
+              <div class="chip">Итоги проекта</div>
+              <div class="chip">Уточнить ▾</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </section>
+
+    <section class="section">
+      <div class="label">Экран 2 · мини-чат на 1–3 сообщения</div>
+      <div class="board"><div class="board-shell">
+        <div class="topbar">
+          <div class="brand"><span class="brand-mark">В</span>Внятно</div>
+          <div class="ghost"><span>обычно 1–3 сообщения</span><span class="dot"></span><span>максимум 5</span></div>
+        </div>
+        <div class="stage">
+          <div class="chat-shell">
+            <div class="kicker">Чат не растягивается в интервью. Он просто фиксирует фокус.</div>
+            <div class="chat-card">
+              <div class="msg"><div class="ava user">ТЫ</div><div class="bubble user"><p>Нужно собрать презентацию по пилоту поиска. Важно показать, что уже работает, что пока не доказано и зачем нужен ресурс на следующий шаг.</p></div></div>
+              <div class="msg"><div class="ava ai">В</div><div class="bubble"><p>Понял. Это больше апдейт, объяснение или разговор на решение?</p><div class="chips"><div class="chip">Апдейт</div><div class="chip">Объяснить</div><div class="chip accent">Добиться решения</div></div></div></div>
+              <div class="msg"><div class="ava ai">В</div><div class="bubble"><p>Тогда собираю дека через 6 слайдов и делаю акцент на запросе к руководителю. Нужно ли держать разговор на уровне решения, а не в деталях модели?</p></div></div>
+              <div class="msg"><div class="ava user">ТЫ</div><div class="bubble user"><p>Да. Не тонем в устройстве. Держим линию на сигнале и на решении про ресурс.</p></div></div>
+              <div class="muted-box">Как только фокус зафиксирован, чат останавливается. Пользователь не проходит длинное собеседование.</div>
+              <div class="cta-row"><div class="hint">Фокус зафиксирован: добиться решения.</div><button class="button primary">Собрать черновик</button></div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </section>
+
+    <section class="section">
+      <div class="label">Скрытый слой · fit-pass после генерации</div>
+      <div class="board"><div class="board-shell">
+        <div class="topbar">
+          <div class="brand"><span class="brand-mark">В</span>Внятно</div>
+          <div class="ghost"><span>служебный слой</span><span class="dot"></span><span>может быть невидим пользователю</span></div>
+        </div>
+        <div class="stage">
+          <div class="system">
+            <div class="kicker">После первой генерации Внятно делает ещё один короткий прогон, чтобы не отдавать поломанный слайд.</div>
+            <div class="sys-grid">
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <h3>Pipeline после кнопки «Собрать черновик»</h3>
+                    <p class="sub">Пользователь может видеть только общий прогресс. Но внутри всегда происходит короткий технический проход на качество вывода.</p>
+                  </div>
+                  <div class="pill accent">hidden by default</div>
+                </div>
+                <div class="steps">
+                  <div class="step"><div class="num">Шаг 01</div><div class="title">Собрать структуру</div><div class="desc">Зафиксировать 6 слайдов и распределить главный тезис по каждой сцене.</div></div>
+                  <div class="step"><div class="num">Шаг 02</div><div class="title">Наполнить draft</div><div class="desc">Текст, speaker-support, placeholder’ы, иконки, подложки блоков.</div></div>
+                  <div class="step"><div class="num">Шаг 03</div><div class="title">Прогнать fit-pass</div><div class="desc">Проверить влезание, контраст, плотность, рваную вёрстку, слишком длинные заголовки.</div></div>
+                  <div class="step"><div class="num">Шаг 04</div><div class="title">Сделать микро-ремонт</div><div class="desc">Укоротить заголовок, уменьшить плотность, переставить блоки, подправить акценты.</div></div>
+                  <div class="step"><div class="num">Шаг 05</div><div class="title">Показать редактор</div><div class="desc">Пользователь видит уже собранный draft, а не сырую первую раскладку.</div></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <h3>Что проверяет fit-pass</h3>
+                    <p class="sub">Это не второй полноценный рерайт. Это короткий служебный контроль, чтобы убрать техническую мутность.</p>
+                  </div>
+                </div>
+                <div class="checks">
+                  <div class="check"><div class="ic blue">↔</div><div><h4>Overflow и влезание</h4><p>Ничего не вылезает за край. Текст не ломает grid. В slide rail не появляется мини-хаос.</p></div></div>
+                  <div class="check"><div class="ic green">◑</div><div><h4>Читаемость и контраст</h4><p>Заголовок читается с первого взгляда. Подложка не спорит с текстом. Мелочь не превращается в серую пыль.</p></div></div>
+                  <div class="check"><div class="ic sand">▦</div><div><h4>Плотность блоков</h4><p>Если слайд распух, система урезает лишнее и возвращает один главный сигнал, а не четыре полусигнала.</p></div></div>
+                  <div class="check"><div class="ic blue">⌁</div><div><h4>Служебные placeholder’ы</h4><p>Они остаются офисными: “[нужна цифра]”, “[уточнить]”, “[подтвердить]”, а не lorem ipsum и не fake numbers.</p></div></div>
+                </div>
+                <div class="note">Правило: лучше отдать чуть более короткий, но чистый слайд, чем богатый, но поломанный.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </section>
+
+    <section class="section">
+      <div class="label">Экран 3 · редактор по умолчанию</div>
+      <div class="board"><div class="board-shell">
+        <div class="topbar">
+          <div class="brand"><span class="brand-mark">В</span>Внятно</div>
+          <div class="ghost"><span>left rail</span><span class="dot"></span><span>center canvas</span><span class="dot"></span><span>right drawer closed</span></div>
+        </div>
+        <div class="editor">
+          <aside class="rail">
+            <div class="rail-title">Структура</div>
+            <div class="slides">
+              <div class="slide-item"><div class="num">01</div><div class="title">Обложка</div><div class="desc">Тема, период, адресат и зачем этот разговор.</div></div>
+              <div class="slide-item"><div class="num">02</div><div class="title">Главный вывод</div><div class="desc">Один тезис и один управленческий вывод.</div></div>
+              <div class="slide-item"><div class="num">03</div><div class="title">Что изменилось</div><div class="desc">3 блока: уже работает / ограничение / следующий шаг.</div></div>
+              <div class="slide-item active"><div class="num">04</div><div class="title">Доказательства</div><div class="desc">Только опорные факты. Без выдуманных чисел.</div></div>
+              <div class="slide-item"><div class="num">05</div><div class="title">Риски</div><div class="desc">Что мешает, чего ещё нет, где нужна проверка.</div></div>
+              <div class="slide-item"><div class="num">06</div><div class="title">Следующий шаг</div><div class="desc">Какое решение нужно и что делаем дальше.</div></div>
+            </div>
+          </aside>
+          <main class="canvas-area">
+            <div class="doc-head">
+              <div class="group">
+                <span class="group-label">Шаблон</span>
+                <div class="segmented">
+                  <div class="seg active">Строгий</div>
+                  <div class="seg">Ритм</div>
+                  <div class="seg">Сигнал</div>
+                </div>
+              </div>
+              <div class="group">
+                <span class="group-label">Цвет</span>
+                <div class="segmented">
+                  <div class="seg active blue">Кобальт</div>
+                  <div class="seg">Графит</div>
+                  <div class="seg green">Шалфей</div>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <article class="slide">
+                <div class="slide-top">
+                  <div>
+                    <h3>У пилота есть рабочий сигнал. Для следующего шага нужен ресурс</h3>
+                    <p class="sub">Шаблон задаёт ритм, иконки и форму блоков. Цвет даёт подложку и акцент. Любое сочетание допустимо.</p>
+                  </div>
+                  <div class="tags">
+                    <div class="tag">Шаблон: строгий</div>
+                    <div class="tag">Иконпак: outline</div>
+                    <div class="tag">Цвет: кобальт</div>
+                  </div>
+                </div>
+                <div class="content">
+                  <div class="stack">
+                    <div class="block blue">
+                      <div class="b-head"><div class="b-ic">◌</div><h4>Что уже видно</h4></div>
+                      <div class="metric">Есть повторяемый сигнал</div>
+                      <p>Путь уже проходит без ручных костылей на части сценариев. Это не финальная интеграция, но уже не только исследование.</p>
+                    </div>
+                    <div class="block sand placeholder">
+                      <div class="b-head"><div class="b-ic">⋯</div><h4>Чего не хватает для честной оценки</h4></div>
+                      <ul>
+                        <li>Точность ответов: [нужна цифра]</li>
+                        <li>Покрытие сценариев: [уточнить выборку]</li>
+                        <li>Время ответа: [подтвердить измерение]</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="stack">
+                    <div class="block green">
+                      <div class="b-head"><div class="b-ic">↗</div><h4>Почему этого уже достаточно</h4></div>
+                      <ul>
+                        <li>Сигнал уже продуктовый, а не исследовательский.</li>
+                        <li>Главный риск теперь в доводке и интеграции.</li>
+                        <li>Решение про ресурс можно принимать сейчас.</li>
+                      </ul>
+                    </div>
+                    <div class="block speaker">
+                      <div class="b-head"><div class="b-ic">◔</div><h4>Опора спикеру</h4></div>
+                      <p>Начни с сигнала, затем покажи одну недостающую цифру и переведи разговор к решению про ресурс.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="slide-foot"><span>В каждом блоке есть иконка. Пак иконок зависит от шаблона, а не от конкретного слайда.</span><span>→ Открой справа «Пересобрать слайд»</span></div>
+              </article>
+            </div>
+          </main>
+          <div style="display:flex;align-items:center;justify-content:center"><div class="drawer-trigger">Пересобрать слайд</div></div>
+        </div>
+      </div></div>
+    </section>
+
+    <section class="section">
+      <div class="label">Экран 4 · правая панель максимально упрощена</div>
+      <div class="board"><div class="board-shell">
+        <div class="topbar">
+          <div class="brand"><span class="brand-mark">В</span>Внятно</div>
+          <div class="ghost"><span>локальная правка</span><span class="dot"></span><span>без истории</span><span class="dot"></span><span>без лишнего чата</span></div>
+        </div>
+        <div class="editor">
+          <aside class="rail">
+            <div class="rail-title">Структура</div>
+            <div class="slides">
+              <div class="slide-item"><div class="num">01</div><div class="title">Обложка</div><div class="desc">Тема, период, адресат и зачем этот разговор.</div></div>
+              <div class="slide-item"><div class="num">02</div><div class="title">Главный вывод</div><div class="desc">Один тезис и один управленческий вывод.</div></div>
+              <div class="slide-item"><div class="num">03</div><div class="title">Что изменилось</div><div class="desc">3 блока: уже работает / ограничение / следующий шаг.</div></div>
+              <div class="slide-item active"><div class="num">04</div><div class="title">Доказательства</div><div class="desc">Только опорные факты. Без выдуманных чисел.</div></div>
+              <div class="slide-item"><div class="num">05</div><div class="title">Риски</div><div class="desc">Что мешает, чего ещё нет, где нужна проверка.</div></div>
+              <div class="slide-item"><div class="num">06</div><div class="title">Следующий шаг</div><div class="desc">Какое решение нужно и что делаем дальше.</div></div>
+            </div>
+          </aside>
+          <main class="canvas-area">
+            <div class="doc-head">
+              <div class="group">
+                <span class="group-label">Шаблон</span>
+                <div class="segmented">
+                  <div class="seg">Строгий</div>
+                  <div class="seg active">Ритм</div>
+                  <div class="seg">Сигнал</div>
+                </div>
+              </div>
+              <div class="group">
+                <span class="group-label">Цвет</span>
+                <div class="segmented">
+                  <div class="seg">Кобальт</div>
+                  <div class="seg">Графит</div>
+                  <div class="seg active green">Шалфей</div>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <article class="slide template-rhythm" style="width:min(100%,740px)">
+                <div class="slide-top">
+                  <div>
+                    <h3>Рабочий сигнал уже есть. Решение теперь упирается в доводку и интеграцию</h3>
+                    <p class="sub">Тот же слайд, но в другой комбинации шаблона и цвета: мягче подложка, другой ритм блоков, иной иконпак.</p>
+                  </div>
+                  <div class="tags">
+                    <div class="tag">Шаблон: ритм</div>
+                    <div class="tag">Иконпак: filled</div>
+                    <div class="tag">Цвет: шалфей</div>
+                  </div>
+                </div>
+                <div class="content" style="grid-template-columns:1.05fr .95fr">
+                  <div class="stack">
+                    <div class="block green">
+                      <div class="b-head"><div class="b-ic">●</div><h4>Что уже видно</h4></div>
+                      <div class="metric">Сигнал повторяется</div>
+                      <p>Сценарий уже проходит без ручной поддержки и это можно показывать руководителю как рабочий зацеп.</p>
+                    </div>
+                    <div class="block sand placeholder">
+                      <div class="b-head"><div class="b-ic">◒</div><h4>Чего ещё не хватает</h4></div>
+                      <p>Точность: [нужна цифра]<br/>Выборка: [уточнить]<br/>Latency: [подтвердить]</p>
+                    </div>
+                  </div>
+                  <div class="stack">
+                    <div class="block blue">
+                      <div class="b-head"><div class="b-ic">◆</div><h4>Почему можно идти дальше</h4></div>
+                      <ul>
+                        <li>Сейчас уже обсуждается не идея, а следующий уровень качества.</li>
+                        <li>Риск понятен и локализован.</li>
+                        <li>Решение о ресурсе не требует идеального датасета.</li>
+                      </ul>
+                    </div>
+                    <div class="block speaker">
+                      <div class="b-head"><div class="b-ic">◉</div><h4>Опора спикеру</h4></div>
+                      <p>Сначала дай один ясный сигнал. Потом назови дыру. Потом верни разговор к решению.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="slide-foot"><span>Открытая панель не усложняет редактор. Она делает только одно: локально пересобирает текущий слайд.</span><span>Текущий слайд остаётся в фокусе</span></div>
+              </article>
+            </div>
+          </main>
+          <aside class="drawer">
+            <div>
+              <h3>Пересобрать слайд</h3>
+              <p>Меняется только текущий экран. Никакой истории и второго мессенджера в панели.</p>
+            </div>
+            <div class="regen">
+              <div class="regen-btn"><div class="title">Сделать как апдейт</div><div class="desc">Собрать слайд как спокойный статус: факт, прогресс, следующий шаг.</div></div>
+              <div class="regen-btn"><div class="title">Сделать как объяснение</div><div class="desc">Усилить понятность: что это, как устроено, почему это важно.</div></div>
+              <div class="regen-btn accent"><div class="title">Сделать под решение</div><div class="desc">Сдвинуть композицию к выбору, trade-off’ам и явному запросу наверх.</div></div>
+            </div>
+            <div class="drawer-space"></div>
+          </aside>
+        </div>
+      </div></div>
+    </section>
+  </section>
+
+  <section class="spec-grid">
+    <div class="info">
+      <h3>Компоненты MVP</h3>
+      <ul>
+        <li><strong>PromptComposer</strong> — одно поле и одна primary CTA.</li>
+        <li><strong>MiniClarificationChat</strong> — 1–3 сообщения, максимум 5.</li>
+        <li><strong>SlideRail</strong> — 6 фиксированных сцен по умолчанию.</li>
+        <li><strong>TemplateColorHeader</strong> — независимый выбор шаблона и цвета.</li>
+        <li><strong>SlideCanvas</strong> — один главный тезис, блоки, speaker-support.</li>
+        <li><strong>SlideRegenDrawer</strong> — три кнопки для локальной пересборки текущего слайда.</li>
+      </ul>
+    </div>
+    <div class="info">
+      <h3>Что задаёт шаблон, а что задаёт цвет</h3>
+      <ul>
+        <li><strong>Шаблон</strong>: характер блоков, ритм, иконпак, плотность, распределение акцентов.</li>
+        <li><strong>Цвет</strong>: мягкая подложка слайда, фон карточек, акцентные chips и служебные поверхности.</li>
+        <li>Цвет не должен ломать читаемость. Он только подсвечивает уже собранную структуру.</li>
+        <li>Любое сочетание шаблона и цвета допустимо. Это не жёсткая тема, а пересечение двух осей.</li>
+      </ul>
+    </div>
+    <div class="info">
+      <h3>Состояния</h3>
+      <ul>
+        <li><strong>Empty</strong> — тихий вход, prompt, примеры, без перегруза.</li>
+        <li><strong>Clarify</strong> — мини-чат, который добирает фокус разговора.</li>
+        <li><strong>Generate</strong> — сборка + скрытый fit-pass.</li>
+        <li><strong>Editor</strong> — draft уже в рельсах и на canvas.</li>
+        <li><strong>Drawer open</strong> — только локальная пересборка текущего слайда.</li>
+      </ul>
+    </div>
+    <div class="info">
+      <h3>Не делать</h3>
+      <ul>
+        <li>Не возвращать длинный stepper на первый экран.</li>
+        <li>Не открывать каталог сценариев до первого действия.</li>
+        <li>Не включать картинки по умолчанию.</li>
+        <li>Не превращать правую панель во второй полноразмерный чат.</li>
+        <li>Не выдумывать числа ради красивого доказательства.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="code">
+    <h3>Порядок сборки в коде для Codex</h3>
+    <ol>
+      <li>Собрать новый light shell: topbar, PromptComposer, chips, без старого dark hero и без stepper-first.</li>
+      <li>Добавить MiniClarificationChat как отдельное состояние после submit. Ограничить длину чата: обычно 1–3 сообщения, максимум 5.</li>
+      <li>Зафиксировать канон 6-слайдового draft и правила placeholder’ов: no fake numbers, no fake charts.</li>
+      <li>Сделать editor layout: SlideRail слева, SlideCanvas по центру, drawer trigger справа.</li>
+      <li>В header редактора добавить независимые selectors: Template и Color. Шаблон и цвет должны комбинироваться свободно.</li>
+      <li>В SlideCanvas добавить блоковые подложки и иконки. Иконпак должен зависеть от шаблона.</li>
+      <li>Упростить правую панель до трёх кнопок локальной пересборки: апдейт / объяснение / решение.</li>
+      <li>Добавить скрытый fit-pass после генерации: overflow, readability, density, heading length, alignment.</li>
+      <li>Показывать пользователю уже подчищенный draft, а не сырой первый рендер.</li>
+    </ol>
+  </section>
+</div>
+</body>
+</html>

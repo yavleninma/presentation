@@ -6,339 +6,231 @@ import {
   useRef,
   useState,
   useTransition,
-  type RefObject,
 } from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  FileText,
-  RefreshCcw,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, FileText, RefreshCcw, X } from "lucide-react";
 import {
   buildPresentationDraft,
   buildWorkingDraft,
+  CLARIFY_FOCUS_OPTIONS,
+  COLOR_OPTIONS,
   EXAMPLE_PROMPTS,
-  SCREEN_FLOW,
+  getClarifyDepthOptions,
+  getClarifyQuestion,
+  regenerateSlide,
+  runFitPassOnDraft,
+  SCENARIO_CHIPS,
+  TEMPLATE_OPTIONS,
 } from "@/lib/demo-generator";
 import type {
+  ClarifyDepthId,
+  ClarifyFocusId,
+  ColorId,
+  EditorDrawerState,
+  HiddenBuildStage,
   PresentationDraft,
   PrototypeScreen,
+  TemplateId,
   WorkingDraft,
 } from "@/lib/presentation-types";
 import { SlideCanvas, SlideThumbnail } from "@/components/slide-canvas";
 
-const AUTO_ADVANCE_MS = 1350;
-
-const screenOrder: PrototypeScreen[] = [
-  "start",
-  "understanding",
-  "outline",
-  "building",
-  "editor",
-];
-
-const START_EXAMPLES = [
-  {
-    id: "backend-platform",
-    title: "Backend platform",
-    prompt:
-      EXAMPLE_PROMPTS[0] ??
-      "Собери квартальный статус backend platform team за Q1 2026: снизили MTTR, мигрировали 18 сервисов и упёрлись в найм QA.",
-  },
-  {
-    id: "product-team",
-    title: "Команда продукта",
-    prompt:
-      EXAMPLE_PROMPTS[1] ??
-      "Нужен квартальный статус команды продукта за 1 квартал 2026 для CTO: что сделали, где риски и какое решение нужно сверху.",
-  },
-  {
-    id: "director-review",
-    title: "Руководитель направления",
-    prompt:
-      EXAMPLE_PROMPTS[2] ??
-      "Подготовь рабочую презентацию по итогам квартала для руководителя направления: прогресс, блокеры и следующий шаг.",
-  },
-] as const;
-
-const START_PREVIEW_SLIDES = [
-  {
-    id: "cover",
-    index: "01",
-    eyebrow: "Обложка",
-    title: "Статус за Q1 2026",
-    subtitle: "Период, аудитория и главный фокус разговора.",
-    tags: ["Период", "Аудитория", "Фокус"],
-  },
-  {
-    id: "summary",
-    index: "02",
-    eyebrow: "Главный вывод",
-    title: "Один вывод периода и одно решение",
-    subtitle: "Короткий тезис, опоры и точка решения.",
-    tags: ["Главный тезис", "Опоры", "Решение"],
-  },
-  {
-    id: "metrics",
-    index: "03",
-    eyebrow: "Ключевые метрики",
-    title: "Цифры, по которым видно прогресс",
-    subtitle: "Только те метрики, которые помогают быстро понять статус.",
-    tags: ["Результат", "Скорость", "Риск"],
-  },
-] as const;
+const DEFAULT_TEMPLATE: TemplateId = "strict";
+const DEFAULT_COLOR: ColorId = "cobalt";
 
 export function PresentationPrototype() {
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(EXAMPLE_PROMPTS[0] ?? "");
+  const [promptError, setPromptError] = useState<string | null>(null);
   const [screen, setScreen] = useState<PrototypeScreen>("start");
+  const [hiddenBuildStage, setHiddenBuildStage] =
+    useState<HiddenBuildStage>("idle");
+  const [focusChoice, setFocusChoice] = useState<ClarifyFocusId | null>(null);
+  const [depthChoice, setDepthChoice] = useState<ClarifyDepthId | null>(null);
   const [workingDraft, setWorkingDraft] = useState<WorkingDraft | null>(null);
   const [draft, setDraft] = useState<PresentationDraft | null>(null);
-  const [selectedSlideId, setSelectedSlideId] = useState<string | null>(null);
-  const [buildStageIndex, setBuildStageIndex] = useState(0);
-  const [promptError, setPromptError] = useState<string | null>(null);
-  const [autoAdvanceReview, setAutoAdvanceReview] = useState(false);
+  const [selectedSlideId, setSelectedSlideId] =
+    useState<PresentationDraft["slides"][number]["id"] | null>(null);
+  const [drawerState, setDrawerState] =
+    useState<EditorDrawerState>("closed");
+  const [templateId, setTemplateId] = useState<TemplateId>(DEFAULT_TEMPLATE);
+  const [colorId, setColorId] = useState<ColorId>(DEFAULT_COLOR);
   const [, startTransition] = useTransition();
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (screen === "start") {
+      promptInputRef.current?.focus();
+    }
+  }, [screen]);
+
+  const finishHiddenBuild = useEffectEvent(() => {
+    if (!focusChoice || !depthChoice) {
+      setHiddenBuildStage("idle");
+      return;
+    }
+
+    const nextWorkingDraft = buildWorkingDraft(prompt, {
+      focus: focusChoice,
+      depth: depthChoice,
+    });
+    const nextDraft = runFitPassOnDraft(
+      buildPresentationDraft(nextWorkingDraft, focusChoice)
+    );
+
+    setWorkingDraft(nextWorkingDraft);
+    setDraft(nextDraft);
+    setSelectedSlideId(nextDraft.slides[0]?.id ?? null);
+    setDrawerState("closed");
+    setHiddenBuildStage("idle");
+
+    startTransition(() => {
+      setScreen("editor");
+    });
+  });
+
+  useEffect(() => {
+    if (hiddenBuildStage !== "fit-pass") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      finishHiddenBuild();
+    }, 320);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [finishHiddenBuild, hiddenBuildStage]);
+
+  function beginClarify() {
+    if (!prompt.trim()) {
+      setPromptError("Нужен рабочий запрос.");
+      return;
+    }
+
+    setPromptError(null);
+    setFocusChoice(null);
+    setDepthChoice(null);
+
+    startTransition(() => {
+      setScreen("clarify");
+    });
+  }
+
+  function startBuild() {
+    if (!focusChoice || !depthChoice) {
+      return;
+    }
+
+    setHiddenBuildStage("fit-pass");
+  }
+
+  function resetFlow() {
+    setPrompt(EXAMPLE_PROMPTS[0] ?? "");
+    setPromptError(null);
+    setScreen("start");
+    setHiddenBuildStage("idle");
+    setFocusChoice(null);
+    setDepthChoice(null);
+    setWorkingDraft(null);
+    setDraft(null);
+    setSelectedSlideId(null);
+    setDrawerState("closed");
+    setTemplateId(DEFAULT_TEMPLATE);
+    setColorId(DEFAULT_COLOR);
+  }
+
+  function regenerateActiveSlide(variant: ClarifyFocusId) {
+    if (!draft || !selectedSlideId) {
+      return;
+    }
+
+    setDraft(regenerateSlide(draft, selectedSlideId, variant));
+  }
 
   const activeSlide =
     draft?.slides.find((slide) => slide.id === selectedSlideId) ??
     draft?.slides[0] ??
     null;
 
-  const canReset =
-    prompt.trim().length > 0 ||
-    workingDraft !== null ||
-    draft !== null ||
-    screen !== "start";
-
-  useEffect(() => {
-    if (screen === "start" && prompt.trim()) {
-      promptInputRef.current?.focus();
-    }
-  }, [prompt, screen]);
-
-  const beginBuilding = useEffectEvent(() => {
-    if (!workingDraft) {
-      return;
-    }
-
-    const nextDraft = buildPresentationDraft(workingDraft);
-    setDraft(nextDraft);
-    setSelectedSlideId(nextDraft.slides[0]?.id ?? null);
-    setBuildStageIndex(0);
-    setScreen("building");
-  });
-
-  useEffect(() => {
-    if (!workingDraft || !autoAdvanceReview) {
-      return;
-    }
-
-    if (screen !== "understanding" && screen !== "outline") {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      if (screen === "understanding") {
-        startTransition(() => {
-          setScreen("outline");
-        });
-        return;
-      }
-
-      setAutoAdvanceReview(false);
-      startTransition(() => {
-        beginBuilding();
-      });
-    }, AUTO_ADVANCE_MS);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [autoAdvanceReview, beginBuilding, screen, startTransition, workingDraft]);
-
-  useEffect(() => {
-    if (screen !== "building" || !draft) {
-      return;
-    }
-
-    setBuildStageIndex(0);
-
-    const timers: number[] = draft.buildStages.slice(1).map((_, index) =>
-      window.setTimeout(() => {
-        setBuildStageIndex(index + 1);
-      }, 920 + index * 920)
-    );
-
-    const finalTimer = window.setTimeout(() => {
-      startTransition(() => {
-        setScreen("editor");
-        setSelectedSlideId(draft.slides[0]?.id ?? null);
-      });
-    }, draft.buildStages.length * 920 + 180);
-
-    timers.push(finalTimer);
-
-    return () => {
-      timers.forEach((timer) => window.clearTimeout(timer));
-    };
-  }, [draft, screen, startTransition]);
-
-  function buildFromPrompt() {
-    if (!prompt.trim()) {
-      setPromptError("Нужен рабочий запрос, иначе не из чего собрать первый черновик.");
-      return;
-    }
-
-    const nextWorkingDraft = buildWorkingDraft(prompt);
-    setWorkingDraft(nextWorkingDraft);
-    setDraft(null);
-    setSelectedSlideId(null);
-    setBuildStageIndex(0);
-    setPromptError(null);
-    setAutoAdvanceReview(true);
-    setScreen("understanding");
-  }
-
-  function continueFromReview() {
-    setAutoAdvanceReview(false);
-    startTransition(() => {
-      beginBuilding();
-    });
-  }
-
-  function editUnderstanding() {
-    setAutoAdvanceReview(false);
-    setDraft(null);
-    setSelectedSlideId(null);
-    setBuildStageIndex(0);
-    setPromptError(null);
-    setScreen("start");
-  }
-
-  function goBack() {
-    setAutoAdvanceReview(false);
-
-    const previousScreen: Record<PrototypeScreen, PrototypeScreen> = {
-      start: "start",
-      understanding: "start",
-      outline: "understanding",
-      building: "outline",
-      editor: "outline",
-    };
-
-    setScreen(previousScreen[screen]);
-  }
-
-  function resetFlow() {
-    setPrompt("");
-    setWorkingDraft(null);
-    setDraft(null);
-    setSelectedSlideId(null);
-    setBuildStageIndex(0);
-    setPromptError(null);
-    setAutoAdvanceReview(false);
-    setScreen("start");
-  }
-
   return (
     <main className="app-shell">
-      <div className="app-backdrop" />
-
-      <header className="app-header">
+      <header className="app-topbar">
         <div className="brand-block">
-          <div className="brand-mark">
+          <span className="brand-mark">
             <FileText aria-hidden="true" />
-          </div>
-          <div>
-            <div className="brand-title">Рабочая презентация</div>
-            <div className="brand-subtitle">Квартальный статус команды</div>
-          </div>
+          </span>
+          <span className="brand-name">Внятно</span>
         </div>
 
-        <div className="header-actions">
-          {screen !== "start" ? (
-            <button type="button" className="ghost-button" onClick={goBack}>
+        <div className="topbar-actions">
+          {screen === "clarify" ? (
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => setScreen("start")}
+            >
               <ArrowLeft aria-hidden="true" />
               Назад
             </button>
           ) : null}
 
-          {canReset ? (
+          {(screen !== "start" || draft || workingDraft) && (
             <button type="button" className="ghost-button" onClick={resetFlow}>
               <RefreshCcw aria-hidden="true" />
               Новый запрос
             </button>
-          ) : null}
+          )}
         </div>
       </header>
 
-      <StepRail currentScreen={screen} />
-
-      <section className="content-shell">
-        {screen === "start" ? (
-          <StartScreen
-            prompt={prompt}
-            promptError={promptError}
-            textareaRef={promptInputRef}
-            onChangePrompt={setPrompt}
-            onGenerate={buildFromPrompt}
-            onUseExample={(value) => {
+      {screen === "start" ? (
+        <StartScreen
+          prompt={prompt}
+          promptError={promptError}
+          textareaRef={promptInputRef}
+          onChangePrompt={setPrompt}
+          onUseScenario={(value) => {
+            if (value) {
               setPrompt(value);
-              setPromptError(null);
-            }}
-          />
-        ) : null}
+            }
+            setPromptError(null);
+            promptInputRef.current?.focus();
+          }}
+          onSubmit={beginClarify}
+        />
+      ) : null}
 
-        {(screen === "understanding" || screen === "outline") && workingDraft ? (
-          <WorkingDraftScreen
-            phase={screen}
-            workingDraft={workingDraft}
-            onEditUnderstanding={editUnderstanding}
-            onContinue={continueFromReview}
-          />
-        ) : null}
+      {screen === "clarify" ? (
+        <ClarifyScreen
+          prompt={prompt}
+          hiddenBuildStage={hiddenBuildStage}
+          focusChoice={focusChoice}
+          depthChoice={depthChoice}
+          onSelectFocus={(value) => {
+            setFocusChoice(value);
+            setDepthChoice(null);
+          }}
+          onSelectDepth={setDepthChoice}
+          onSubmit={startBuild}
+        />
+      ) : null}
 
-        {screen === "building" && draft ? (
-          <BuildingScreen draft={draft} stageIndex={buildStageIndex} />
-        ) : null}
-
-        {screen === "editor" && draft && activeSlide ? (
-          <EditorScreen
-            draft={draft}
-            activeSlideId={selectedSlideId}
-            onSelectSlide={setSelectedSlideId}
-          />
-        ) : null}
-      </section>
+      {screen === "editor" && draft && activeSlide ? (
+        <EditorScreen
+          draft={draft}
+          activeSlideId={selectedSlideId}
+          drawerState={drawerState}
+          templateId={templateId}
+          colorId={colorId}
+          onSelectSlide={setSelectedSlideId}
+          onOpenDrawer={() => setDrawerState("open")}
+          onCloseDrawer={() => setDrawerState("closed")}
+          onSelectTemplate={setTemplateId}
+          onSelectColor={setColorId}
+          onRegenerateSlide={regenerateActiveSlide}
+        />
+      ) : null}
     </main>
-  );
-}
-
-function StepRail({ currentScreen }: { currentScreen: PrototypeScreen }) {
-  const currentIndex = screenOrder.indexOf(currentScreen);
-
-  return (
-    <nav className="step-rail" aria-label="Этапы сборки">
-      {SCREEN_FLOW.map((item, index) => {
-        const state =
-          index < currentIndex
-            ? "done"
-            : index === currentIndex
-              ? "active"
-              : "idle";
-
-        return (
-          <div key={item.id} className={`step-chip is-${state}`}>
-            <div className="step-chip-icon">
-              {state === "done" ? <Check aria-hidden="true" /> : index + 1}
-            </div>
-            <div className="step-chip-title">{item.title}</div>
-          </div>
-        );
-      })}
-    </nav>
   );
 }
 
@@ -347,349 +239,168 @@ function StartScreen({
   promptError,
   textareaRef,
   onChangePrompt,
-  onGenerate,
-  onUseExample,
+  onUseScenario,
+  onSubmit,
 }: {
   prompt: string;
   promptError: string | null;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   onChangePrompt: (value: string) => void;
-  onGenerate: () => void;
-  onUseExample: (value: string) => void;
+  onUseScenario: (value: string) => void;
+  onSubmit: () => void;
 }) {
-  const trimmedPrompt = prompt.trim();
-
   return (
-    <div className="start-shell">
-      <div className="start-workspace">
-        <div className="start-main-column">
-          <section className="stage-card start-intro-block">
-            <h1>Соберите рабочий квартальный статус</h1>
-            <p className="start-intro">
-              Напишите как есть. Сначала покажем понимание и план, потом соберём
-              первый черновик слайдов.
-            </p>
-          </section>
+    <section className="entry-stage">
+      <div className="entry-card">
+        <h1>О чём презентация?</h1>
+        <p className="entry-sub">
+          Напиши как есть. Дальше коротко зафиксируем фокус разговора и сразу
+          соберём черновик.
+        </p>
 
-          <section className="stage-card composer-panel">
-            <form
-              className="composer-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onGenerate();
-              }}
-            >
-              <div className="composer-box">
-                <textarea
-                  ref={textareaRef}
-                  value={prompt}
-                  onChange={(event) => onChangePrompt(event.target.value)}
-                  onKeyDown={(event) => {
-                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                      event.preventDefault();
-                      onGenerate();
-                    }
-                  }}
-                  rows={5}
-                  className="prompt-input"
-                  placeholder="Напишите, что произошло за квартал, где прогресс, какие риски и какое решение нужно сейчас."
-                />
+        <form
+          className="composer-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <div className="composer-box">
+            <textarea
+              ref={textareaRef}
+              value={prompt}
+              onChange={(event) => onChangePrompt(event.target.value)}
+              rows={6}
+              placeholder="Нужно собрать презентацию для руководителя по итогам квартала: что реально сдвинули, где риск, и какое решение нужно сверху."
+            />
 
-                <div className="composer-box-footer">
-                  <p className="composer-helper">
-                    5-7 слайдов • сначала проверим понимание, потом покажем план
-                  </p>
-                  <button type="submit" className="primary-button composer-submit">
-                    Собрать рабочий черновик
-                    <ArrowRight aria-hidden="true" />
+            <div className="composer-footer">
+              <div className="scenario-row">
+                {SCENARIO_CHIPS.map((chip) => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    className="scenario-chip"
+                    onClick={() => onUseScenario(chip.prompt)}
+                  >
+                    {chip.label}
                   </button>
-                </div>
+                ))}
               </div>
 
-              {promptError ? <p className="inline-error">{promptError}</p> : null}
-            </form>
-          </section>
+              <button type="submit" className="primary-button">
+                Продолжить
+                <ArrowRight aria-hidden="true" />
+              </button>
+            </div>
+          </div>
 
-          <section className="stage-card start-examples-panel">
-            <div className="support-label">Примеры</div>
-            <div className="example-card-grid">
-              {START_EXAMPLES.map((example) => (
+          {promptError ? <p className="inline-error">{promptError}</p> : null}
+        </form>
+      </div>
+    </section>
+  );
+}
+
+function ClarifyScreen({
+  prompt,
+  hiddenBuildStage,
+  focusChoice,
+  depthChoice,
+  onSelectFocus,
+  onSelectDepth,
+  onSubmit,
+}: {
+  prompt: string;
+  hiddenBuildStage: HiddenBuildStage;
+  focusChoice: ClarifyFocusId | null;
+  depthChoice: ClarifyDepthId | null;
+  onSelectFocus: (value: ClarifyFocusId) => void;
+  onSelectDepth: (value: ClarifyDepthId) => void;
+  onSubmit: () => void;
+}) {
+  const focusLabel =
+    CLARIFY_FOCUS_OPTIONS.find((option) => option.id === focusChoice)?.label ?? "";
+  const depthOptions = getClarifyDepthOptions(focusChoice);
+  const depthLabel =
+    depthOptions.find((option) => option.id === depthChoice)?.label ?? "";
+  const canSubmit = Boolean(focusChoice && depthChoice);
+
+  return (
+    <section className="chat-stage">
+      <div className="chat-card">
+        <div className="chat-stream">
+          <ChatMessage role="user">{prompt}</ChatMessage>
+
+          <ChatMessage role="assistant">
+            <p>Это больше апдейт, объяснение или разговор на решение?</p>
+            <div className="choice-row">
+              {CLARIFY_FOCUS_OPTIONS.map((option) => (
                 <button
-                  key={example.id}
+                  key={option.id}
                   type="button"
-                  className={`example-card${
-                    trimmedPrompt === example.prompt ? " is-selected" : ""
+                  className={`choice-chip${
+                    focusChoice === option.id ? " is-active" : ""
                   }`}
-                  onClick={() => onUseExample(example.prompt)}
+                  onClick={() => onSelectFocus(option.id)}
                 >
-                  <span className="example-card-title">{example.title}</span>
-                  <span className="example-card-copy">{example.prompt}</span>
+                  {option.label}
                 </button>
               ))}
             </div>
-          </section>
-        </div>
+          </ChatMessage>
 
-        <aside className="stage-card start-preview-rail">
-          <div className="preview-rail-head">
-            <h2>Что получится</h2>
-          </div>
+          {focusChoice ? <ChatMessage role="user">{focusLabel}</ChatMessage> : null}
 
-          <div className="preview-slide-list">
-            {START_PREVIEW_SLIDES.map((slide) => (
-              <article key={slide.id} className="preview-slide-card">
-                <div className="preview-slide-topline">
-                  <span className="preview-slide-index">{slide.index}</span>
-                  <span className="preview-slide-eyebrow">{slide.eyebrow}</span>
-                </div>
-                <h3>{slide.title}</h3>
-                <p>{slide.subtitle}</p>
-
-                <div className="preview-slide-tags">
-                  {slide.tags.map((tag) => (
-                    <span key={tag} className="preview-slide-tag">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function WorkingDraftScreen({
-  phase,
-  workingDraft,
-  onEditUnderstanding,
-  onContinue,
-}: {
-  phase: Extract<PrototypeScreen, "understanding" | "outline">;
-  workingDraft: WorkingDraft;
-  onEditUnderstanding: () => void;
-  onContinue: () => void;
-}) {
-  const chips = [
-    { label: "Аудитория", value: workingDraft.audience },
-    { label: "Период", value: workingDraft.period },
-    { label: "Цель", value: workingDraft.goal },
-    workingDraft.decisionNeeded
-      ? { label: "Решение", value: workingDraft.decisionNeeded }
-      : null,
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
-
-  return (
-    <div className="single-stage-layout">
-      <section
-        className={`stage-card compact-stage-card review-stage-card is-${phase}-phase`}
-      >
-        <div className="review-stage-head">
-          <div>
-            <div className="support-label">
-              {phase === "understanding" ? "Понимание" : "План"}
-            </div>
-            <h2>Понимание и план</h2>
-          </div>
-
-          <blockquote className="prompt-quote">“{workingDraft.sourcePrompt}”</blockquote>
-        </div>
-
-        <article className="understanding-focus-card">
-          <div className="support-label">Понял задачу так</div>
-          <p className="working-core-message">{workingDraft.coreMessage}</p>
-
-          <div className="working-chip-row">
-            {chips.map((item) => (
-              <div key={item.label} className="working-chip">
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
+          {focusChoice ? (
+            <ChatMessage role="assistant">
+              <p>{getClarifyQuestion(focusChoice)}</p>
+              <div className="choice-row">
+                {depthOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={`choice-chip${
+                      depthChoice === option.id ? " is-active" : ""
+                    }`}
+                    onClick={() => onSelectDepth(option.id)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        </article>
+            </ChatMessage>
+          ) : null}
 
-        <section className="working-outline-section">
-          <div className="support-label">План презентации</div>
+          {depthChoice ? <ChatMessage role="user">{depthLabel}</ChatMessage> : null}
+        </div>
 
-          <div className="working-outline-grid">
-            {workingDraft.outline.map((item, index) => (
-              <article key={item.id} className="outline-card">
-                <div className="working-outline-head">
-                  <div className="outline-index">
-                    {String(index + 1).padStart(2, "0")}
-                  </div>
-                  <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.purpose}</p>
-                  </div>
-                </div>
-
-                <ul>
-                  {item.bullets.map((bullet) => (
-                    <li key={bullet}>{bullet}</li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        {workingDraft.openQuestions.length ? (
-          <section className="working-open-questions">
-            <div className="support-label">Нужно уточнить</div>
-            <div className="missing-facts-row">
-              {workingDraft.openQuestions.map((question) => (
-                <span key={question} className="missing-fact-chip">
-                  {question}
-                </span>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <div className="stage-actions">
-          <button type="button" className="ghost-button" onClick={onEditUnderstanding}>
-            Поправить понимание
-          </button>
-
-          <button type="button" className="primary-button" onClick={onContinue}>
-            Продолжить сборку
-            <ArrowRight aria-hidden="true" />
+        <div className="chat-footer">
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onSubmit}
+            disabled={!canSubmit || hiddenBuildStage === "fit-pass"}
+          >
+            {hiddenBuildStage === "fit-pass" ? "Собираю черновик..." : "Собрать черновик"}
           </button>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }
 
-function getBuildPreviewStructure(slide: PresentationDraft["slides"][number]) {
-  if (slide.bullets?.length) {
-    return slide.bullets.slice(0, 3).map((_, index) => `Пункт ${index + 1}`);
-  }
-
-  if (slide.metrics?.length) {
-    return slide.metrics.slice(0, 3).map((metric) => metric.label);
-  }
-
-  if (slide.panels?.length) {
-    return slide.panels.slice(0, 3).map((panel) => panel.title);
-  }
-
-  return slide.ask ? [slide.ask.title] : [];
-}
-
-function getBuildPreviewContent(slide: PresentationDraft["slides"][number]) {
-  if (slide.bullets?.length) {
-    return slide.bullets.slice(0, 3);
-  }
-
-  if (slide.metrics?.length) {
-    return slide.metrics
-      .slice(0, 3)
-      .map((metric) => `${metric.label}: ${metric.value}`);
-  }
-
-  if (slide.panels?.length) {
-    return slide.panels
-      .flatMap((panel) => (panel.items?.length ? panel.items.slice(0, 1) : [panel.body]))
-      .slice(0, 3);
-  }
-
-  return slide.lead ? [slide.lead] : [];
-}
-
-function BuildingScreen({
-  draft,
-  stageIndex,
+function ChatMessage({
+  role,
+  children,
 }: {
-  draft: PresentationDraft;
-  stageIndex: number;
+  role: "user" | "assistant";
+  children: React.ReactNode;
 }) {
-  const previewSlides = draft.slides.slice(0, 3);
-
   return (
-    <div className="build-layout">
-      <section className="stage-card compact-stage-card">
-        <h2>Сборка</h2>
-
-        <div className="build-status-list">
-          {draft.buildStages.map((item, index) => {
-            const state =
-              index < stageIndex
-                ? "done"
-                : index === stageIndex
-                  ? "active"
-                  : "idle";
-
-            return (
-              <article key={item.id} className={`build-status-card is-${state}`}>
-                <div className="build-status-icon">
-                  {state === "done" ? (
-                    <Check aria-hidden="true" />
-                  ) : state === "active" ? (
-                    <span className="build-status-pulse" aria-hidden="true" />
-                  ) : (
-                    index + 1
-                  )}
-                </div>
-                <h3>{item.title}</h3>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <aside className="build-preview">
-        <div className="build-preview-head">
-          <span>Черновик</span>
-          <strong>Первые слайды</strong>
-        </div>
-
-        <div className="build-preview-stack">
-          {previewSlides.map((slide) => {
-            const structureItems = getBuildPreviewStructure(slide);
-            const contentItems = getBuildPreviewContent(slide);
-
-            return (
-              <article key={slide.id} className="build-preview-slide">
-                <div className="build-preview-topline">
-                  <span className="build-preview-index">{slide.index}</span>
-                  <span className="build-preview-label">{slide.shortLabel}</span>
-                </div>
-
-                <div className="build-preview-eyebrow">{slide.eyebrow}</div>
-                <div className="build-preview-title">{slide.title}</div>
-
-                {stageIndex === 1 && structureItems.length ? (
-                  <ul className="build-preview-list is-structure">
-                    {structureItems.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                {stageIndex >= 2 && contentItems.length ? (
-                  <ul className="build-preview-list is-content">
-                    {contentItems.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                {stageIndex >= 2 && slide.ask ? (
-                  <div className="build-preview-ask">
-                    <span>Решение</span>
-                    <p>{slide.ask.body}</p>
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
-      </aside>
+    <div className={`chat-message is-${role}`}>
+      <span className={`chat-avatar is-${role}`}>{role === "user" ? "ТЫ" : "В"}</span>
+      <div className={`chat-bubble is-${role}`}>{children}</div>
     </div>
   );
 }
@@ -697,53 +408,37 @@ function BuildingScreen({
 function EditorScreen({
   draft,
   activeSlideId,
+  drawerState,
+  templateId,
+  colorId,
   onSelectSlide,
+  onOpenDrawer,
+  onCloseDrawer,
+  onSelectTemplate,
+  onSelectColor,
+  onRegenerateSlide,
 }: {
   draft: PresentationDraft;
-  activeSlideId: string | null;
-  onSelectSlide: (value: string) => void;
+  activeSlideId: PresentationDraft["slides"][number]["id"] | null;
+  drawerState: EditorDrawerState;
+  templateId: TemplateId;
+  colorId: ColorId;
+  onSelectSlide: (value: PresentationDraft["slides"][number]["id"]) => void;
+  onOpenDrawer: () => void;
+  onCloseDrawer: () => void;
+  onSelectTemplate: (value: TemplateId) => void;
+  onSelectColor: (value: ColorId) => void;
+  onRegenerateSlide: (variant: ClarifyFocusId) => void;
 }) {
   const activeSlide =
     draft.slides.find((slide) => slide.id === activeSlideId) ?? draft.slides[0];
-  const factLabel =
-    draft.missingFacts.length === 1
-      ? "1 место требует уточнения"
-      : `${draft.missingFacts.length} места требуют уточнения`;
-  const decisionAsk =
-    draft.workingDraft.decisionNeeded ??
-    draft.slides.find((slide) => slide.ask)?.ask?.body ??
-    "Уточнить следующий шаг после черновика.";
 
   return (
-    <div className="editor-layout">
-      <header className="editor-header">
-        <div>
-          <h2>{draft.documentTitle}</h2>
-          <p>{draft.documentSubtitle}</p>
-        </div>
-
-        <div className="editor-header-meta">
-          <span>{draft.slides.length} слайдов</span>
-          {draft.missingFacts.length ? <span>{factLabel}</span> : null}
-        </div>
-      </header>
-
-      <section className="editor-meta-grid">
-        <article className="editor-meta-card">
-          <span>Исходный запрос</span>
-          <p>{draft.workingDraft.sourcePrompt}</p>
-        </article>
-
-        <article className="editor-meta-card">
-          <span>Решение</span>
-          <p>{decisionAsk}</p>
-        </article>
-      </section>
-
-      <div className="editor-grid">
-        <aside className="thumbnail-rail-wrap">
-          <div className="thumbnail-rail-head">Слайды</div>
-          <div className="thumbnail-rail">
+    <section className="editor-stage">
+      <div className="editor-shell">
+        <aside className="editor-rail">
+          <div className="rail-title">Структура</div>
+          <div className="rail-list">
             {draft.slides.map((slide) => (
               <SlideThumbnail
                 key={slide.id}
@@ -755,12 +450,82 @@ function EditorScreen({
           </div>
         </aside>
 
-        <section className="canvas-stage">
-          <div className="canvas-frame">
-            <SlideCanvas slide={activeSlide} />
+        <section className="editor-main">
+          <div className="editor-toolbar">
+            <div className="toolbar-group">
+              <span>Шаблон</span>
+              <div className="segmented">
+                {TEMPLATE_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={`seg${templateId === option.id ? " is-active" : ""}`}
+                    onClick={() => onSelectTemplate(option.id)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="toolbar-group">
+              <span>Цвет</span>
+              <div className="segmented">
+                {COLOR_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={`seg${colorId === option.id ? " is-active" : ""}`}
+                    onClick={() => onSelectColor(option.id)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="canvas-wrap">
+            <SlideCanvas
+              slide={activeSlide}
+              templateId={templateId}
+              colorId={colorId}
+            />
           </div>
         </section>
+
+        {drawerState === "open" ? (
+          <aside className="editor-drawer">
+            <div className="drawer-head">
+              <h2>Пересобрать слайд</h2>
+              <button type="button" className="icon-button" onClick={onCloseDrawer}>
+                <X aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="drawer-actions">
+              {CLARIFY_FOCUS_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`regen-button${
+                    draft.activeVariant === option.id ? " is-active" : ""
+                  }`}
+                  onClick={() => onRegenerateSlide(option.id)}
+                >
+                  {option.id === "update" ? "Сделать как апдейт" : null}
+                  {option.id === "explain" ? "Сделать как объяснение" : null}
+                  {option.id === "decision" ? "Сделать под решение" : null}
+                </button>
+              ))}
+            </div>
+          </aside>
+        ) : (
+          <button type="button" className="drawer-trigger" onClick={onOpenDrawer}>
+            Пересобрать слайд
+          </button>
+        )}
       </div>
-    </div>
+    </section>
   );
 }

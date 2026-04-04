@@ -1,50 +1,55 @@
-export type PrototypeScreen =
-  | "start"
-  | "understanding"
-  | "outline"
-  | "building"
-  | "editor";
+export type PrototypeScreen = "start" | "clarify" | "editor";
+
+export type HiddenBuildStage = "idle" | "fit-pass";
+
+export type EditorDrawerState = "closed" | "open";
+
+export type ClarifyFocusId = "update" | "explain" | "decision";
+
+export type ClarifyDepthId = "signal" | "detail";
+
+export type RegenVariant = ClarifyFocusId;
 
 export type SlideLayout =
   | "cover"
   | "summary"
-  | "metrics"
-  | "work"
+  | "changes"
+  | "evidence"
   | "risks"
   | "next-step";
 
-export type ToneId = "primary" | "success" | "warning" | "danger";
+export type ToneId = "primary" | "success" | "warning" | "neutral";
 
-export type WorkingDraft = {
-  sourcePrompt: string;
-  audience: string;
-  period: string;
-  goal: string;
-  decisionNeeded?: string;
-  coreMessage: string;
-  outline: Array<{
-    id: string;
-    title: string;
-    purpose: string;
-    bullets: string[];
-  }>;
-  openQuestions: string[];
-};
+export type TemplateId = "strict" | "rhythm" | "signal";
 
-export interface SlideMetric {
-  label: string;
-  value: string;
-  note: string;
-  tone: ToneId;
-  placeholder?: boolean;
+export type ColorId = "cobalt" | "graphite" | "sage";
+
+export interface ClarifyState {
+  focus: ClarifyFocusId;
+  depth: ClarifyDepthId;
 }
 
-export interface SlidePanel {
+export interface WorkingDraft {
+  sourcePrompt: string;
+  topicLabel: string;
+  audience: string;
+  period: string;
+  focus: ClarifyFocusId;
+  depth: ClarifyDepthId;
+  goal: string;
+  decisionNeeded: string;
+  coreMessage: string;
+  missingFacts: string[];
+}
+
+export interface SlideBlock {
+  id: string;
   title: string;
-  body: string;
+  body?: string;
   items?: string[];
-  tone?: ToneId;
-  badge?: string;
+  emphasis?: string;
+  tone: ToneId;
+  placeholder?: boolean;
 }
 
 export interface SlideAsk {
@@ -53,32 +58,23 @@ export interface SlideAsk {
 }
 
 export interface PresentationSlide {
-  id: string;
+  id: SlideLayout;
   index: string;
   shortLabel: string;
   layout: SlideLayout;
-  eyebrow: string;
   title: string;
   subtitle: string;
-  lead: string;
-  bullets?: string[];
-  metrics?: SlideMetric[];
-  panels?: SlidePanel[];
+  blocks: SlideBlock[];
+  speakerNote?: string;
   ask?: SlideAsk;
-  missingFacts?: string[];
-}
-
-export interface BuildStage {
-  id: string;
-  title: string;
 }
 
 export interface PresentationDraft {
   documentTitle: string;
   documentSubtitle: string;
-  scenarioLabel: string;
+  activeVariant: RegenVariant;
   workingDraft: WorkingDraft;
-  buildStages: BuildStage[];
   slides: PresentationSlide[];
   missingFacts: string[];
+  fitPassNotes: string[];
 }

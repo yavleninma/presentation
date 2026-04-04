@@ -1,110 +1,117 @@
 import {
   AlertTriangle,
-  ArrowUpRight,
-  BarChart3,
+  CheckCircle2,
   Compass,
-  FileStack,
-  ShieldCheck,
-  Sparkles,
+  Dot,
+  FileText,
+  Lightbulb,
+  type LucideIcon,
 } from "lucide-react";
 import type {
+  ColorId,
   PresentationSlide,
-  SlideMetric,
-  SlidePanel,
+  TemplateId,
   ToneId,
 } from "@/lib/presentation-types";
 
-const toneClassMap: Record<ToneId, string> = {
-  primary: "tone-primary",
-  success: "tone-success",
-  warning: "tone-warning",
-  danger: "tone-danger",
-};
-
-const slideIconMap = {
-  cover: Sparkles,
+const slideIconMap: Record<PresentationSlide["layout"], LucideIcon> = {
+  cover: FileText,
   summary: Compass,
-  metrics: BarChart3,
-  work: FileStack,
+  changes: Lightbulb,
+  evidence: CheckCircle2,
   risks: AlertTriangle,
-  "next-step": ArrowUpRight,
+  "next-step": Compass,
 };
 
-export function SlideCanvas({ slide }: { slide: PresentationSlide }) {
-  const SlideIcon = slideIconMap[slide.layout] ?? Sparkles;
+const blockIconMap: Record<ToneId, LucideIcon> = {
+  primary: Compass,
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  neutral: Dot,
+};
+
+export function SlideCanvas({
+  slide,
+  templateId,
+  colorId,
+}: {
+  slide: PresentationSlide;
+  templateId: TemplateId;
+  colorId: ColorId;
+}) {
+  const SlideIcon = slideIconMap[slide.layout];
 
   return (
-    <article className="slide-canvas">
-      <header className="slide-topline">
-        <div className="slide-label">
-          <span className="slide-index">{slide.index}</span>
-          <span>{slide.eyebrow}</span>
-        </div>
-        <div className="slide-role">
-          <SlideIcon aria-hidden="true" />
+    <article
+      className="slide-canvas"
+      data-template={templateId}
+      data-color={colorId}
+    >
+      <header className="slide-canvas__head">
+        <div className="slide-canvas__label">
+          <span>{slide.index}</span>
           <span>{slide.shortLabel}</span>
+        </div>
+
+        <div className="slide-canvas__role">
+          <SlideIcon aria-hidden="true" />
+          <span>{slide.subtitle}</span>
         </div>
       </header>
 
-      <div className="slide-hero">
-        <div className="slide-title-wrap">
-          <p className="slide-kicker">{slide.subtitle}</p>
-          <h2 className="slide-title">{slide.title}</h2>
-          <p className="slide-lead">{slide.lead}</p>
-        </div>
-
-        {slide.layout === "cover" && slide.bullets ? (
-          <div className="slide-cover-aside">
-            <div className="slide-context-label">В фокусе</div>
-            <ul className="slide-cover-list">
-              {slide.bullets.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+      <div className="slide-canvas__hero">
+        <h2 className="slide-canvas__title">{slide.title}</h2>
       </div>
 
-      {slide.bullets && slide.layout !== "cover" ? (
-        <ul className="slide-bullets">
-          {slide.bullets.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      ) : null}
+      <section className={`slide-canvas__body is-${slide.layout}`}>
+        {slide.blocks.map((block) => {
+          const BlockIcon = blockIconMap[block.tone];
 
-      {slide.metrics ? (
-        <section className="slide-metric-grid">
-          {slide.metrics.map((metric) => (
-            <MetricCard key={metric.label} metric={metric} />
-          ))}
-        </section>
-      ) : null}
+          return (
+            <article
+              key={block.id}
+              className={`slide-block tone-${block.tone}${
+                block.placeholder ? " is-placeholder" : ""
+              }`}
+            >
+              <div className="slide-block__head">
+                <span className="slide-block__icon">
+                  <BlockIcon aria-hidden="true" />
+                </span>
+                <h3>{block.title}</h3>
+              </div>
 
-      {slide.panels ? (
-        <section className="slide-panel-grid">
-          {slide.panels.map((panel) => (
-            <PanelCard key={panel.title} panel={panel} />
-          ))}
-        </section>
-      ) : null}
+              {block.emphasis ? (
+                <p className="slide-block__emphasis">{block.emphasis}</p>
+              ) : null}
 
-      {(slide.ask || slide.missingFacts?.length) ? (
-        <footer className="slide-footer">
-          {slide.ask ? (
-            <div className="slide-ask">
-              <div className="slide-ask-label">{slide.ask.title}</div>
-              <p>{slide.ask.body}</p>
+              {block.body ? <p className="slide-block__body">{block.body}</p> : null}
+
+              {block.items?.length ? (
+                <ul className="slide-block__list">
+                  {block.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          );
+        })}
+      </section>
+
+      {slide.speakerNote || slide.ask ? (
+        <footer className="slide-canvas__foot">
+          {slide.speakerNote ? (
+            <div className="slide-canvas__speaker">
+              <span>Опора спикеру</span>
+              <p>{slide.speakerNote}</p>
             </div>
           ) : null}
 
-          {slide.missingFacts?.length ? (
-            <div className="missing-fact-list">
-              {slide.missingFacts.map((item) => (
-                <span key={item} className="missing-fact-chip">
-                  {item}
-                </span>
-              ))}
+          {slide.ask ? (
+            <div className="slide-canvas__ask">
+              <span>{slide.ask.title}</span>
+              <p>{slide.ask.body}</p>
             </div>
           ) : null}
         </footer>
@@ -125,53 +132,15 @@ export function SlideThumbnail({
   return (
     <button
       type="button"
+      className={`slide-thumbnail${active ? " is-active" : ""}`}
       onClick={onClick}
-      className={`slide-thumbnail ${active ? "is-active" : ""}`}
     >
-      <div className="slide-thumbnail-topline">
+      <div className="slide-thumbnail__topline">
         <span>{slide.index}</span>
         <span>{slide.shortLabel}</span>
       </div>
-      <div className="slide-thumbnail-body">
-        <div className="slide-thumbnail-eyebrow">{slide.eyebrow}</div>
-        <div className="slide-thumbnail-title">{slide.title}</div>
-        <div className="slide-thumbnail-subtitle">{slide.subtitle}</div>
-      </div>
+      <strong>{slide.title}</strong>
+      <p>{slide.subtitle}</p>
     </button>
-  );
-}
-
-function MetricCard({ metric }: { metric: SlideMetric }) {
-  return (
-    <div className={`metric-card ${toneClassMap[metric.tone]}`}>
-      <div className="metric-card-label">{metric.label}</div>
-      <div className="metric-card-value">{metric.value}</div>
-      <p className="metric-card-note">{metric.note}</p>
-      {metric.placeholder ? (
-        <span className="metric-card-placeholder">
-          <ShieldCheck aria-hidden="true" />
-          Нужна цифра
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-function PanelCard({ panel }: { panel: SlidePanel }) {
-  return (
-    <div className={`panel-card ${toneClassMap[panel.tone ?? "primary"]}`}>
-      <div className="panel-card-head">
-        <h3>{panel.title}</h3>
-        {panel.badge ? <span>{panel.badge}</span> : null}
-      </div>
-      <p>{panel.body}</p>
-      {panel.items?.length ? (
-        <ul>
-          {panel.items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
   );
 }
