@@ -1,64 +1,67 @@
-name: Presentations web CI
+name: Presentation Deploy
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: presentations-frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: presentations-frontend/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Verify production build
+        run: npm run verify
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-  # Production deploy on Vercel (only after verify passes; push to main only)
-  deploy-vercel:
+  deploy:
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Deploy to Vercel
+      - name: Deploy production to Vercel
+        id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
         run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::error::VERCEL_TOKEN is missing or empty. This is a GitHub Actions secret (not Vercel env vars): Repo → Settings → Secrets and variables → Actions → create VERCEL_TOKEN at https://vercel.com/account/tokens"
+          set -euo pipefail
+
+          output="$(npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN")"
+          echo "$output"
+
+          deployment_url="$(echo "$output" | grep -Eo 'https://[A-Za-z0-9.-]+\.vercel\.app' | tail -n 1)"
+
+          if [ -z "$deployment_url" ]; then
+            echo "::error::Не удалось вытащить production deployment URL из вывода Vercel CLI."
             exit 1
           fi
-          if [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "::error::Set GitHub secrets VERCEL_ORG_ID (Vercel team Settings → Team ID) and VERCEL_PROJECT_ID (Project → Settings → General → Project ID). Or run npx vercel link in presentations-frontend and copy orgId/projectId from .vercel/project.json. See README Deploy section."
-            exit 1
-          fi
-          npx vercel@latest deploy --prod --non-interactive --token="$VERCEL_TOKEN"
+
+          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Point vnyatno.vercel.app to latest production deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx vercel@latest alias set "${{ steps.deploy.outputs.deployment_url }}" vnyatno.vercel.app --token="${{ secrets.VERCEL_TOKEN }}"

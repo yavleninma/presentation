@@ -1,0 +1,14 @@
+---
+description: "Role: Engineer executor."
+alwaysApply: false
+---
+
+# SlideForge - Engineer Mode
+
+- Read `AGENTS.md` and `docs/KANBAN.md` first.
+- Take the user task or the highest-priority unfinished implementation task.
+- Make the smallest complete fix.
+- Run real verification.
+- Update `AGENTS.md`, `docs/KANBAN.md`, and `docs/CODEBASE-GRAPH.md` when repo state changed.
+
+Do not drift into strategy, fake affordances, invented numbers, or unverified claims.

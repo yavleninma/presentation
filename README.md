@@ -1,74 +1,104 @@
-# SlideForge
+# Presentation
 
-SlideForge is not a generic AI slide maker anymore. It is a decision-package copilot for enterprise IT leaders: a public Next.js app that turns scattered status updates, KPI fragments, risks, and source notes into a management package for CEOs, CFOs, steering committees, and investment committees.
+Репозиторий перезапущен под текущую версию продукта.
 
-## Product Shape
+Сейчас в нём один рабочий маршрут:
 
-- `/` -> scenario-first guided brief for management communication
-- outline-first flow -> extraction findings, storyline options, structure approval
-- package generation -> executive-ready slides, notes, appendix logic, slide-level regeneration by intent
-- `/demo` -> public scenario-led previews instead of a gallery of slide types
+`рабочий запрос -> понимание -> план -> сборка -> черновик`
 
-## Repo Structure
+И один рабочий сценарий:
 
-- `presentations-frontend/` - app, route handlers, templates, slide rendering, export
-- `docs/` - roadmap, strategy, and codebase map
-- `AGENTS.md` - repo operations, routes, commands, QA rules
+`квартальный статус команды`
 
-## Quick Start
+## Кто пользователь
+
+Первый пользователь:
+- тимлид;
+- менеджер команды;
+- автор квартального статуса для руководителя.
+
+Ему не нужен генератор любых презентаций.
+Ему нужно быстро увидеть, как из сырого запроса собирается рабочая презентация с прогрессом, рисками и следующим шагом.
+
+## Что считаем текущей версией
+
+Текущая версия это новый минимальный `Next.js`-прототип в `presentations-frontend/`.
+
+Сейчас он умеет:
+- принять один рабочий запрос без раннего выбора формата, темы и длины;
+- пройти экраны `понимание`, `план`, `сборка` и `черновик`;
+- собрать детерминированный черновик из шести слайдов;
+- показать, где внутри слайдов не хватает фактуры.
+
+Текущий слой заканчивается на честном просмотре собранного черновика.
+
+## Что считаем целевым v1
+
+Целевой `v1` не расширяет продукт в ширину.
+Он укрепляет ту же дорогу:
+
+`рабочий запрос -> понимание -> план -> сборка -> черновик -> добор фактуры -> экспорт`
+
+Сначала добираем недостающую фактуру внутри уже собранных слайдов.
+Потом добавляем отдачу результата.
+
+## Что пока не считаем готовым
+
+- Нет редактирования слайдов.
+- Нет экспорта.
+- Нет серверной генерации через модель.
+- Нет следующих сценариев поверх квартального статуса.
+
+Это не скрытая функциональность и не обещание. Этого просто ещё нет.
+
+## Что такое old
+
+Папка `old/` это архив прежней логики `SlideForge`.
+Она не считается базой нового продукта и не является источником истины для текущего слоя.
+
+Карта наследования из архива лежит в `ARCHIVE_MAP.md`.
+
+## Источники истины
+
+Для текущего слоя опорой считаются:
+- `VNYATNO.md`
+- `MUTNO.md`
+- `DESIGN_SPINE.md`
+- `UI_KIT_V0.md`
+- `SCREEN_ATLAS.md`
+- `COPY_RULES.md`
+
+Если код спорит с этими файлами, правим код, а не объясняем расхождение словами.
+
+## Операционный журнал
+
+Следы рабочих чатов и короткий учёт долгих проблем ведутся в `SLED_SMEN.md`.
+Один чат обновляет только одну свою запись и не трогает чужие.
+
+## Git и деплой
+
+Для этого репозитория действует один рабочий режим:
+
+- единственная рабочая ветка — `main`;
+- новые ветки не создаём;
+- коммит и пуш делаем только по явной команде пользователя;
+- если в одной смене несколько коммитов, каждый несёт номер записи из `SLED_SMEN.md`, например `002.1 docs: lock main-only flow`.
+
+Для Vercel опорой считается проект `presentation-frontend` с `Root Directory = presentations-frontend`.
+Автодеплой через Git-интеграцию Vercel полностью отключён в `presentations-frontend/vercel.json`.
+Единственная production-дорога теперь лежит в `.github/workflows/presentations-ci.yml`: каждый пуш в `main` проходит `npm run verify`, затем делает `vercel deploy --prod` и после этого перепривязывает `vnyatno.vercel.app` на свежий production deployment.
+Целевой production-адрес для ручной проверки — `https://vnyatno.vercel.app`.
+
+## Как запустить
 
 ```bash
 npm install
-cd presentations-frontend
-npm install
-cp .env.local.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
-
-## Environment
-
-For full generation flows on `/`, set in `presentations-frontend/.env.local`:
-
-- `OPENAI_API_KEY`
-- `PEXELS_API_KEY`
-
-Without those keys you can still inspect the public shell and `/demo`, but not claim a successful end-to-end generation pass.
-
-## Checks
-
-From repo root:
+Для локальной проверки production-сборки:
 
 ```bash
-npm run verify:quick
 npm run verify
+npm run start
 ```
-
-App-only build:
-
-```bash
-npm run build --prefix presentations-frontend
-```
-
-## Deploy
-
-The app deploys from `presentations-frontend` on Vercel.
-
-Required Vercel project settings:
-
-- Root Directory -> `presentations-frontend`
-- environment variables -> `OPENAI_API_KEY`, `PEXELS_API_KEY`
-
-Required GitHub Actions secrets for production deploy:
-
-- `VERCEL_TOKEN`
-- `VERCEL_PROJECT_ID`
-- `VERCEL_ORG_ID`
-
-## Agent Docs
-
-- [AGENTS.md](AGENTS.md)
-- [docs/KANBAN.md](docs/KANBAN.md)
-- [docs/CODEBASE-GRAPH.md](docs/CODEBASE-GRAPH.md)
-- [docs/STRATEGY.md](docs/STRATEGY.md)

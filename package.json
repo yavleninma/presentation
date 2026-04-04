@@ -1,16 +1,14 @@
 {
-  "name": "slideforge-presentations",
+  "name": "vnyatno-presentation",
   "private": true,
-  "description": "SlideForge monorepo — presentations web app (Next.js); run npm install here once for Git hooks",
+  "workspaces": [
+    "presentations-frontend"
+  ],
   "scripts": {
-    "prepare": "husky",
-    "lint": "npm run lint --prefix presentations-frontend",
-    "typecheck": "npm run typecheck --prefix presentations-frontend",
-    "build": "npm run build --prefix presentations-frontend",
-    "verify": "npm run lint --prefix presentations-frontend && npm run typecheck --prefix presentations-frontend && npm run build --prefix presentations-frontend",
-    "verify:quick": "npm run lint --prefix presentations-frontend && npm run typecheck --prefix presentations-frontend"
-  },
-  "devDependencies": {
-    "husky": "^9.1.7"
+    "dev": "npm run dev --workspace presentations-frontend",
+    "start": "npm run start --workspace presentations-frontend",
+    "build": "npm run build --workspace presentations-frontend",
+    "typecheck": "npm run typecheck --workspace presentations-frontend",
+    "verify": "npm run verify --workspace presentations-frontend"
   }
 }

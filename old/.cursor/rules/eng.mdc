@@ -1,0 +1,8 @@
+---
+description: "Alias role: Engineer executor. Use via @eng."
+alwaysApply: false
+---
+
+# SlideForge - Engineer Mode (`@eng`)
+
+Same rules as `engineer.mdc`. Keep it small, verified, and aligned with `AGENTS.md`.
