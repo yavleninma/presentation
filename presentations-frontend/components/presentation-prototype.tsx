@@ -28,6 +28,57 @@ const screenOrder: PrototypeScreen[] = [
   "editor",
 ];
 
+const START_EXAMPLES = [
+  {
+    id: "backend-platform",
+    title: "Backend platform",
+    prompt:
+      EXAMPLE_PROMPTS[0] ??
+      "Собери квартальный статус backend platform team за Q1 2026: снизили MTTR, мигрировали 18 сервисов и упёрлись в найм QA.",
+  },
+  {
+    id: "product-team",
+    title: "Команда продукта",
+    prompt:
+      EXAMPLE_PROMPTS[1] ??
+      "Нужен квартальный статус команды продукта за 1 квартал 2026 для CTO: что сделали, где риски и какое решение нужно сверху.",
+  },
+  {
+    id: "director-review",
+    title: "Руководитель направления",
+    prompt:
+      EXAMPLE_PROMPTS[2] ??
+      "Подготовь рабочую презентацию по итогам квартала для руководителя направления: прогресс, блокеры и следующий шаг.",
+  },
+] as const;
+
+const START_PREVIEW_SLIDES = [
+  {
+    id: "cover",
+    index: "01",
+    eyebrow: "Обложка",
+    title: "Q1 2026 · Backend Platform",
+    subtitle: "Команда, период и фокус разговора.",
+    tags: ["Период", "Команда", "Фокус"],
+  },
+  {
+    id: "summary",
+    index: "02",
+    eyebrow: "Главный вывод",
+    title: "Удержали стабильность и ускорили релизы",
+    subtitle: "Один тезис, опоры и запрос к руководителю.",
+    tags: ["Главный тезис", "3 опоры", "1 решение"],
+  },
+  {
+    id: "metrics",
+    index: "03",
+    eyebrow: "Ключевые метрики",
+    title: "MTTR, скорость поставки и нагрузка",
+    subtitle: "Фактура, по которой видно прогресс и риск.",
+    tags: ["Стабильность", "Поставка", "Риск"],
+  },
+] as const;
+
 export function PresentationPrototype() {
   const [prompt, setPrompt] = useState("");
   const [screen, setScreen] = useState<PrototypeScreen>("start");
@@ -73,9 +124,7 @@ export function PresentationPrototype() {
 
   function buildFromPrompt() {
     if (!prompt.trim()) {
-      setPromptError(
-        "Опишите, что произошло за период и что нужно показать руководителю."
-      );
+      setPromptError("Нужен рабочий запрос, иначе черновик не из чего собрать.");
       return;
     }
 
@@ -194,6 +243,27 @@ export function PresentationPrototype() {
 function StepRail({ currentScreen }: { currentScreen: PrototypeScreen }) {
   const currentIndex = screenOrder.indexOf(currentScreen);
 
+  if (currentScreen === "start") {
+    const [activeStep, ...upcomingSteps] = SCREEN_FLOW;
+
+    return (
+      <nav className="step-rail step-rail-start" aria-label="Этапы сборки">
+        <div className="step-focus-chip">
+          <div className="step-chip-icon">01</div>
+          <div className="step-chip-title">{activeStep.title}</div>
+        </div>
+
+        <div className="step-progress-rail">
+          {upcomingSteps.map((item) => (
+            <div key={item.id} className="step-mini-chip">
+              {item.title}
+            </div>
+          ))}
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav className="step-rail" aria-label="Этапы сборки">
       {SCREEN_FLOW.map((item, index) => {
@@ -230,43 +300,105 @@ function StartScreen({
   onGenerate: () => void;
   onUseExample: (value: string) => void;
 }) {
+  const trimmedPrompt = prompt.trim();
+
   return (
     <div className="start-shell">
-      <section className="stage-card start-card">
-        <h1>Соберите квартальный статус команды</h1>
-        <p className="start-intro">без длинного брифа и пустого листа</p>
+      <div className="start-workspace">
+        <div className="start-main-column">
+          <section className="stage-card start-intro-block">
+            <h1>Соберите рабочий квартальный статус</h1>
+            <p className="start-intro">
+              Напишите как есть. На выходе: структура, тезисы и первый черновик
+              слайдов.
+            </p>
+          </section>
 
-        <textarea
-          value={prompt}
-          onChange={(event) => onChangePrompt(event.target.value)}
-          className="prompt-input"
-          placeholder="Опишите, что произошло за квартал и что нужно показать руководителю."
-        />
+          <section className="stage-card composer-panel">
+            <form
+              className="composer-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onGenerate();
+              }}
+            >
+              <div className="composer-box">
+                <textarea
+                  value={prompt}
+                  onChange={(event) => onChangePrompt(event.target.value)}
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                      event.preventDefault();
+                      onGenerate();
+                    }
+                  }}
+                  rows={5}
+                  className="prompt-input"
+                  placeholder="Напишите, что произошло за квартал, где прогресс, какие риски и какое решение нужно."
+                />
 
-        <div className="start-support">
-          <div className="support-label">Примеры запроса</div>
-          <div className="example-list">
-            {EXAMPLE_PROMPTS.map((example) => (
-              <button
-                key={example}
-                type="button"
-                className="example-chip"
-                onClick={() => onUseExample(example)}
-              >
-                {example}
-              </button>
+                <div className="composer-box-footer">
+                  <p className="composer-helper">
+                    6-8 слайдов · сначала покажем понимание и план
+                  </p>
+                  <button type="submit" className="primary-button composer-submit">
+                    Собрать рабочий черновик
+                    <ArrowRight aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              {promptError ? <p className="inline-error">{promptError}</p> : null}
+            </form>
+          </section>
+
+          <section className="stage-card start-examples-panel">
+            <div className="support-label">Примеры</div>
+            <div className="example-card-grid">
+              {START_EXAMPLES.map((example) => (
+                <button
+                  key={example.id}
+                  type="button"
+                  className={`example-card${
+                    trimmedPrompt === example.prompt ? " is-selected" : ""
+                  }`}
+                  onClick={() => onUseExample(example.prompt)}
+                >
+                  <span className="example-card-title">{example.title}</span>
+                  <span className="example-card-copy">{example.prompt}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <aside className="stage-card start-preview-rail">
+          <div className="preview-rail-head">
+            <h2>Что получится</h2>
+          </div>
+
+          <div className="preview-slide-list">
+            {START_PREVIEW_SLIDES.map((slide) => (
+              <article key={slide.id} className="preview-slide-card">
+                <div className="preview-slide-topline">
+                  <span className="preview-slide-index">{slide.index}</span>
+                  <span className="preview-slide-eyebrow">{slide.eyebrow}</span>
+                </div>
+                <h3>{slide.title}</h3>
+                <p>{slide.subtitle}</p>
+
+                <div className="preview-slide-tags">
+                  {slide.tags.map((tag) => (
+                    <span key={tag} className="preview-slide-tag">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </article>
             ))}
           </div>
-        </div>
-
-        <div className="composer-footer">
-          {promptError ? <p className="inline-error">{promptError}</p> : <div />}
-          <button type="button" className="primary-button" onClick={onGenerate}>
-            Собрать черновик
-            <ArrowRight aria-hidden="true" />
-          </button>
-        </div>
-      </section>
+        </aside>
+      </div>
     </div>
   );
 }
