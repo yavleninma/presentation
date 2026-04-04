@@ -75,10 +75,9 @@ const CANONICAL_OUTLINE = [
 ] as const;
 
 const BUILD_STAGES: BuildStage[] = [
-  { id: "understand", title: "Понял задачу", detail: "" },
-  { id: "outline", title: "Собрал план", detail: "" },
-  { id: "rhythm", title: "Собираю ритм слайдов", detail: "" },
-  { id: "slides", title: "Готовлю черновик", detail: "" },
+  { id: "capture", title: "Фиксирую задачу" },
+  { id: "structure", title: "Собираю структуру" },
+  { id: "draft", title: "Заполняю черновик" },
 ];
 
 export const EXAMPLE_PROMPTS = [
@@ -108,6 +107,7 @@ export function buildWorkingDraft(rawPrompt: string): WorkingDraft {
   const openQuestions = buildOpenQuestions(numbers, prompt, decisionNeeded);
 
   return {
+    sourcePrompt: prompt,
     audience,
     period,
     goal,
@@ -594,6 +594,7 @@ function getOutlineBullets(workingDraft: WorkingDraft, outlineId: string) {
 
 function serializeWorkingDraft(workingDraft: WorkingDraft) {
   return [
+    workingDraft.sourcePrompt,
     workingDraft.audience,
     workingDraft.period,
     workingDraft.goal,

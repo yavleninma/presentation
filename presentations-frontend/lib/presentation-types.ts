@@ -16,6 +16,7 @@ export type SlideLayout =
 export type ToneId = "primary" | "success" | "warning" | "danger";
 
 export type WorkingDraft = {
+  sourcePrompt: string;
   audience: string;
   period: string;
   goal: string;
@@ -70,7 +71,6 @@ export interface PresentationSlide {
 export interface BuildStage {
   id: string;
   title: string;
-  detail: string;
 }
 
 export interface PresentationDraft {

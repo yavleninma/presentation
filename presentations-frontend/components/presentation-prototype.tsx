@@ -13,7 +13,6 @@ import {
   ArrowRight,
   Check,
   FileText,
-  Loader2,
   RefreshCcw,
 } from "lucide-react";
 import {
@@ -99,7 +98,7 @@ export function PresentationPrototype() {
   const [buildStageIndex, setBuildStageIndex] = useState(0);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [autoAdvanceReview, setAutoAdvanceReview] = useState(false);
-  const [isTransitionPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const activeSlide =
@@ -166,10 +165,10 @@ export function PresentationPrototype() {
 
     setBuildStageIndex(0);
 
-    const timers: number[] = draft.buildStages.map((_, index) =>
+    const timers: number[] = draft.buildStages.slice(1).map((_, index) =>
       window.setTimeout(() => {
-        setBuildStageIndex(index);
-      }, 260 + index * 820)
+        setBuildStageIndex(index + 1);
+      }, 920 + index * 920)
     );
 
     const finalTimer = window.setTimeout(() => {
@@ -177,7 +176,7 @@ export function PresentationPrototype() {
         setScreen("editor");
         setSelectedSlideId(draft.slides[0]?.id ?? null);
       });
-    }, 260 + draft.buildStages.length * 820);
+    }, draft.buildStages.length * 920 + 180);
 
     timers.push(finalTimer);
 
@@ -295,7 +294,6 @@ export function PresentationPrototype() {
         {(screen === "understanding" || screen === "outline") && workingDraft ? (
           <WorkingDraftScreen
             phase={screen}
-            prompt={prompt}
             workingDraft={workingDraft}
             onEditUnderstanding={editUnderstanding}
             onContinue={continueFromReview}
@@ -303,11 +301,7 @@ export function PresentationPrototype() {
         ) : null}
 
         {screen === "building" && draft ? (
-          <BuildingScreen
-            draft={draft}
-            stageIndex={buildStageIndex}
-            isTransitionPending={isTransitionPending}
-          />
+          <BuildingScreen draft={draft} stageIndex={buildStageIndex} />
         ) : null}
 
         {screen === "editor" && draft && activeSlide ? (
@@ -324,27 +318,6 @@ export function PresentationPrototype() {
 
 function StepRail({ currentScreen }: { currentScreen: PrototypeScreen }) {
   const currentIndex = screenOrder.indexOf(currentScreen);
-
-  if (currentScreen === "start") {
-    const [activeStep, ...upcomingSteps] = SCREEN_FLOW;
-
-    return (
-      <nav className="step-rail step-rail-start" aria-label="Этапы сборки">
-        <div className="step-focus-chip">
-          <div className="step-chip-icon">01</div>
-          <div className="step-chip-title">{activeStep.title}</div>
-        </div>
-
-        <div className="step-progress-rail">
-          {upcomingSteps.map((item) => (
-            <div key={item.id} className="step-mini-chip">
-              {item.title}
-            </div>
-          ))}
-        </div>
-      </nav>
-    );
-  }
 
   return (
     <nav className="step-rail" aria-label="Этапы сборки">
@@ -490,13 +463,11 @@ function StartScreen({
 
 function WorkingDraftScreen({
   phase,
-  prompt,
   workingDraft,
   onEditUnderstanding,
   onContinue,
 }: {
   phase: Extract<PrototypeScreen, "understanding" | "outline">;
-  prompt: string;
   workingDraft: WorkingDraft;
   onEditUnderstanding: () => void;
   onContinue: () => void;
@@ -523,7 +494,7 @@ function WorkingDraftScreen({
             <h2>Понимание и план</h2>
           </div>
 
-          <blockquote className="prompt-quote">“{prompt}”</blockquote>
+          <blockquote className="prompt-quote">“{workingDraft.sourcePrompt}”</blockquote>
         </div>
 
         <article className="understanding-focus-card">
@@ -594,23 +565,57 @@ function WorkingDraftScreen({
   );
 }
 
+function getBuildPreviewStructure(slide: PresentationDraft["slides"][number]) {
+  if (slide.bullets?.length) {
+    return slide.bullets.slice(0, 3).map((_, index) => `Пункт ${index + 1}`);
+  }
+
+  if (slide.metrics?.length) {
+    return slide.metrics.slice(0, 3).map((metric) => metric.label);
+  }
+
+  if (slide.panels?.length) {
+    return slide.panels.slice(0, 3).map((panel) => panel.title);
+  }
+
+  return slide.ask ? [slide.ask.title] : [];
+}
+
+function getBuildPreviewContent(slide: PresentationDraft["slides"][number]) {
+  if (slide.bullets?.length) {
+    return slide.bullets.slice(0, 3);
+  }
+
+  if (slide.metrics?.length) {
+    return slide.metrics
+      .slice(0, 3)
+      .map((metric) => `${metric.label}: ${metric.value}`);
+  }
+
+  if (slide.panels?.length) {
+    return slide.panels
+      .flatMap((panel) => (panel.items?.length ? panel.items.slice(0, 1) : [panel.body]))
+      .slice(0, 3);
+  }
+
+  return slide.lead ? [slide.lead] : [];
+}
+
 function BuildingScreen({
   draft,
   stageIndex,
-  isTransitionPending,
 }: {
   draft: PresentationDraft;
   stageIndex: number;
-  isTransitionPending: boolean;
 }) {
-  const previewSlide = draft.slides[Math.min(stageIndex, draft.slides.length - 1)];
+  const previewSlides = draft.slides.slice(0, 3);
 
   return (
     <div className="build-layout">
       <section className="stage-card compact-stage-card">
-        <h2>Собираю черновик</h2>
+        <h2>Сборка</h2>
 
-        <div className="build-list">
+        <div className="build-status-list">
           {draft.buildStages.map((item, index) => {
             const state =
               index < stageIndex
@@ -620,12 +625,12 @@ function BuildingScreen({
                   : "idle";
 
             return (
-              <article key={item.id} className={`build-card is-${state}`}>
-                <div className="build-card-icon">
+              <article key={item.id} className={`build-status-card is-${state}`}>
+                <div className="build-status-icon">
                   {state === "done" ? (
                     <Check aria-hidden="true" />
                   ) : state === "active" ? (
-                    <Loader2 aria-hidden="true" className="spin-icon" />
+                    <span className="build-status-pulse" aria-hidden="true" />
                   ) : (
                     index + 1
                   )}
@@ -639,17 +644,51 @@ function BuildingScreen({
 
       <aside className="build-preview">
         <div className="build-preview-head">
-          <span>Мини-превью</span>
-          <strong>{previewSlide.shortLabel}</strong>
+          <span>Черновик</span>
+          <strong>Первые слайды</strong>
         </div>
-        <div className="build-preview-card">
-          <div className="build-preview-eyebrow">{previewSlide.eyebrow}</div>
-          <div className="build-preview-title">{previewSlide.title}</div>
-          <div className="build-preview-copy">{previewSlide.lead}</div>
+
+        <div className="build-preview-stack">
+          {previewSlides.map((slide) => {
+            const structureItems = getBuildPreviewStructure(slide);
+            const contentItems = getBuildPreviewContent(slide);
+
+            return (
+              <article key={slide.id} className="build-preview-slide">
+                <div className="build-preview-topline">
+                  <span className="build-preview-index">{slide.index}</span>
+                  <span className="build-preview-label">{slide.shortLabel}</span>
+                </div>
+
+                <div className="build-preview-eyebrow">{slide.eyebrow}</div>
+                <div className="build-preview-title">{slide.title}</div>
+
+                {stageIndex === 1 && structureItems.length ? (
+                  <ul className="build-preview-list is-structure">
+                    {structureItems.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {stageIndex >= 2 && contentItems.length ? (
+                  <ul className="build-preview-list is-content">
+                    {contentItems.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {stageIndex >= 2 && slide.ask ? (
+                  <div className="build-preview-ask">
+                    <span>Решение</span>
+                    <p>{slide.ask.body}</p>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
-        {isTransitionPending ? (
-          <div className="build-preview-note">Открываю черновик.</div>
-        ) : null}
       </aside>
     </div>
   );
@@ -670,6 +709,10 @@ function EditorScreen({
     draft.missingFacts.length === 1
       ? "1 место требует уточнения"
       : `${draft.missingFacts.length} места требуют уточнения`;
+  const decisionAsk =
+    draft.workingDraft.decisionNeeded ??
+    draft.slides.find((slide) => slide.ask)?.ask?.body ??
+    "Уточнить следующий шаг после черновика.";
 
   return (
     <div className="editor-layout">
@@ -684,6 +727,18 @@ function EditorScreen({
           {draft.missingFacts.length ? <span>{factLabel}</span> : null}
         </div>
       </header>
+
+      <section className="editor-meta-grid">
+        <article className="editor-meta-card">
+          <span>Исходный запрос</span>
+          <p>{draft.workingDraft.sourcePrompt}</p>
+        </article>
+
+        <article className="editor-meta-card">
+          <span>Решение</span>
+          <p>{decisionAsk}</p>
+        </article>
+      </section>
 
       <div className="editor-grid">
         <aside className="thumbnail-rail-wrap">
