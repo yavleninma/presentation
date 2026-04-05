@@ -1,14 +1,52 @@
-export type PrototypeScreen = "start" | "clarify" | "editor";
+export type PrototypeScreen = "start" | "editor";
+
+export type EntryPhase = "idle" | "chat" | "building";
 
 export type HiddenBuildStage = "idle" | "fit-pass";
 
 export type EditorDrawerState = "closed" | "open";
 
-export type ClarifyFocusId = "update" | "explain" | "decision";
+export type StorylineModeId = "progress" | "structure" | "choice";
 
-export type ClarifyDepthId = "signal" | "detail";
+export type RegenVariant = StorylineModeId;
 
-export type RegenVariant = ClarifyFocusId;
+export type ClarificationRole = "user" | "assistant";
+
+export type ClarificationSlot =
+  | "audience"
+  | "keyMessage"
+  | "desiredOutcome"
+  | "factCoverage";
+
+export type FactCoverageId = "enough" | "partial" | "thin";
+
+export interface ClarificationMessage {
+  id: string;
+  role: ClarificationRole;
+  text: string;
+}
+
+export interface ClarificationInsights {
+  topicLabel: string;
+  period: string;
+  mode: StorylineModeId;
+  audience: string | null;
+  keyMessage: string | null;
+  desiredOutcome: string | null;
+  factCoverage: FactCoverageId;
+  knownFacts: string[];
+  missingFacts: string[];
+}
+
+export interface ClarificationSession {
+  transcript: ClarificationMessage[];
+  assistantTurns: number;
+  confidence: number;
+  readyToBuild: boolean;
+  pendingSlot: ClarificationSlot | null;
+  askedSlots: ClarificationSlot[];
+  insights: ClarificationInsights;
+}
 
 export type SlideLayout =
   | "cover"
@@ -24,21 +62,18 @@ export type TemplateId = "strict" | "rhythm" | "signal";
 
 export type ColorId = "cobalt" | "graphite" | "sage";
 
-export interface ClarifyState {
-  focus: ClarifyFocusId;
-  depth: ClarifyDepthId;
-}
-
 export interface WorkingDraft {
   sourcePrompt: string;
+  summary: string;
   topicLabel: string;
   audience: string;
   period: string;
-  focus: ClarifyFocusId;
-  depth: ClarifyDepthId;
+  mode: StorylineModeId;
   goal: string;
-  decisionNeeded: string;
-  coreMessage: string;
+  keyMessage: string;
+  desiredOutcome: string;
+  factCoverage: FactCoverageId;
+  knownFacts: string[];
   missingFacts: string[];
 }
 

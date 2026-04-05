@@ -1,59 +1,30 @@
 import type {
-  ClarifyDepthId,
-  ClarifyFocusId,
-  ClarifyState,
+  ClarificationSession,
   ColorId,
   PresentationDraft,
   PresentationSlide,
   RegenVariant,
   SlideBlock,
   SlideLayout,
+  StorylineModeId,
   TemplateId,
   WorkingDraft,
 } from "@/lib/presentation-types";
+import {
+  clampText,
+  extractAudience,
+  extractDesiredOutcome,
+  extractKeyMessage,
+  extractPeriod,
+  extractShortFacts,
+  extractTopicLabel,
+  normalizePrompt,
+} from "@/lib/prompt-analysis";
 
-const STOP_WORDS = new Set([
-  "для",
-  "что",
-  "чтобы",
-  "если",
-  "когда",
-  "нужно",
-  "надо",
-  "сделать",
-  "собрать",
-  "подготовить",
-  "показать",
-  "презентацию",
-  "презентация",
-  "квартальный",
-  "статус",
-  "команда",
-  "команды",
-  "проект",
-  "проекта",
-  "важно",
-  "нужен",
-  "нужно",
-  "период",
-  "period",
-  "team",
-  "show",
-  "need",
-  "with",
-  "from",
-  "about",
-]);
-
-const VARIANT_LABEL: Record<ClarifyFocusId, string> = {
-  update: "апдейт",
-  explain: "объяснение",
-  decision: "решение",
-};
-
-const VARIANT_PROFILE: Record<
-  RegenVariant,
+const MODE_COPY: Record<
+  StorylineModeId,
   {
+    actionLabel: string;
     lead: string;
     reasonTitle: string;
     reasonItems: string[];
@@ -61,48 +32,51 @@ const VARIANT_PROFILE: Record<
     askTitle: string;
   }
 > = {
-  update: {
-    lead: "Фиксируем спокойный статус периода без лишних ответвлений.",
-    reasonTitle: "Почему этого уже достаточно",
+  progress: {
+    actionLabel: "Показать ход",
+    lead: "Коротко показываем ход периода и не уходим в лишние ответвления.",
+    reasonTitle: "Почему это уже читается",
     reasonItems: [
-      "Картина периода держится на одном главном сигнале.",
-      "Риск назван отдельно и не размыт по слайду.",
-      "Следующий шаг понятен без длинного комментария.",
+      "Главный сигнал назван без длинного вступления.",
+      "Риск не растворяется внутри общего статуса.",
+      "Следующий шаг виден до деталей исполнения.",
     ],
     speakerNote:
-      "Сначала дай короткий статус, потом назови один риск и закончи следующим шагом.",
-    askTitle: "Что подтвердить",
+      "Сначала покажи, что уже сдвинулось, потом назови один риск и закончи следующим шагом.",
+    askTitle: "Следующий шаг",
   },
-  explain: {
-    lead: "Сначала объясняем, на чём держится сигнал, и только потом переходим к риску.",
-    reasonTitle: "Почему сигнал можно объяснить",
+  structure: {
+    actionLabel: "Разложить по сути",
+    lead: "Раскладываем ситуацию по сути и быстро снимаем главные вопросы.",
+    reasonTitle: "Что уже стало понятнее",
     reasonItems: [
-      "Главный результат уже читается без длинного экскурса.",
-      "Ограничение локализовано и не спорит с основным выводом.",
-      "Руководителю видно, что именно ещё нужно подтвердить.",
+      "Ключевой вывод не спорит с деталями.",
+      "Ограничение показано отдельно и не размывает основную линию.",
+      "Пустые места остаются честными, а не маскируются общими словами.",
     ],
     speakerNote:
-      "Начни с сигнала, затем покажи, из чего он сложен, и только потом переведи разговор к риску.",
-    askTitle: "Что нужно уточнить",
+      "Начни с вывода, затем разложи его по двум-трём опорам и только потом переходи к риску.",
+    askTitle: "Что нужно понять",
   },
-  decision: {
-    lead: "Держим разговор на решении и не тонем в устройстве.",
-    reasonTitle: "Почему решение можно обсуждать сейчас",
+  choice: {
+    actionLabel: "Подвести к выбору",
+    lead: "Держим разговор на одном следующем выборе и не тонем в устройстве.",
+    reasonTitle: "Почему можно идти к выбору",
     reasonItems: [
-      "Сигнал уже рабочий, а не исследовательский.",
-      "Главная дыра названа честно и не спрятана в мелкий текст.",
-      "Следующий шаг упирается в ресурс, а не в новый виток анализа.",
+      "Рабочий сигнал уже собран и не требует длинного захода.",
+      "Главный пробел назван честно и не спрятан в мелкий текст.",
+      "Следующий шаг упирается в одно согласование, а не в новый круг анализа.",
     ],
     speakerNote:
-      "Начни с сигнала, потом назови дыру и быстро верни разговор к решению про ресурс.",
-    askTitle: "Какое решение нужно сейчас",
+      "Сначала покажи, что уже работает, потом быстро назови ограничение и верни разговор к нужному согласованию.",
+    askTitle: "Что нужно согласовать",
   },
 };
 
 export const EXAMPLE_PROMPTS = [
-  "Нужно собрать презентацию для руководителя по итогам квартала: что реально сдвинули, где риск, и какое решение нужно сверху.",
-  "Собери квартальный статус backend platform team за Q1 2026: снизили MTTR, мигрировали 18 сервисов и упёрлись в найм QA.",
-  "Подготовь рабочую презентацию по пилоту поиска: что уже работает, что пока не доказано и зачем нужен ресурс на следующий шаг.",
+  "Нужно собрать квартальный статус для руководителя: что уже сдвинули, где риск и какой следующий шаг важен сейчас.",
+  "Показываем итоги пилота поиска для продуктового руководителя: что уже работает, что пока не доказано и что нужно решить по следующему этапу.",
+  "Нужен запрос на ресурс по platform team: что успели сделать, где упёрлись и зачем нужен следующий слот на найм.",
 ];
 
 export const SCENARIO_CHIPS = [
@@ -112,30 +86,24 @@ export const SCENARIO_CHIPS = [
     prompt: EXAMPLE_PROMPTS[0],
   },
   {
-    id: "decision",
-    label: "Защита решения",
+    id: "pilot",
+    label: "Итоги пилота",
+    prompt: EXAMPLE_PROMPTS[1],
+  },
+  {
+    id: "resource",
+    label: "Запрос на ресурс",
     prompt: EXAMPLE_PROMPTS[2],
-  },
-  {
-    id: "project",
-    label: "Итоги проекта",
-    prompt:
-      "Нужно показать итоги проекта за квартал: что уже работает, какие риски остались и что нужно утвердить на следующий этап.",
-  },
-  {
-    id: "custom",
-    label: "Уточнить",
-    prompt: "",
   },
 ] as const;
 
-export const CLARIFY_FOCUS_OPTIONS: Array<{
-  id: ClarifyFocusId;
+export const REGEN_ACTIONS: Array<{
+  id: StorylineModeId;
   label: string;
 }> = [
-  { id: "update", label: "Апдейт" },
-  { id: "explain", label: "Объяснить" },
-  { id: "decision", label: "Добиться решения" },
+  { id: "progress", label: MODE_COPY.progress.actionLabel },
+  { id: "structure", label: MODE_COPY.structure.actionLabel },
+  { id: "choice", label: MODE_COPY.choice.actionLabel },
 ];
 
 export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
@@ -150,82 +118,70 @@ export const COLOR_OPTIONS: Array<{ id: ColorId; label: string }> = [
   { id: "sage", label: "Шалфей" },
 ];
 
-export function getClarifyQuestion(focus: ClarifyFocusId | null) {
-  if (focus === "decision") {
-    return "Нужно ли держать разговор на уровне решения, а не в деталях?";
-  }
-
-  if (focus === "explain") {
-    return "Нужно сначала объяснить сигнал, а потом перейти к риску?";
-  }
-
-  return "Держим разговор как короткий статус без ухода в детали?";
-}
-
-export function getClarifyDepthOptions(
-  focus: ClarifyFocusId | null
-): Array<{ id: ClarifyDepthId; label: string }> {
-  if (focus === "decision") {
-    return [
-      { id: "signal", label: "Да, держим решение" },
-      { id: "detail", label: "Нет, нужны детали" },
-    ];
-  }
-
-  if (focus === "explain") {
-    return [
-      { id: "signal", label: "Да, сначала объяснить" },
-      { id: "detail", label: "Нет, идём шире" },
-    ];
-  }
-
-  return [
-    { id: "signal", label: "Да, коротко" },
-    { id: "detail", label: "Нет, нужен контекст" },
-  ];
-}
-
 export function buildWorkingDraft(
   rawPrompt: string,
-  clarify: ClarifyState
+  session: ClarificationSession
 ): WorkingDraft {
-  const sourcePrompt = normalizePrompt(rawPrompt);
-  const period = extractPeriod(sourcePrompt);
-  const audience = extractAudience(sourcePrompt);
-  const topicLabel = extractTopicLabel(sourcePrompt);
-  const decisionNeeded = extractDecisionNeeded(sourcePrompt, clarify.focus);
-  const goal = buildGoal(clarify.focus);
-  const missingFacts = buildMissingFacts(sourcePrompt);
-  const coreMessage = buildCoreMessage({
-    topicLabel,
-    focus: clarify.focus,
-    decisionNeeded,
-    sourcePrompt,
+  const transcriptPrompt = normalizePrompt(
+    session.transcript
+      .filter((message) => message.role === "user")
+      .map((message) => message.text)
+      .join(" ")
+  );
+  const sourcePrompt = normalizePrompt(transcriptPrompt || rawPrompt);
+  const mode = session.insights.mode;
+  const topicLabel = session.insights.topicLabel || extractTopicLabel(sourcePrompt);
+  const period = session.insights.period || extractPeriod(sourcePrompt);
+  const audience =
+    session.insights.audience ??
+    extractAudience(sourcePrompt) ??
+    "Руководитель направления";
+  const keyMessage =
+    session.insights.keyMessage ??
+    extractKeyMessage(sourcePrompt) ??
+    buildFallbackKeyMessage(topicLabel, mode);
+  const desiredOutcome =
+    session.insights.desiredOutcome ??
+    extractDesiredOutcome(sourcePrompt, mode) ??
+    buildFallbackOutcome(mode);
+  const knownFacts = mergeKnownFacts(
+    session.insights.knownFacts,
+    extractShortFacts(sourcePrompt)
+  );
+  const missingFacts = session.insights.missingFacts.slice(
+    0,
+    session.insights.factCoverage === "enough" ? 2 : 3
+  );
+  const summary = buildDraftSummary({
+    keyMessage,
+    audience,
+    desiredOutcome,
   });
 
   return {
     sourcePrompt,
+    summary,
     topicLabel,
     audience,
     period,
-    focus: clarify.focus,
-    depth: clarify.depth,
-    goal,
-    decisionNeeded,
-    coreMessage,
+    mode,
+    goal: buildGoal(mode),
+    keyMessage,
+    desiredOutcome,
+    factCoverage: session.insights.factCoverage,
+    knownFacts,
     missingFacts,
   };
 }
 
 export function buildPresentationDraft(
   workingDraft: WorkingDraft,
-  variant: RegenVariant = workingDraft.focus
+  variant: RegenVariant = workingDraft.mode
 ): PresentationDraft {
-  const profile = VARIANT_PROFILE[variant];
-  const shortFacts = extractShortFacts(workingDraft.sourcePrompt);
-  const decisionLine = workingDraft.decisionNeeded;
+  const profile = MODE_COPY[variant];
+  const titleBase = `${workingDraft.topicLabel} — ${workingDraft.period}`;
   const contextLine = `${workingDraft.period} • ${workingDraft.audience}`;
-  const titleBase = `${workingDraft.topicLabel} — статус за ${workingDraft.period}`;
+  const reasonTone = variant === "choice" ? "warning" : "primary";
 
   const slides: PresentationSlide[] = [
     {
@@ -243,9 +199,9 @@ export function buildPresentationDraft(
           tone: "neutral",
         },
         {
-          id: "focus",
-          title: "Точка разговора",
-          body: decisionLine,
+          id: "outcome",
+          title: "Что должно случиться дальше",
+          body: workingDraft.desiredOutcome,
           tone: "primary",
         },
       ],
@@ -255,20 +211,20 @@ export function buildPresentationDraft(
       index: "02",
       shortLabel: "Главный вывод",
       layout: "summary",
-      title: workingDraft.coreMessage,
+      title: workingDraft.keyMessage,
       subtitle: profile.lead,
       blocks: [
         {
           id: "signal",
           title: "Что уже видно",
-          items: shortFacts.slice(0, 3),
+          items: workingDraft.knownFacts.slice(0, 3),
           tone: "success",
         },
         {
-          id: "decision",
+          id: "next",
           title: profile.askTitle,
-          body: decisionLine,
-          tone: variant === "decision" ? "warning" : "primary",
+          body: workingDraft.desiredOutcome,
+          tone: reasonTone,
         },
       ],
     },
@@ -278,12 +234,12 @@ export function buildPresentationDraft(
       shortLabel: "Что изменилось",
       layout: "changes",
       title: `Что изменилось за ${workingDraft.period}`,
-      subtitle: `Фокус разговора: ${VARIANT_LABEL[variant]}`,
+      subtitle: profile.actionLabel,
       blocks: [
         {
           id: "already",
           title: "Уже работает",
-          items: shortFacts.slice(0, 3),
+          items: workingDraft.knownFacts.slice(0, 3),
           tone: "success",
         },
         {
@@ -304,10 +260,10 @@ export function buildPresentationDraft(
     {
       id: "evidence",
       index: "04",
-      shortLabel: "Доказательства",
+      shortLabel: "Опоры",
       layout: "evidence",
       title: "На чём держится вывод",
-      subtitle: "Только опорные факты и честные пробелы",
+      subtitle: "Только опорные факты и честные пустые места",
       blocks: [
         {
           id: "signal",
@@ -339,10 +295,10 @@ export function buildPresentationDraft(
       layout: "risks",
       title: "Риски и блокеры",
       subtitle: "Что мешает следующему шагу",
-      blocks: buildRiskBlocks(workingDraft),
+      blocks: buildRiskBlocks(workingDraft, variant),
       ask: {
-        title: "Где нужна помощь",
-        body: decisionLine,
+        title: profile.askTitle,
+        body: workingDraft.desiredOutcome,
       },
     },
     {
@@ -355,21 +311,21 @@ export function buildPresentationDraft(
       blocks: [
         {
           id: "focus",
-          title: "На чём держим период",
+          title: "На чём держим разговор",
           items: buildNextStepItems(workingDraft, variant),
           tone: "primary",
         },
         {
           id: "deps",
-          title: "Что нужно подтвердить",
+          title: "Что ещё нужно добрать",
           items: workingDraft.missingFacts.slice(0, 3),
           tone: "warning",
           placeholder: true,
         },
       ],
       ask: {
-        title: "Решение",
-        body: decisionLine,
+        title: profile.askTitle,
+        body: workingDraft.desiredOutcome,
       },
     },
   ];
@@ -388,7 +344,9 @@ export function buildPresentationDraft(
 export function runFitPassOnDraft(draft: PresentationDraft): PresentationDraft {
   const notes = new Set<string>();
   const slides = draft.slides.map((slide) => fitPassSlide(slide, notes));
-  const missingFacts = draft.missingFacts.slice(0, 3).map((item) => clampText(item, 56));
+  const missingFacts = draft.missingFacts
+    .slice(0, 3)
+    .map((item) => clampText(item, 56));
 
   return {
     ...draft,
@@ -446,7 +404,7 @@ function fitPassSlide(slide: PresentationSlide, notes: Set<string>) {
   }
 
   if (slide.blocks.some((block) => block.placeholder)) {
-    notes.add("fit-pass сохранил только офисные placeholder’ы");
+    notes.add("fit-pass сохранил только офисные placeholders");
   }
 
   return {
@@ -456,7 +414,7 @@ function fitPassSlide(slide: PresentationSlide, notes: Set<string>) {
     speakerNote: slide.speakerNote ? clampText(slide.speakerNote, 120) : undefined,
     ask: slide.ask
       ? {
-          title: clampText(slide.ask.title, 28),
+          title: clampText(slide.ask.title, 32),
           body: clampText(slide.ask.body, 120),
         }
       : undefined,
@@ -464,25 +422,25 @@ function fitPassSlide(slide: PresentationSlide, notes: Set<string>) {
   };
 }
 
-function buildGoal(focus: ClarifyFocusId) {
-  if (focus === "decision") {
-    return "Показать рабочий сигнал, назвать риск и получить одно решение сверху.";
+function buildGoal(mode: StorylineModeId) {
+  if (mode === "choice") {
+    return "Показать рабочий сигнал, назвать ограничение и подвести разговор к одному согласованию.";
   }
 
-  if (focus === "explain") {
-    return "Коротко объяснить, что уже работает, где ограничение и что делать дальше.";
+  if (mode === "structure") {
+    return "Разложить ситуацию по сути, чтобы быстро снять главные вопросы и не потерять ход разговора.";
   }
 
   return "Зафиксировать статус периода без лишнего шума и оставить понятный следующий шаг.";
 }
 
 function buildSignalLine(workingDraft: WorkingDraft, variant: RegenVariant) {
-  if (variant === "decision") {
-    return "Есть рабочий сигнал. Следующий шаг требует ресурса.";
+  if (variant === "choice") {
+    return "Есть рабочий сигнал. Следующий шаг упирается в одно согласование.";
   }
 
-  if (variant === "explain") {
-    return "Сигнал уже виден, но его важно коротко объяснить.";
+  if (variant === "structure") {
+    return "Сигнал уже виден, но его важно быстро разложить по сути.";
   }
 
   return "Основной сигнал периода читается без длинного комментария.";
@@ -495,221 +453,98 @@ function buildSignalBody(workingDraft: WorkingDraft) {
   );
 }
 
-function buildRiskBlocks(workingDraft: WorkingDraft) {
+function buildRiskBlocks(
+  workingDraft: WorkingDraft,
+  variant: RegenVariant
+) {
   return [
     {
       id: "resource",
-      title: "Ресурс",
-      body: workingDraft.decisionNeeded,
+      title: variant === "choice" ? "Что нужно согласовать" : "Главный риск",
+      body: workingDraft.desiredOutcome,
       tone: "warning" as const,
     },
     {
       id: "facture",
-      title: "Фактура",
+      title: "Чего пока не хватает",
       items: workingDraft.missingFacts.slice(0, 3),
       tone: "neutral" as const,
       placeholder: true,
     },
     {
       id: "pace",
-      title: "Темп",
-      body: "Если не закрыть главный пробел сейчас, следующий период уйдёт в повторное объяснение вместо движения вперёд.",
+      title: "Что будет дальше",
+      body: "Если не закрыть главный пробел сейчас, следующий проход уйдёт в повторный круг вместо движения вперёд.",
       tone: "primary" as const,
     },
   ];
 }
 
-function buildNextStepItems(workingDraft: WorkingDraft, variant: RegenVariant) {
+function buildNextStepItems(
+  workingDraft: WorkingDraft,
+  variant: RegenVariant
+) {
   const items = [
-    `Держим фокус как ${VARIANT_LABEL[variant]}.`,
-    `Оставляем один главный сигнал по теме «${workingDraft.topicLabel}».`,
-    clampText(workingDraft.decisionNeeded, 76),
+    `${MODE_COPY[variant].actionLabel}.`,
+    `Держим один главный сигнал по теме «${workingDraft.topicLabel}».`,
+    clampText(workingDraft.desiredOutcome, 76),
   ];
 
-  if (workingDraft.depth === "detail") {
-    items[1] = `Добавляем короткий контекст, но не уводим разговор в устройство решения.`;
+  if (workingDraft.factCoverage === "thin") {
+    items[1] = "Сразу помечаем, что часть фактуры ещё нужно добрать.";
   }
 
   return items;
 }
 
-function buildCoreMessage({
-  topicLabel,
-  focus,
-  decisionNeeded,
-  sourcePrompt,
-}: {
-  topicLabel: string;
-  focus: ClarifyFocusId;
-  decisionNeeded: string;
-  sourcePrompt: string;
-}) {
-  const fragment = extractShortFacts(sourcePrompt)[0];
-
-  if (fragment) {
-    if (focus === "decision") {
-      return clampText(`${fragment}. Следующий шаг требует решения сверху.`, 84);
-    }
-
-    if (focus === "explain") {
-      return clampText(`${fragment}. Важно коротко показать, на чём держится сигнал.`, 84);
-    }
-
-    return clampText(`${fragment}. Следующий шаг уже читается из статуса периода.`, 84);
+function buildFallbackKeyMessage(
+  topicLabel: string,
+  mode: StorylineModeId
+) {
+  if (mode === "choice") {
+    return `По теме «${topicLabel}» уже есть рабочий сигнал. Дальше нужен один следующий выбор.`;
   }
 
-  if (focus === "decision") {
-    return `По теме «${topicLabel}» уже есть рабочий сигнал. Следующий шаг требует решения сверху.`;
-  }
-
-  if (focus === "explain") {
-    return `По теме «${topicLabel}» уже виден результат, но его нужно коротко объяснить.`;
+  if (mode === "structure") {
+    return `По теме «${topicLabel}» уже виден результат, но его важно быстро разложить по сути.`;
   }
 
   return `По теме «${topicLabel}» уже виден ход периода и понятен следующий шаг.`;
 }
 
-function extractDecisionNeeded(
-  prompt: string,
-  focus: ClarifyFocusId
-) {
-  if (/ресурс|budget|бюджет|funding|headcount/i.test(prompt)) {
-    return "Подтвердить ресурс на следующий шаг.";
+function buildFallbackOutcome(mode: StorylineModeId) {
+  if (mode === "choice") {
+    return "Согласовать следующий шаг.";
   }
 
-  if (/найм|hire|hiring|qa/i.test(prompt)) {
-    return "Подтвердить найм на следующий период.";
+  if (mode === "structure") {
+    return "Снять вопросы по сути.";
   }
 
-  if (/priority|приоритет/i.test(prompt)) {
-    return "Зафиксировать один верхний приоритет на следующий период.";
-  }
-
-  if (/approve|утверд|решени/i.test(prompt) || focus === "decision") {
-    return "Подтвердить решение на следующий шаг.";
-  }
-
-  return "Согласовать следующий шаг команды.";
+  return "Зафиксировать текущее состояние.";
 }
 
-function buildMissingFacts(prompt: string) {
-  const items = [
-    /точност|accuracy/i.test(prompt)
-      ? "Точность: [подтвердить измерение]"
-      : "Точность: [нужна цифра]",
-    /latency|время|speed/i.test(prompt)
-      ? "Скорость: [подтвердить замер]"
-      : "Срок эффекта: [подтвердить]",
-    /выборк|coverage|сценар/i.test(prompt)
-      ? "Покрытие: [уточнить выборку]"
-      : "Покрытие: [уточнить]",
-  ];
-
-  return items;
-}
-
-function extractShortFacts(prompt: string) {
-  const fragments = prompt
-    .split(/[.!?;]+/)
-    .map((item) => normalizeSentence(item))
-    .filter((item) => item.length > 18)
-    .slice(0, 3);
-
-  if (fragments.length) {
-    return fragments;
-  }
-
-  return [
-    "Есть движение по главному сценарию периода",
-    "Риск уже локализован и назван отдельно",
-    "Следующий шаг можно обсуждать без длинного вступления",
-  ];
-}
-
-function extractTopicLabel(prompt: string) {
-  const englishTeamMatch = prompt.match(/([a-z][a-z0-9\s-]{2,30})\s+team/i);
-
-  if (englishTeamMatch?.[1]) {
-    return toTitleCase(englishTeamMatch[1]);
-  }
-
-  const russianTeamMatch = prompt.match(
-    /команд[аы]\s+([а-яёa-z0-9\s-]{2,28})/i
+function buildDraftSummary({
+  keyMessage,
+  audience,
+  desiredOutcome,
+}: {
+  keyMessage: string;
+  audience: string;
+  desiredOutcome: string;
+}) {
+  return clampText(
+    `${keyMessage} Показываем это для ${audience}. После показа нужно: ${desiredOutcome.toLowerCase()}`,
+    180
   );
-
-  if (russianTeamMatch?.[1]) {
-    return normalizeSentence(russianTeamMatch[1]);
-  }
-
-  const keywords = extractKeywords(prompt);
-
-  if (keywords[0]) {
-    return normalizeSentence(keywords.slice(0, 2).join(" "));
-  }
-
-  return "Команда";
 }
 
-function extractAudience(prompt: string) {
-  if (/cto|техническ[а-я]*\s+директор/i.test(prompt)) {
-    return "CTO";
+function mergeKnownFacts(currentFacts: string[], fallbackFacts: string[]) {
+  const facts = new Set<string>(currentFacts);
+
+  for (const fact of fallbackFacts) {
+    facts.add(fact);
   }
 
-  if (/ceo|генеральн[а-я]*\s+директор/i.test(prompt)) {
-    return "CEO";
-  }
-
-  if (/руководител|director|head of/i.test(prompt)) {
-    return "Руководитель направления";
-  }
-
-  return "Руководитель команды";
-}
-
-function extractPeriod(prompt: string) {
-  const match =
-    prompt.match(/\bQ[1-4]\s*20\d{2}\b/i) ??
-    prompt.match(/\b[1-4]\s*квартал(?:а)?\s*20\d{2}\b/i) ??
-    prompt.match(/\bQ[1-4]\b/i);
-
-  return match?.[0] ?? "текущий период";
-}
-
-function extractKeywords(source: string) {
-  return source
-    .toLowerCase()
-    .replace(/[^a-zа-яё0-9\s-]/gi, " ")
-    .split(/\s+/)
-    .filter((word) => word.length > 3 && !STOP_WORDS.has(word))
-    .slice(0, 6);
-}
-
-function normalizePrompt(rawPrompt: string) {
-  return rawPrompt.replace(/\s+/g, " ").trim();
-}
-
-function normalizeSentence(value: string) {
-  const normalized = value.replace(/\s+/g, " ").trim();
-
-  if (!normalized) {
-    return "";
-  }
-
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
-
-function clampText(value: string, maxLength: number) {
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  return `${value.slice(0, maxLength - 1).trimEnd()}…`;
-}
-
-function toTitleCase(value: string) {
-  return value
-    .split(/[\s-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
+  return Array.from(facts).slice(0, 4);
 }
