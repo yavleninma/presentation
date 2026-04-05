@@ -145,7 +145,7 @@ export function PresentationPrototype() {
     buildTimerRefs.current = [
       window.setTimeout(() => {
         setBuildStatus(BUILD_STATUSES[1]);
-      }, 220),
+      }, 800),
       window.setTimeout(() => {
         const nextWorkingDraft = buildWorkingDraft(prompt, session);
         const nextDraft = buildPresentationDraft(nextWorkingDraft);
@@ -160,7 +160,7 @@ export function PresentationPrototype() {
         startTransition(() => {
           setScreen("editor");
         });
-      }, 440),
+      }, 1800),
     ];
   }
 
@@ -191,6 +191,14 @@ export function PresentationPrototype() {
     );
   }
 
+  function handleBackToStart() {
+    resetEntryFlow("");
+    setDraft(null);
+    setSelectedSlideId(null);
+    setDrawerState("closed");
+    setScreen("start");
+  }
+
   function regenerateActiveSlide(transformId: HiddenTransformId) {
     if (!draft || !selectedSlideId) {
       return;
@@ -209,7 +217,13 @@ export function PresentationPrototype() {
       {screen === "start" ? (
         <>
           <div className="start-logo">
-            <span className="start-logo__mark" aria-hidden="true">В</span>
+            <span className="start-logo__mark" aria-hidden="true">
+              <svg width="16" height="13" viewBox="0 0 16 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="16" height="2.4" rx="1.2" fill="white"/>
+                <rect y="5.3" width="10.5" height="2.4" rx="1.2" fill="white" fillOpacity="0.65"/>
+                <rect y="10.6" width="6.5" height="2.4" rx="1.2" fill="white" fillOpacity="0.38"/>
+              </svg>
+            </span>
             <span className="start-logo__name">Внятно</span>
           </div>
 
@@ -251,6 +265,7 @@ export function PresentationPrototype() {
           onSelectColor={updateDraftColor}
           onRegenerateSlide={regenerateActiveSlide}
           onRenameDocument={updateDocumentTitle}
+          onBackToStart={handleBackToStart}
           debugLayerEnabled={debugLayerEnabled}
         />
       ) : null}

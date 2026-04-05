@@ -90,39 +90,34 @@ export function MiniClarificationChat({
         ) : null}
       </div>
 
-      <div className="chat-card-sep-bottom" />
-
       {showReplyComposer ? (
-        <form
-          className="chat-compose-area"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSubmitReply();
-          }}
-        >
-          <textarea
-            ref={replyRef}
-            value={reply}
-            onChange={(event) => onChangeReply(event.target.value)}
-            rows={1}
-            className="chat-compose-input"
-            placeholder="Добавить детали..."
-          />
-          <button
-            type="submit"
-            className="chat-compose-send"
-            aria-label="Отправить"
+        <>
+          <div className="chat-card-sep-bottom" />
+          <form
+            className="chat-compose-area"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmitReply();
+            }}
           >
-            ↑
-          </button>
-        </form>
-      ) : (
-        <div className="chat-compose-area">
-          <div className="chat-compose-input chat-compose-input--disabled">
-            Добавить детали...
-          </div>
-        </div>
-      )}
+            <textarea
+              ref={replyRef}
+              value={reply}
+              onChange={(event) => onChangeReply(event.target.value)}
+              rows={1}
+              className="chat-compose-input"
+              placeholder="Добавить детали..."
+            />
+            <button
+              type="submit"
+              className="chat-compose-send"
+              aria-label="Отправить"
+            >
+              ↑
+            </button>
+          </form>
+        </>
+      ) : null}
     </div>
   );
 }

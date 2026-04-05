@@ -198,12 +198,9 @@ select:disabled {
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: 0.75rem;
-  background: linear-gradient(180deg, #6687ff 0%, #3b61f0 100%);
-  color: #fff;
-  font-size: 1.25rem;
-  font-weight: 700;
-  box-shadow: 0 10px 24px rgba(69, 104, 246, 0.22);
+  border-radius: 0.875rem;
+  background: #0f0f11;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 4px 16px rgba(0,0,0,0.22);
 }
 
 .start-logo__name {
@@ -642,6 +639,25 @@ select:disabled {
   padding: 0.85rem 1rem;
 }
 
+.editor-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.82rem;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.editor-back-button:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
 .editor-brand .brand-mark {
   width: 2.2rem;
   height: 2.2rem;
@@ -681,12 +697,12 @@ select:disabled {
   flex-wrap: wrap;
 }
 
-.quiet-select {
+.segmented-group {
   display: grid;
   gap: 0.35rem;
 }
 
-.quiet-select span,
+.segmented-label,
 .slide-canvas__subtitle,
 .slide-thumbnail__topline {
   font-size: 0.74rem;
@@ -695,15 +711,63 @@ select:disabled {
   color: var(--text-tertiary);
 }
 
-.quiet-select select {
-  min-width: 9rem;
-  min-height: 2.8rem;
-  padding: 0 0.95rem;
-  border: 1px solid var(--border-soft);
+.segmented-control {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
   border-radius: 999px;
+  background: #f3f6fa;
+  border: 1px solid var(--border-soft);
+}
+
+.segmented-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.segmented-option.is-active {
   background: var(--bg-card);
+  border-color: var(--border-soft);
   color: var(--text-primary);
-  outline: none;
+  box-shadow: 0 2px 8px rgba(20, 36, 56, 0.06);
+}
+
+.segmented-option:hover:not(.is-active) {
+  color: var(--text-primary);
+}
+
+.segmented-color-dot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: #607390;
+}
+
+.segmented-option[data-color="slate"] .segmented-color-dot {
+  background: #607390;
+}
+
+.segmented-option[data-color="indigo"] .segmented-color-dot {
+  background: #4568f6;
+}
+
+.segmented-option[data-color="teal"] .segmented-color-dot {
+  background: #2f9191;
+}
+
+.segmented-option[data-color="sand"] .segmented-color-dot {
+  background: #bf9149;
 }
 
 .editor-body {
@@ -1125,16 +1189,20 @@ select:disabled {
 }
 
 .drawer-trigger {
-  align-self: stretch;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  min-width: 2.9rem;
-  padding: 1rem 0.7rem;
+  align-self: center;
+  min-width: 2.75rem;
+  min-height: 8rem;
+  padding: 0.75rem 0.5rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
   background: var(--bg-card);
   color: var(--text-secondary);
   box-shadow: var(--shadow-card);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
 }
 
 .editor-drawer {
@@ -1209,9 +1277,10 @@ select:disabled {
 
   .drawer-trigger {
     writing-mode: horizontal-tb;
-    transform: none;
+    text-orientation: initial;
     min-width: 0;
     min-height: 2.9rem;
+    align-self: auto;
   }
 
   .editor-drawer {
@@ -1268,29 +1337,51 @@ select:disabled {
   }
 
   .editor-shell {
-    padding: 1rem;
+    padding: 0.75rem;
+  }
+
+  .editor-topbar {
+    gap: 0.75rem;
   }
 
   .editor-topbar-controls {
-    justify-content: stretch;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
-  .quiet-select {
-    width: 100%;
+  .segmented-control {
+    flex-wrap: wrap;
   }
 
-  .quiet-select select {
-    width: 100%;
+  .segmented-option {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.75rem;
+  }
+
+  .editor-rail {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .slide-thumbnail {
+    min-width: 7rem;
+    max-width: 9rem;
+  }
+
+  .drawer-trigger {
+    display: none;
   }
 
   .canvas-wrap {
-    padding: 1rem;
+    padding: 0.75rem;
     min-height: auto;
   }
 
   .slide-canvas {
     aspect-ratio: auto;
-    min-height: 34rem;
+    min-height: 28rem;
     padding: 1.15rem;
   }
 }

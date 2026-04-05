@@ -22,18 +22,14 @@ export function StartScreen({
   onSubmit: () => void;
   children?: ReactNode;
 }) {
-  const showEntryActions = !children;
-
   return (
     <section className="entry-stage">
-      {showEntryActions ? (
-        <h2 className="entry-title">О чём презентация?</h2>
-      ) : null}
-
       {children ? (
         children
       ) : (
         <>
+          <h2 className="entry-title">О чём презентация?</h2>
+
           <form
             className="composer-form"
             onSubmit={(event) => {
@@ -47,7 +43,7 @@ export function StartScreen({
                 value={prompt}
                 onChange={(event) => onChangePrompt(event.target.value)}
                 rows={3}
-                placeholder="Нужно собрать питч про наш сервис..."
+                placeholder="Квартальный статус, итоги пилота, запрос на ресурс..."
                 disabled={disabled}
               />
               <button
@@ -78,10 +74,6 @@ export function StartScreen({
               </button>
             ))}
           </div>
-
-          <p className="entry-hint">
-            Или загрузи документ — мы извлечём главное
-          </p>
         </>
       )}
     </section>

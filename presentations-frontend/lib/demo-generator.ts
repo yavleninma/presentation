@@ -60,16 +60,16 @@ export const SCENARIO_CHIPS = [
 ] as const;
 
 export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
-  { id: "strict", label: "Строго" },
+  { id: "strict", label: "Строгий" },
   { id: "cards", label: "Карточки" },
-  { id: "briefing", label: "Briefing" },
+  { id: "briefing", label: "Брифинг" },
 ];
 
 export const COLOR_OPTIONS: Array<{ id: ColorThemeId; label: string }> = [
-  { id: "slate", label: "Slate" },
-  { id: "indigo", label: "Indigo" },
-  { id: "teal", label: "Teal" },
-  { id: "sand", label: "Sand" },
+  { id: "slate", label: "Графит" },
+  { id: "indigo", label: "Индиго" },
+  { id: "teal", label: "Шалфей" },
+  { id: "sand", label: "Песок" },
 ];
 
 type WorkingDraftSeed = Omit<WorkingDraft, "slidePlan" | "visibleSlideTitles">;
@@ -948,9 +948,15 @@ function isUsefulContentLine(value?: string | null) {
     return false;
   }
 
-  return !/^(нужно|нужен|нужна|нужны|собери|собрать|подготовь|подготовить|покажи|показать|показываем|это\s+mvp|это\s+сервис|для\s+реального\s+разговора)\b/i.test(
-    cleaned
-  );
+  if (/^(нужно|нужен|нужна|нужны|собери|собрать|подготовь|подготовить|покажи|показать|показываем|это\s+mvp|это\s+сервис|для\s+реального\s+разговора)\b/i.test(cleaned)) {
+    return false;
+  }
+
+  if (/^(где\s+риск|какой\s+следующий|что\s+уже\s+сдвинули|что\s+реально\s+сдвинули|какое\s+решение\s+нужно|зачем\s+нужен\s+ресурс|что\s+пока\s+не\s+доказано)\b/i.test(cleaned)) {
+    return false;
+  }
+
+  return true;
 }
 
 function uniqueLines(lines: string[]) {
@@ -1219,12 +1225,18 @@ function firstUsefulSignal(...values: Array<string | null | undefined>) {
 
     const cleaned = cleanBody(value);
 
-    if (isUsefulContentLine(cleaned)) {
+    if (isUsefulContentLine(cleaned) && !isDirectiveFragment(cleaned)) {
       return cleaned;
     }
   }
 
   return null;
+}
+
+function isDirectiveFragment(value: string) {
+  return /^(что\s+уже|где\s+риск|какой\s+следующий|какое\s+решение|зачем\s+нужен|что\s+пока|что\s+реально|важно\s+показать|что\s+нужно\s+сверху)/i.test(
+    cleanBody(value)
+  );
 }
 
 function buildStatusActionLabel(
@@ -1363,6 +1375,11 @@ function laterNonRiskFact(
 }
 
 function topicInPhrase(topic: string) {
+  const firstWord = topic.split(/\s+/)[0] ?? "";
+  if (/^[A-ZА-ЯЁ]{2,}$/.test(firstWord)) {
+    return topic;
+  }
+
   if (/[A-Z]/.test(topic) && /[a-z]/.test(topic)) {
     return topic;
   }

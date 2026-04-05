@@ -26,6 +26,7 @@ export function EditorScreen({
   onSelectColor,
   onRegenerateSlide,
   onRenameDocument,
+  onBackToStart,
   debugLayerEnabled = false,
 }: {
   draft: PresentationDraft;
@@ -38,6 +39,7 @@ export function EditorScreen({
   onSelectColor: (value: ColorThemeId) => void;
   onRegenerateSlide: (transformId: HiddenTransformId) => void;
   onRenameDocument: (value: string) => void;
+  onBackToStart: () => void;
   debugLayerEnabled?: boolean;
 }) {
   const activeSlide =
@@ -61,6 +63,15 @@ export function EditorScreen({
       >
         <div className="editor-topbar">
           <div className="brand-block editor-brand">
+            <button
+              type="button"
+              className="editor-back-button"
+              onClick={onBackToStart}
+              aria-label="Новый запрос"
+              title="Новый запрос"
+            >
+              ←
+            </button>
             <span className="brand-mark" aria-hidden="true">
               В
             </span>
@@ -77,37 +88,39 @@ export function EditorScreen({
           </label>
 
           <div className="editor-topbar-controls">
-            <label className="quiet-select">
-              <span>Шаблон</span>
-              <select
-                value={draft.workingDraft.templateId}
-                onChange={(event) =>
-                  onSelectTemplate(event.target.value as TemplateId)
-                }
-              >
+            <div className="segmented-group">
+              <span className="segmented-label">Шаблон</span>
+              <div className="segmented-control">
                 {TEMPLATE_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={`segmented-option${draft.workingDraft.templateId === option.id ? " is-active" : ""}`}
+                    onClick={() => onSelectTemplate(option.id)}
+                  >
                     {option.label}
-                  </option>
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
 
-            <label className="quiet-select">
-              <span>Цвет</span>
-              <select
-                value={draft.workingDraft.colorThemeId}
-                onChange={(event) =>
-                  onSelectColor(event.target.value as ColorThemeId)
-                }
-              >
+            <div className="segmented-group">
+              <span className="segmented-label">Цвет</span>
+              <div className="segmented-control">
                 {COLOR_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={`segmented-option${draft.workingDraft.colorThemeId === option.id ? " is-active" : ""}`}
+                    data-color={option.id}
+                    onClick={() => onSelectColor(option.id)}
+                  >
+                    <span className="segmented-color-dot" />
                     {option.label}
-                  </option>
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
           </div>
         </div>
 
