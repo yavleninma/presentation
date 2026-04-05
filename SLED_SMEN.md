@@ -193,3 +193,18 @@ _Дополнение 2026-04-05:_ локальный слой дочищен д
 
 **Проблемы**
 - `mcp__playwright__browser_navigate` в этой среде блокируется на `EPERM: operation not permitted, mkdir 'C:\\Windows\\System32\\.playwright-mcp'` -> функциональную проверку закрыли через `npm run verify`, `next start` и HTML-ответ живого маршрута вместо полного auto-click сценария.
+
+### 011 Гига-перестройка
+
+**Что уложено** Mini-chat, парсинг prompt и генерация draft пересобраны вокруг достаточности и реального содержания: `presentations-frontend/lib/prompt-analysis.ts`, `presentations-frontend/lib/clarification-flow.ts` и `presentations-frontend/lib/demo-generator.ts` теперь вытаскивают тему, адресата, цель, факты и риск без директивного мусора, строят шесть content-led заголовков, три живых drawer actions и один общий путь через normalizer + fit-pass после первичной сборки, `regenerateSlide()` и смены внешнего вида; quiet shell дожат копирайтом в `presentations-frontend/components/presentation-prototype.tsx`, `presentations-frontend/components/prototype/editor-screen.tsx` и `presentations-frontend/components/slide-canvas.tsx`, а локальный smoke и regression-путь синхронизированы через `.ux-audit/ux-audit.spec.cjs` и `README.md`.
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Mini-chat больше не крутит ритуальный summary и спрашивает только недостающее: богатые запросы идут сразу в черновик, а бедные добирают ровно аудиторию или 1-2 факта; rail titles перестали брать в лоб `Собери...` и `Нужно показать...`, а benchmark про Vnyatno уже собирается как разговор о продукте с собственными опорами (`MVP`, `тихий старт`, `сборка черновика`, `редактор`, `локальная пересборка`); drawer перестал звучать как команда машине, build-status стал тише, а единый fit-pass держит clamp заголовков, placeholder’ы и локальную пересборку без разъезда hidden draft и visible UI.
+
+**Что ещё мутно** Полноценный auto-click через Playwright MCP в этой среде снова не состоялся из-за занятого браузерного профиля, поэтому живой локальный проход закрыт комбинацией regression-скрипта, `npm run typecheck`, `npm run build`, `npm run verify`, production-like `next start --port 3100` и HTML-ответом; в `next dev` остались шумные transient module-resolution ошибки от старого локального инстанса, хотя production build и `next start` уже чисто поднимают актуальный shell.
+
+**Передача смены** Следующий полезный слой уже не про draft-логику, а про реальный продовый smoke после push в `main`: перепроверить `https://vnyatno.vercel.app` на новом билде, убедиться, что rail/drawer/build-flow совпали с локальным слоем, и только потом идти в следующий круг polish.
+
+**Проблемы**
+- `mcp__playwright__browser_*` снова упёрся в занятый профиль `ms-playwright` (`Browser is already in use`) -> локальную браузерную проверку пришлось закрыть через regression-скрипты, `next start` и HTML-снятие живого маршрута вместо нормального auto-click.

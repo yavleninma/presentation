@@ -19,6 +19,7 @@ import type {
 } from "@/lib/presentation-types";
 import {
   buildMissingFacts,
+  buildPromptSignals,
   clampText,
   extractAudience,
   extractDesiredOutcome,
@@ -73,6 +74,24 @@ export const COLOR_OPTIONS: Array<{ id: ColorThemeId; label: string }> = [
 
 type WorkingDraftSeed = Omit<WorkingDraft, "slidePlan" | "visibleSlideTitles">;
 
+type DraftSignals = {
+  topic: string;
+  topicLower: string;
+  period: string;
+  audience: string;
+  desiredOutcome: string;
+  keyMessage: string | null;
+  facts: string[];
+  gaps: string[];
+  primaryFact: string | null;
+  secondaryFact: string | null;
+  primaryGap: string | null;
+  riskLine: string | null;
+  hasResourceIntent: boolean;
+  specificPeriod: boolean;
+  presentationIntent: WorkingDraftSeed["presentationIntent"];
+};
+
 export function getTemplateIconPack(templateId: TemplateId) {
   return TEMPLATE_ICON_PACKS[templateId];
 }
@@ -90,22 +109,27 @@ export function buildWorkingDraft(
   );
   const sourcePrompt = normalizePrompt(transcriptPrompt || rawPrompt);
   const presentationIntent = session.insights.presentationIntent;
+  const promptSignals = buildPromptSignals(sourcePrompt, presentationIntent);
   const audience =
     session.insights.audience ??
+    promptSignals.audience ??
     extractAudience(sourcePrompt) ??
     "Руководитель направления";
   const desiredOutcome =
     session.insights.desiredOutcome ??
+    promptSignals.desiredOutcome ??
     extractDesiredOutcome(sourcePrompt, presentationIntent) ??
     buildFallbackOutcome(presentationIntent);
   const knownFacts = uniqueLines([
     ...session.insights.knownFacts,
-    ...extractPromptFacts(sourcePrompt),
+    ...promptSignals.knownFacts,
   ]).slice(0, 3);
   const missingFacts =
     session.insights.missingFacts.length > 0
       ? session.insights.missingFacts.slice(0, 3)
-      : buildMissingFacts(sourcePrompt).slice(0, 3);
+      : promptSignals.missingFacts.length > 0
+        ? promptSignals.missingFacts.slice(0, 3)
+        : buildMissingFacts(sourcePrompt).slice(0, 3);
 
   const seed: WorkingDraftSeed = {
     sourcePrompt,
@@ -121,32 +145,34 @@ export function buildWorkingDraft(
   const slidePlan = tuple6(
     SLOT_MAP.map(({ slotId, fn }) => buildSlidePlanEntry(seed, fn, slotId, null))
   );
-  const visibleSlideTitles = tuple6(
-    makeTitlesUnique(slidePlan.map((entry) => buildVisibleTitle(seed, entry)))
-  );
 
-  return {
+  return normalizeWorkingDraft({
     ...seed,
     slidePlan,
-    visibleSlideTitles,
-  };
+    visibleSlideTitles: tuple6(["", "", "", "", "", ""]),
+  });
 }
 
 export function buildPresentationDraft(
   workingDraft: WorkingDraft,
   options: { documentTitle?: string } = {}
 ): PresentationDraft {
-  const slides = workingDraft.slidePlan.map((entry, index) =>
-    buildPresentationSlide(entry, workingDraft.visibleSlideTitles[index], workingDraft)
+  const normalizedWorkingDraft = normalizeWorkingDraft(workingDraft);
+  const slides = normalizedWorkingDraft.slidePlan.map((entry, index) =>
+    buildPresentationSlide(
+      entry,
+      normalizedWorkingDraft.visibleSlideTitles[index],
+      normalizedWorkingDraft
+    )
   );
   const draft: PresentationDraft = {
-    documentTitle: options.documentTitle ?? buildDocumentTitle(workingDraft),
-    documentSubtitle: `${extractPeriod(workingDraft.sourcePrompt)} · ${workingDraft.audience}`,
-    workingDraft,
+    documentTitle: options.documentTitle ?? buildDocumentTitle(normalizedWorkingDraft),
+    documentSubtitle: `${extractPeriod(normalizedWorkingDraft.sourcePrompt)} · ${normalizedWorkingDraft.audience}`,
+    workingDraft: normalizedWorkingDraft,
     slides,
     debug: {
-      currentWorkingDraft: workingDraft,
-      hiddenSlidePlan: workingDraft.slidePlan,
+      currentWorkingDraft: normalizedWorkingDraft,
+      hiddenSlidePlan: normalizedWorkingDraft.slidePlan,
       chosenTransformIds: {} as PresentationDraft["debug"]["chosenTransformIds"],
       fitPassResultBySlide: {} as PresentationDraft["debug"]["fitPassResultBySlide"],
     },
@@ -210,47 +236,15 @@ export function regenerateSlide(
     currentEntry.slotId,
     transformId
   );
-  const nextSlidePlan = tuple6(
-    replaceAt(draft.workingDraft.slidePlan, slotIndex, nextEntry)
-  );
-  const nextTitles = replaceAt(
-    draft.workingDraft.visibleSlideTitles,
-    slotIndex,
-    buildVisibleTitle(
-      { ...draft.workingDraft, slidePlan: nextSlidePlan } as WorkingDraft,
-      nextEntry
-    )
-  );
-  const nextWorkingDraft: WorkingDraft = {
+  const nextSlidePlan = tuple6(replaceAt(draft.workingDraft.slidePlan, slotIndex, nextEntry));
+  const nextWorkingDraft = normalizeWorkingDraft({
     ...draft.workingDraft,
-    slidePlan: makeTitlesAlignedPlan(nextSlidePlan),
-    visibleSlideTitles: tuple6(makeTitlesUnique(nextTitles)),
-  };
-  const nextVisibleSlide = buildPresentationSlide(
-    nextWorkingDraft.slidePlan[slotIndex],
-    nextWorkingDraft.visibleSlideTitles[slotIndex],
-    nextWorkingDraft
-  );
-  const fitted = fitSlide(nextVisibleSlide, nextWorkingDraft);
+    slidePlan: nextSlidePlan,
+  });
 
-  return {
-    ...draft,
-    workingDraft: nextWorkingDraft,
-    slides: draft.slides.map((slide) => (slide.id === slideId ? fitted.slide : slide)),
-    debug: {
-      ...draft.debug,
-      currentWorkingDraft: nextWorkingDraft,
-      hiddenSlidePlan: nextWorkingDraft.slidePlan,
-      chosenTransformIds: {
-        ...draft.debug.chosenTransformIds,
-        [slideId]: transformId,
-      },
-      fitPassResultBySlide: {
-        ...draft.debug.fitPassResultBySlide,
-        [slideId]: fitted.fit,
-      },
-    },
-  };
+  return buildPresentationDraft(nextWorkingDraft, {
+    documentTitle: draft.documentTitle,
+  });
 }
 
 function buildSlidePlanEntry(
@@ -259,9 +253,10 @@ function buildSlidePlanEntry(
   slotId: SlideSlotId,
   lastTransformId: HiddenTransformId | null
 ): WorkingDraftSlidePlanEntry {
+  const signals = deriveDraftSignals(workingDraft);
   const transformId = lastTransformId ?? intentToTransform(workingDraft.presentationIntent);
-  const coreMessage = buildCoreMessage(workingDraft, slideFunctionId);
-  const blocks = buildBlocks(workingDraft, slideFunctionId, transformId, coreMessage);
+  const coreMessage = buildCoreMessage(signals, slideFunctionId);
+  const blocks = buildBlocks(signals, slideFunctionId, transformId, coreMessage);
 
   return {
     slotId,
@@ -286,6 +281,7 @@ function buildPresentationSlide(
   workingDraft: WorkingDraft
 ): PresentationSlide {
   const slideId = SLOT_MAP[entry.slotId - 1].id;
+  const signals = deriveDraftSignals(workingDraft);
 
   return {
     id: slideId,
@@ -296,10 +292,17 @@ function buildPresentationSlide(
     railTitle: clampText(title, 44),
     railRhythm: entry.blockPlan.map(blockTone).slice(0, 4),
     title,
-    subtitle: buildSubtitle(entry.slideFunctionId, workingDraft),
+    subtitle: buildSubtitle(signals, entry, title),
     blocks: entry.blockPlan,
-    drawerActions: buildActionLabels(entry.slideFunctionId, workingDraft),
+    drawerActions: buildActionLabels(signals, entry, title),
     lastTransformId: entry.lastTransformId,
+  };
+}
+
+function normalizeWorkingDraft(workingDraft: WorkingDraft): WorkingDraft {
+  return {
+    ...workingDraft,
+    visibleSlideTitles: buildVisibleTitles(workingDraft, workingDraft.slidePlan),
   };
 }
 
@@ -307,6 +310,7 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
   let titleShortened = false;
   let textCompressed = false;
   let blockTrimmed = false;
+  let actionShortened = false;
   const notes: string[] = [];
 
   const title = clampText(slide.title, 78);
@@ -315,7 +319,7 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
     notes.push("fit-pass сократил заголовок");
   }
 
-  const subtitle = clampText(slide.subtitle, 84);
+  const subtitle = slide.subtitle ? clampText(slide.subtitle, 84) : "";
   if (subtitle !== slide.subtitle) {
     textCompressed = true;
     notes.push("fit-pass сократил подзаголовок");
@@ -325,7 +329,7 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
     const next = {
       ...block,
       title: clampText(block.title, 34),
-      body: clampText(block.body, block.placeholder ? 92 : 150),
+      body: clampText(block.body, block.placeholder ? 96 : 156),
     };
 
     if (next.title !== block.title || next.body !== block.body) {
@@ -338,6 +342,23 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
   if (blocks.length !== slide.blocks.length) {
     blockTrimmed = true;
     notes.push("fit-pass убрал лишний блок");
+  }
+
+  const drawerActions = slide.drawerActions.map((action) => {
+    const label = clampText(action.label, 32);
+
+    if (label !== action.label) {
+      actionShortened = true;
+    }
+
+    return {
+      ...action,
+      label,
+    };
+  });
+
+  if (actionShortened) {
+    notes.push("fit-pass сократил действие");
   }
 
   const totalChars =
@@ -353,10 +374,7 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
       railTitle: clampText(title, 44),
       railRhythm: blocks.map(blockTone).slice(0, 4),
       blocks,
-      drawerActions: slide.drawerActions.map((action) => ({
-        ...action,
-        label: clampText(action.label, 32),
-      })),
+      drawerActions,
     },
     fit: {
       slideId: slide.id,
@@ -366,277 +384,386 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
       textCompressed,
       blockTrimmed,
       secondaryMoved: false,
-      placeholderVisible:
-        blocks.every((block) => !block.placeholder) || blocks.some((block) => block.placeholder),
+      placeholderVisible: blocks.some((block) => block.placeholder)
+        ? blocks.some((block) => block.placeholder && block.body.trim().length > 0)
+        : true,
       iconConsistent: blocks.every((block) => Boolean(block.icon)),
       contrastSafe: ["slate", "indigo", "teal", "sand"].includes(workingDraft.colorThemeId),
       rhythmSafe: blocks.length <= 3,
-      repaired: titleShortened || textCompressed || blockTrimmed,
+      repaired: titleShortened || textCompressed || blockTrimmed || actionShortened,
       notes,
     } satisfies FitPassResult,
   };
 }
 
-function buildVisibleTitle(
+function buildVisibleTitles(
   workingDraft: WorkingDraftSeed | WorkingDraft,
-  entry: WorkingDraftSlidePlanEntry
-) {
-  const topic = extractTopicLabel(workingDraft.sourcePrompt);
+  slidePlan: readonly WorkingDraftSlidePlanEntry[]
+): SixSlotTuple<string> {
+  const seen = new Set<string>();
+  const signals = deriveDraftSignals(workingDraft);
 
-  if (entry.slideFunctionId === "open_topic") {
-    if (hasResourceIntent(workingDraft)) {
-      return clampText(`Почему нужен ресурс по ${lowerLead(topic)}`, 68);
-    }
+  return tuple6(
+    slidePlan.map((entry) => {
+      const candidates = buildVisibleTitleCandidates(signals, entry);
+      const chosen =
+        candidates.find((candidate) => {
+          const key = normalizeTitleKey(candidate);
+          return key.length > 0 && !seen.has(key);
+        }) ?? buildFallbackTitle(signals, entry.slideFunctionId);
 
-    if (/квартальн[а-яёa-z-]*\s+статус/i.test(workingDraft.sourcePrompt)) {
-      return clampText(`Что важно в статусе по ${lowerLead(topic)}`, 68);
-    }
-
-    return clampText(`Почему говорим о ${lowerLead(topic)}`, 68);
-  }
-
-  if (entry.slideFunctionId === "main_point") {
-    const keyMessage = extractKeyMessage(workingDraft.sourcePrompt) ?? entry.coreMessage;
-    return isUsefulTitle(keyMessage)
-      ? clampText(cleanLine(keyMessage), 68)
-      : clampText(`Что уже видно по ${lowerLead(topic)}`, 68);
-  }
-
-  if (entry.slideFunctionId === "movement") {
-    return /квартальн[а-яёa-z-]*\s+статус/i.test(workingDraft.sourcePrompt)
-      ? "Что реально сдвинулось за период"
-      : clampText(`Что уже сдвинулось по ${lowerLead(topic)}`, 68);
-  }
-
-  if (entry.slideFunctionId === "evidence") {
-    return hasResourceIntent(workingDraft)
-      ? "Чем подтверждаем запрос"
-      : clampText(`На чём держится вывод по ${lowerLead(topic)}`, 68);
-  }
-
-  if (entry.slideFunctionId === "tension") {
-    const riskLine = findRiskLine(workingDraft.sourcePrompt);
-    return riskLine && isUsefulTitle(riskLine)
-      ? clampText(cleanLine(riskLine), 68)
-      : hasResourceIntent(workingDraft)
-        ? "Что держит запрос на паузе"
-        : "Что мешает пройти дальше";
-  }
-
-  return hasResourceIntent(workingDraft)
-    ? "Какой запрос нужен сейчас"
-    : clampText(cleanLine(workingDraft.desiredOutcome), 68);
-}
-
-function buildCoreMessage(
-  workingDraft: WorkingDraftSeed | WorkingDraft,
-  slideFunctionId: SlideFunctionId
-) {
-  const topic = extractTopicLabel(workingDraft.sourcePrompt);
-  const firstFact = workingDraft.knownFacts[0];
-
-  if (slideFunctionId === "open_topic") {
-    return hasResourceIntent(workingDraft)
-      ? `Следующий шаг по теме «${topic}» упирается в ресурс.`
-      : `Нужно коротко открыть разговор по теме «${topic}».`;
-  }
-
-  if (slideFunctionId === "main_point") {
-    return firstFact
-      ? cleanLine(firstFact)
-      : `По теме «${topic}» уже есть рабочий вывод.`;
-  }
-
-  if (slideFunctionId === "movement") {
-    return firstFact
-      ? `По теме «${topic}» уже видно движение.`
-      : `Нужно показать, что по теме «${topic}» уже сдвинулось.`;
-  }
-
-  if (slideFunctionId === "evidence") {
-    return firstFact
-      ? `Главный вывод по теме «${topic}» держится на названных фактах.`
-      : `Для разговора по теме «${topic}» не хватает одной опоры.`;
-  }
-
-  if (slideFunctionId === "tension") {
-    return findRiskLine(workingDraft.sourcePrompt)
-      ? cleanLine(findRiskLine(workingDraft.sourcePrompt)!)
-      : cleanLine(workingDraft.desiredOutcome);
-  }
-
-  return cleanLine(workingDraft.desiredOutcome);
-}
-
-function buildBlocks(
-  workingDraft: WorkingDraftSeed | WorkingDraft,
-  slideFunctionId: SlideFunctionId,
-  transformId: HiddenTransformId,
-  coreMessage: string
-) {
-  const facts = linesOrPlaceholder(
-    workingDraft.knownFacts,
-    "Уточнить 1-2 факта, которые уже можно назвать."
-  );
-  const gaps = linesOrPlaceholder(
-    workingDraft.missingFacts,
-    "Пробелы по фактуре пока не зафиксированы."
-  );
-  const tension = cleanLine(findRiskLine(workingDraft.sourcePrompt) ?? workingDraft.desiredOutcome);
-  const nextReason = hasResourceIntent(workingDraft)
-    ? "Без этого запрос останется без движения."
-    : "Без этого следующий шаг снова уйдёт в уточнения.";
-
-  if (slideFunctionId === "open_topic") {
-    return transformId === "decision_next"
-      ? [
-          block("open-1", "focus", "flag", "Почему разговор сейчас", coreMessage),
-          block("open-2", "decision", "arrow", "Что нужно после показа", workingDraft.desiredOutcome),
-        ]
-      : [
-          block("open-1", transformId === "breakdown_explain" ? "focus" : "movement", transformId === "breakdown_explain" ? "spark" : "trend", transformId === "breakdown_explain" ? "Что происходит" : "Что уже видно", coreMessage),
-          block("open-2", "decision", "arrow", transformId === "breakdown_explain" ? "Что важно понять" : "Куда это ведёт", workingDraft.desiredOutcome),
-        ];
-  }
-
-  if (slideFunctionId === "main_point") {
-    return [
-      block("main-1", "focus", "spark", "Главный вывод", coreMessage),
-      block("main-2", transformId === "status_shift" ? "movement" : "proof", transformId === "status_shift" ? "trend" : "file", transformId === "status_shift" ? "Что изменилось" : "Короткая опора", facts.body, facts.placeholder),
-      block("main-3", transformId === "decision_next" ? "decision" : "constraint", transformId === "decision_next" ? "arrow" : "shield", transformId === "decision_next" ? "Какой шаг отсюда следует" : "Где остаётся напряжение", transformId === "decision_next" ? workingDraft.desiredOutcome : tension),
-    ];
-  }
-
-  if (slideFunctionId === "movement") {
-    return [
-      block("move-1", "movement", "trend", "Что уже сдвинулось", facts.body, facts.placeholder),
-      block("move-2", "constraint", "gap", transformId === "decision_next" ? "Что держит следующий шаг" : "Что ещё не закрыто", transformId === "decision_next" ? tension : gaps.body, transformId === "decision_next" ? false : gaps.placeholder),
-      block("move-3", transformId === "decision_next" ? "decision" : "focus", transformId === "decision_next" ? "flag" : "spark", transformId === "decision_next" ? "Какой шаг нужен дальше" : "Что это меняет сейчас", transformId === "decision_next" ? workingDraft.desiredOutcome : nextReason),
-    ];
-  }
-
-  if (slideFunctionId === "evidence") {
-    return [
-      block("evidence-1", "proof", "file", "На чём держится вывод", facts.body, facts.placeholder),
-      block("evidence-2", transformId === "decision_next" ? "decision" : "focus", transformId === "decision_next" ? "flag" : "spark", transformId === "decision_next" ? "Что это позволяет просить" : "Почему этого уже хватает", transformId === "decision_next" ? workingDraft.desiredOutcome : "Этого уже хватает для первого разговора без догадок."),
-      block("evidence-3", "constraint", "gap", "Что ещё стоит подтвердить", gaps.body, gaps.placeholder),
-    ];
-  }
-
-  if (slideFunctionId === "tension") {
-    return [
-      block("tension-1", "constraint", "shield", transformId === "status_shift" ? "Что держит ситуацию" : "Что мешает пройти дальше", tension),
-      block("tension-2", "constraint", "gap", transformId === "status_shift" ? "Где не хватает опоры" : "Чего не хватает", gaps.body, gaps.placeholder),
-      block("tension-3", transformId === "breakdown_explain" ? "proof" : "decision", transformId === "breakdown_explain" ? "clock" : "flag", transformId === "breakdown_explain" ? "Почему это держит разговор" : "Какой шаг это требует", transformId === "breakdown_explain" ? nextReason : workingDraft.desiredOutcome),
-    ];
-  }
-
-  return transformId === "status_shift"
-    ? [
-        block("next-1", "decision", "arrow", "Следующий шаг", workingDraft.desiredOutcome),
-        block("next-2", "constraint", "gap", "Что ещё нужно добрать", gaps.body, gaps.placeholder),
-      ]
-    : [
-        block("next-1", "decision", "flag", "Какой шаг нужен сейчас", workingDraft.desiredOutcome),
-        block("next-2", "constraint", "gap", "Что должно быть на руках", gaps.body, gaps.placeholder),
-        block("next-3", "proof", "file", transformId === "decision_next" ? "Что этим закрываем" : "Почему это следующий ход", nextReason),
-      ];
-}
-
-function buildActionLabels(
-  slideFunctionId: SlideFunctionId,
-  workingDraft: WorkingDraftSeed | WorkingDraft
-): SlideActionLabel[] {
-  const requestLabel = /ресурс|найм/i.test(workingDraft.desiredOutcome)
-    ? "Сформулировать запрос на ресурс"
-    : /бюджет/i.test(workingDraft.desiredOutcome)
-      ? "Сформулировать запрос на бюджет"
-      : "Сформулировать запрос точнее";
-  const labels: Record<SlideFunctionId, Record<HiddenTransformId, string>> = {
-    open_topic: {
-      status_shift: "Собрать заход короче",
-      breakdown_explain: "Уточнить контекст",
-      decision_next: "Показать, зачем сейчас",
-    },
-    main_point: {
-      status_shift: "Сделать вывод жёстче",
-      breakdown_explain: "Разложить по сути",
-      decision_next: "Подвести к решению",
-    },
-    movement: {
-      status_shift: "Показать, что сдвинулось",
-      breakdown_explain: "Разобрать движение",
-      decision_next: "Связать со следующим шагом",
-    },
-    evidence: {
-      status_shift: "Собрать в 3 опоры",
-      breakdown_explain: "Пояснить, на чём вывод",
-      decision_next: "Показать, что этого достаточно",
-    },
-    tension: {
-      status_shift: "Показать, что мешает",
-      breakdown_explain: "Разобрать ограничение",
-      decision_next: requestLabel,
-    },
-    next_step: {
-      status_shift: "Свести к одному ходу",
-      breakdown_explain: "Показать, что ещё добрать",
-      decision_next: "Подвести к выбору",
-    },
-  };
-
-  return (["status_shift", "breakdown_explain", "decision_next"] as const).map(
-    (transformId) => ({
-      id: `${slideFunctionId}-${transformId}`,
-      label: labels[slideFunctionId][transformId],
-      transformId,
+      seen.add(normalizeTitleKey(chosen));
+      return chosen;
     })
   );
 }
 
-function buildSubtitle(
-  slideFunctionId: SlideFunctionId,
-  workingDraft: WorkingDraftSeed | WorkingDraft
+function buildVisibleTitleCandidates(
+  signals: DraftSignals,
+  entry: WorkingDraftSlidePlanEntry
 ) {
+  const candidates: string[] = [];
+  const actionObject = detectActionObject(
+    signals.desiredOutcome,
+    signals.riskLine,
+    signals.primaryGap,
+    signals.primaryFact
+  );
+  const progressFact = firstNonRiskFact(signals.secondaryFact, signals.primaryFact);
+  const supportFact = firstNonRiskFact(signals.primaryFact, signals.secondaryFact);
+
+  if (entry.slideFunctionId === "open_topic") {
+    if (signals.keyMessage && /mvp|инструмент/i.test(signals.keyMessage)) {
+      pushTitleCandidate(candidates, `Где ${signals.topicLower} уже похож на продукт`);
+      pushTitleCandidate(candidates, `Что уже собрано в ${signals.topic}`);
+    }
+
+    if (signals.hasResourceIntent) {
+      pushTitleCandidate(candidates, `Почему ${signals.topicLower} упёрся в ресурс`);
+    }
+
+    pushTitleCandidate(candidates, titleFromSignal(signals.riskLine));
+
+    if (signals.specificPeriod) {
+      pushTitleCandidate(candidates, `Что важно по ${signals.topicLower} за ${signals.period}`);
+    }
+
+    pushTitleCandidate(candidates, `Что важно по ${signals.topicLower} сейчас`);
+    pushTitleCandidate(candidates, `Какой разговор нужен по ${signals.topicLower}`);
+  }
+
+  if (entry.slideFunctionId === "main_point") {
+    pushTitleCandidate(candidates, titleFromSignal(signals.keyMessage));
+    pushTitleCandidate(candidates, titleFromSignal(signals.primaryFact));
+    pushTitleCandidate(candidates, `Главное по ${signals.topicLower}`);
+    pushTitleCandidate(candidates, `Что уже видно по ${signals.topicLower}`);
+  }
+
+  if (entry.slideFunctionId === "movement") {
+    if (progressFact && progressFact !== signals.primaryFact) {
+      pushTitleCandidate(candidates, titleFromSignal(progressFact));
+    }
+
+    if (signals.specificPeriod) {
+      pushTitleCandidate(candidates, `Что сдвинули по ${signals.topicLower} за ${signals.period}`);
+    }
+
+    pushTitleCandidate(candidates, `Что уже сдвинулось по ${signals.topicLower}`);
+    pushTitleCandidate(candidates, `Как сдвинулся ${signals.topic}`);
+  }
+
+  if (entry.slideFunctionId === "evidence") {
+    const extraSupportFact = laterNonRiskFact(signals.primaryFact, signals.secondaryFact, signals.facts[2]);
+
+    if (extraSupportFact) {
+      pushTitleCandidate(candidates, titleFromSignal(extraSupportFact));
+    } else if (supportFact && supportFact !== signals.primaryFact) {
+      pushTitleCandidate(candidates, titleFromSignal(supportFact));
+    }
+
+    pushTitleCandidate(candidates, titleFromSignal(signals.primaryFact));
+    pushTitleCandidate(candidates, `Что уже подтверждено по ${signals.topicLower}`);
+    pushTitleCandidate(candidates, `Какая опора уже есть`);
+  }
+
+  if (entry.slideFunctionId === "tension") {
+    pushTitleCandidate(candidates, titleFromSignal(signals.riskLine));
+    pushTitleCandidate(candidates, titleFromSignal(signals.primaryGap));
+
+    if (signals.riskLine && /не подтвержден/i.test(signals.riskLine)) {
+      pushTitleCandidate(candidates, `Что ещё не подтверждено по ${signals.topicLower}`);
+    }
+
+    if (signals.hasResourceIntent) {
+      pushTitleCandidate(candidates, `Что тормозит ${signals.topicLower}`);
+    }
+
+    if (signals.keyMessage && /mvp|инструмент/i.test(signals.keyMessage)) {
+      pushTitleCandidate(candidates, `Что ещё держит ${signals.topic}`);
+    }
+
+    pushTitleCandidate(candidates, `Где ${signals.topicLower} буксует`);
+  }
+
+  if (entry.slideFunctionId === "next_step") {
+    pushTitleCandidate(candidates, titleFromSignal(signals.desiredOutcome));
+
+    if (actionObject && ["ресурс", "бюджет", "найм"].includes(actionObject)) {
+      pushTitleCandidate(candidates, `Какой ${actionObject} нужен сейчас`);
+    }
+
+    pushTitleCandidate(candidates, `Какой шаг нужен по ${signals.topicLower}`);
+    pushTitleCandidate(candidates, `Что нужно решить по ${signals.topicLower}`);
+  }
+
+  return dedupeTitles(candidates);
+}
+
+function buildCoreMessage(signals: DraftSignals, slideFunctionId: SlideFunctionId) {
   if (slideFunctionId === "open_topic") {
-    return `${extractPeriod(workingDraft.sourcePrompt)} · ${workingDraft.audience}`;
+    if (signals.riskLine) {
+      return signals.riskLine;
+    }
+
+    if (signals.keyMessage) {
+      return signals.keyMessage;
+    }
+
+    return `По ${signals.topic} пора договориться о следующем шаге.`;
   }
 
   if (slideFunctionId === "main_point") {
-    return "Главный смысл без лишнего захода.";
+    return signals.keyMessage ?? signals.primaryFact ?? `По ${signals.topic} уже есть рабочий вывод.`;
   }
 
   if (slideFunctionId === "movement") {
-    return "То, что уже можно показывать без догадок.";
+    return signals.secondaryFact ?? signals.primaryFact ?? `По ${signals.topic} уже есть сдвиг.`;
   }
 
   if (slideFunctionId === "evidence") {
-    return "Опоры и честные пробелы по фактуре.";
+    return signals.primaryFact ?? `По ${signals.topic} уже есть одна опора.`;
   }
 
   if (slideFunctionId === "tension") {
-    return "Ограничение, которое держит разговор.";
+    return signals.riskLine ?? signals.primaryGap ?? `Без одной опоры ${signals.topicLower} снова упрётся в паузу.`;
   }
 
-  return "Один следующий шаг вместо нового круга обсуждения.";
+  return signals.desiredOutcome || `По ${signals.topic} нужен один следующий шаг.`;
+}
+
+function buildBlocks(
+  signals: DraftSignals,
+  slideFunctionId: SlideFunctionId,
+  transformId: HiddenTransformId,
+  coreMessage: string
+) {
+  const facts = linesOrPlaceholder(signals.facts, defaultFactPlaceholder(signals));
+  const gaps = linesOrPlaceholder(signals.gaps, defaultGapPlaceholder(signals));
+  const pressureLine = cleanBody(
+    signals.riskLine ?? signals.primaryGap ?? defaultGapPlaceholder(signals)
+  );
+  const progressLines = linesOrPlaceholder(
+    compactLines([signals.secondaryFact, signals.primaryFact]),
+    defaultFactPlaceholder(signals)
+  );
+  const nextReason = buildActionReason(signals);
+  const supportSummary =
+    signals.facts.length > 1
+      ? "Опора уже есть, добираем только пробелы."
+      : "Есть один рабочий сигнал, но его ещё нужно укрепить.";
+
+  if (slideFunctionId === "open_topic") {
+    if (transformId === "decision_next") {
+      return [
+        block("open-1", "focus", "flag", "Что важно сейчас", coreMessage),
+        block("open-2", "proof", "file", "Что уже подтверждено", facts.body, facts.placeholder),
+        block("open-3", "decision", "arrow", "Что нужно согласовать", signals.desiredOutcome),
+      ];
+    }
+
+    if (transformId === "breakdown_explain") {
+      return [
+        block("open-1", "focus", "spark", "О чём разговор", coreMessage),
+        block("open-2", "proof", "file", "Что уже известно", facts.body, facts.placeholder),
+        block("open-3", "decision", "arrow", "Что должно стать ясно", signals.desiredOutcome),
+      ];
+    }
+
+    return [
+      block("open-1", "movement", "trend", "Что уже видно", progressLines.body, progressLines.placeholder),
+      block("open-2", "constraint", "shield", "Где держит", pressureLine),
+      block("open-3", "decision", "arrow", "Куда это ведёт", signals.desiredOutcome),
+    ];
+  }
+
+  if (slideFunctionId === "main_point") {
+    return [
+      block("main-1", "focus", "spark", "Ключевой вывод", coreMessage),
+      block(
+        "main-2",
+        transformId === "status_shift" ? "movement" : "proof",
+        transformId === "status_shift" ? "trend" : "file",
+        transformId === "status_shift" ? "Что уже подтверждено" : "На чём это держится",
+        facts.body,
+        facts.placeholder
+      ),
+      block(
+        "main-3",
+        transformId === "decision_next" ? "decision" : "constraint",
+        transformId === "decision_next" ? "arrow" : "shield",
+        transformId === "decision_next" ? "Что нужно согласовать" : "Что держит дальше",
+        transformId === "decision_next" ? signals.desiredOutcome : pressureLine
+      ),
+    ];
+  }
+
+  if (slideFunctionId === "movement") {
+    return [
+      block("move-1", "movement", "trend", "Что уже сдвинули", progressLines.body, progressLines.placeholder),
+      block(
+        "move-2",
+        transformId === "breakdown_explain" ? "proof" : "constraint",
+        transformId === "breakdown_explain" ? "file" : "gap",
+        transformId === "breakdown_explain" ? "За счёт чего" : "Что ещё держит",
+        transformId === "breakdown_explain" ? facts.body : gaps.body,
+        transformId === "breakdown_explain" ? facts.placeholder : gaps.placeholder
+      ),
+      block(
+        "move-3",
+        transformId === "decision_next" ? "decision" : "focus",
+        transformId === "decision_next" ? "flag" : "spark",
+        transformId === "decision_next" ? "Какой шаг открывается" : "Что это меняет сейчас",
+        transformId === "decision_next" ? signals.desiredOutcome : nextReason
+      ),
+    ];
+  }
+
+  if (slideFunctionId === "evidence") {
+    return [
+      block("evidence-1", "proof", "file", "Что уже подтверждено", facts.body, facts.placeholder),
+      block(
+        "evidence-2",
+        transformId === "decision_next" ? "decision" : "focus",
+        transformId === "decision_next" ? "flag" : "spark",
+        transformId === "decision_next" ? "Что это позволяет просить" : "Почему этого уже хватает",
+        transformId === "decision_next" ? signals.desiredOutcome : supportSummary
+      ),
+      block("evidence-3", "constraint", "gap", "Что ещё проверить", gaps.body, gaps.placeholder),
+    ];
+  }
+
+  if (slideFunctionId === "tension") {
+    return [
+      block(
+        "tension-1",
+        "constraint",
+        "shield",
+        transformId === "status_shift" ? "Главный риск" : "Где упёрлись",
+        pressureLine
+      ),
+      block("tension-2", "constraint", "gap", "Чего не хватает", gaps.body, gaps.placeholder),
+      block(
+        "tension-3",
+        transformId === "breakdown_explain" ? "proof" : "decision",
+        transformId === "breakdown_explain" ? "clock" : "flag",
+        transformId === "breakdown_explain" ? "Почему это держит разговор" : "Что нужно снять сейчас",
+        transformId === "breakdown_explain" ? nextReason : signals.desiredOutcome
+      ),
+    ];
+  }
+
+  return [
+    block(
+      "next-1",
+      "decision",
+      transformId === "status_shift" ? "arrow" : "flag",
+      transformId === "decision_next" ? "Что нужно согласовать" : "Какой шаг нужен",
+      signals.desiredOutcome
+    ),
+    block(
+      "next-2",
+      transformId === "breakdown_explain" ? "proof" : "constraint",
+      transformId === "breakdown_explain" ? "file" : "gap",
+      transformId === "breakdown_explain" ? "Что уже на руках" : "Что ещё добрать",
+      transformId === "breakdown_explain" ? facts.body : gaps.body,
+      transformId === "breakdown_explain" ? facts.placeholder : gaps.placeholder
+    ),
+    block("next-3", "proof", "file", "Почему сейчас", nextReason),
+  ];
+}
+
+function buildActionLabels(
+  signals: DraftSignals,
+  entry: WorkingDraftSlidePlanEntry,
+  title: string
+): SlideActionLabel[] {
+  const actionObject =
+    detectActionObject(signals.desiredOutcome, signals.riskLine, signals.primaryGap) ??
+    "решение";
+
+  const statusLabel = buildStatusActionLabel(entry.slideFunctionId, actionObject, signals);
+  const explainLabel = buildExplainActionLabel(entry.slideFunctionId);
+  const decisionLabel = buildDecisionActionLabel(entry.slideFunctionId, actionObject);
+
+  return [
+    { id: `${entry.slideFunctionId}-status_shift`, label: statusLabel, transformId: "status_shift" },
+    {
+      id: `${entry.slideFunctionId}-breakdown_explain`,
+      label: explainLabel,
+      transformId: "breakdown_explain",
+    },
+    {
+      id: `${entry.slideFunctionId}-decision_next`,
+      label: decisionLabel,
+      transformId: "decision_next",
+    },
+  ];
+}
+
+function buildSubtitle(
+  signals: DraftSignals,
+  entry: WorkingDraftSlidePlanEntry,
+  title: string
+) {
+  if (entry.slideFunctionId === "open_topic") {
+    return [signals.specificPeriod ? signals.period : "", signals.audience]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  if (entry.slideFunctionId === "tension" && signals.primaryGap) {
+    return clampText(cleanBody(signals.primaryGap), 84);
+  }
+
+  if (entry.slideFunctionId === "movement" && signals.specificPeriod) {
+    return signals.period;
+  }
+
+  if (entry.slideFunctionId === "next_step" && isUsefulTitle(signals.desiredOutcome)) {
+    return normalizeTitleKey(title) !== normalizeTitleKey(signals.desiredOutcome)
+      ? clampText(cleanBody(signals.desiredOutcome), 84)
+      : "";
+  }
+
+  return "";
 }
 
 function buildDocumentTitle(workingDraft: WorkingDraft) {
-  const topic = extractTopicLabel(workingDraft.sourcePrompt);
+  const signals = deriveDraftSignals(workingDraft);
 
-  if (hasResourceIntent(workingDraft)) {
-    return clampText(`Запрос на ресурс: ${topic}`, 72);
+  if (signals.hasResourceIntent) {
+    return clampText(`Запрос на ресурс: ${signals.topic}`, 72);
   }
 
   if (/квартальн[а-яёa-z-]*\s+статус/i.test(workingDraft.sourcePrompt)) {
-    return clampText(`Квартальный статус: ${topic}`, 72);
+    return clampText(`Квартальный статус: ${signals.topic}`, 72);
   }
 
   if (/итог[аи]\s+пилот/i.test(workingDraft.sourcePrompt)) {
-    return clampText(`Итоги пилота: ${topic}`, 72);
+    return clampText(`Итоги пилота: ${signals.topic}`, 72);
   }
 
-  return clampText(topic, 72);
+  return clampText(signals.topic, 72);
 }
 
 function buildFallbackOutcome(intent: WorkingDraftSeed["presentationIntent"]) {
@@ -694,11 +821,7 @@ function hasResourceIntent(workingDraft: WorkingDraftSeed | WorkingDraft) {
 }
 
 function extractPromptFacts(sourcePrompt: string) {
-  return sourcePrompt
-    .split(/[.!?;]+/)
-    .map((item) => cleanLine(item))
-    .filter((item) => item.length > 18)
-    .slice(0, 3);
+  return buildPromptSignals(sourcePrompt).knownFacts.slice(0, 3);
 }
 
 function linesOrPlaceholder(lines: string[], fallback: string) {
@@ -708,7 +831,10 @@ function linesOrPlaceholder(lines: string[], fallback: string) {
     return { body: fallback, placeholder: true };
   }
 
-  return { body: cleaned.join("\n"), placeholder: false };
+  return {
+    body: cleaned.join("\n"),
+    placeholder: cleaned.every((line) => isPlaceholderToken(line)),
+  };
 }
 
 function block(
@@ -724,7 +850,7 @@ function block(
     type,
     icon,
     title: cleanLine(title),
-    body: cleanLine(body, true),
+    body: cleanBody(body, true),
     placeholder,
   };
 }
@@ -765,18 +891,37 @@ function cleanLine(value: string, keepNewLines = false): string {
     .replace(/\.$/, "");
 }
 
-function findRiskLine(sourcePrompt: string): string | null {
-  const match =
-    sourcePrompt.match(
-      /([^.!?]*(?:риск|мешает|блокер|упёрл[а-я]*|застрял[а-я]*|не хватает|найм)[^.!?]*)/i
-    ) ??
-    sourcePrompt.match(/([^.!?]*(?:ресурс|найм|бюджет|согласовать)[^.!?]*)/i);
+function cleanBody(value: string, keepNewLines = false): string {
+  if (!value) {
+    return "";
+  }
 
-  return match?.[1]?.trim() ?? null;
+  if (keepNewLines) {
+    return value
+      .split("\n")
+      .map((part) => cleanBody(part))
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return normalizePrompt(value)
+    .replace(/[«»"]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.?!]+$/g, "");
 }
 
-function lowerLead(value: string) {
-  return value.charAt(0).toLowerCase() + value.slice(1);
+function findRiskLine(sourcePrompt: string): string | null {
+  const candidates = sourcePrompt
+    .split(/[\n.!?;:]+/)
+    .flatMap((item) => item.split(/,(?=\s*[а-яёa-z0-9])/i))
+    .map((item) => cleanBody(item))
+    .filter(Boolean)
+    .filter((item) => /\b(?:риск|блокер|упёр|застрял|не хватает|мешает|найм|ресурс|бюджет|latency|coverage|срок)\b/i.test(item))
+    .filter((item) => !/^(?:нужно|собери|собрать|покажи|показать)\b/i.test(item))
+    .sort((left, right) => right.length - left.length);
+
+  return candidates[0] ?? null;
 }
 
 function isUsefulTitle(value?: string | null) {
@@ -784,8 +929,27 @@ function isUsefulTitle(value?: string | null) {
     return false;
   }
 
-  return !/^(нужно|нужен|нужна|нужны|надо|собрать|подготовить|показать)\b/i.test(
-    cleanLine(value)
+  const cleaned = cleanLine(value);
+
+  return (
+    !/^(нужно|нужен|нужна|нужны|надо|собрать|подготовить|показать)\b/i.test(cleaned) &&
+    !isPlaceholderToken(cleaned)
+  );
+}
+
+function isUsefulContentLine(value?: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  const cleaned = cleanBody(value);
+
+  if (cleaned.length < 10) {
+    return false;
+  }
+
+  return !/^(нужно|нужен|нужна|нужны|собери|собрать|подготовь|подготовить|покажи|показать|показываем|это\s+mvp|это\s+сервис|для\s+реального\s+разговора)\b/i.test(
+    cleaned
   );
 }
 
@@ -794,7 +958,7 @@ function uniqueLines(lines: string[]) {
   const result: string[] = [];
 
   for (const line of lines) {
-    const cleaned = cleanLine(line, true);
+    const cleaned = cleanBody(line, true);
     if (!cleaned) {
       continue;
     }
@@ -815,27 +979,393 @@ function replaceAt<T>(items: readonly T[], index: number, value: T): T[] {
   return items.map((item, itemIndex) => (itemIndex === index ? value : item));
 }
 
-function makeTitlesAlignedPlan(slidePlan: WorkingDraft["slidePlan"]) {
-  return slidePlan;
-}
-
-function makeTitlesUnique(titles: readonly string[]) {
-  const seen = new Set<string>();
-
-  return titles.map((title) => {
-    const normalized = title.toLowerCase();
-
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      return title;
-    }
-
-    const next = clampText(`${title} сейчас`, 68);
-    seen.add(next.toLowerCase());
-    return next;
-  });
-}
-
 function tuple6<T>(items: readonly T[]): SixSlotTuple<T> {
   return items as SixSlotTuple<T>;
+}
+
+function deriveDraftSignals(workingDraft: WorkingDraftSeed | WorkingDraft): DraftSignals {
+  const promptSignals = buildPromptSignals(
+    workingDraft.sourcePrompt,
+    workingDraft.presentationIntent
+  );
+  const topic = cleanBody(promptSignals.topicLabel) || "Рабочая тема";
+  const facts = uniqueLines([
+    ...workingDraft.knownFacts,
+    ...promptSignals.knownFacts,
+  ])
+    .filter((line) => isUsefulContentLine(line))
+    .slice(0, 3);
+  const fallbackFacts = promptSignals.knownFacts.length
+    ? promptSignals.knownFacts
+    : extractPromptFacts(workingDraft.sourcePrompt);
+  const mergedFacts = facts.length > 0 ? facts : fallbackFacts;
+  const gaps = uniqueLines([
+    ...workingDraft.missingFacts,
+    ...promptSignals.missingFacts,
+  ]).slice(0, 3);
+  const keyMessage = firstUsefulSignal(
+    promptSignals.keyMessage,
+    mergedFacts[0],
+    workingDraft.desiredOutcome
+  );
+  const riskLine = firstUsefulSignal(
+    promptSignals.riskLine,
+    findRiskLine(workingDraft.sourcePrompt),
+    gaps[0],
+    /риск|блокер|срок|найм|бюджет|ресурс/i.test(workingDraft.desiredOutcome)
+      ? workingDraft.desiredOutcome
+      : null
+  );
+  const period = promptSignals.period;
+
+  return {
+    topic,
+    topicLower: topicInPhrase(topic),
+    period,
+    audience: workingDraft.audience,
+    desiredOutcome: cleanBody(workingDraft.desiredOutcome),
+    keyMessage,
+    facts: mergedFacts,
+    gaps,
+    primaryFact: mergedFacts[0] ?? null,
+    secondaryFact: mergedFacts[1] ?? null,
+    primaryGap: gaps[0] ?? null,
+    riskLine,
+    hasResourceIntent: hasResourceIntent(workingDraft),
+    specificPeriod: period !== "текущий период",
+    presentationIntent: workingDraft.presentationIntent,
+  };
+}
+
+function buildFallbackTitle(signals: DraftSignals, slideFunctionId: SlideFunctionId) {
+  if (slideFunctionId === "open_topic") {
+    return clampText(`Что важно по ${signals.topicLower}`, 68);
+  }
+
+  if (slideFunctionId === "main_point") {
+    return clampText(`Главное по ${signals.topicLower}`, 68);
+  }
+
+  if (slideFunctionId === "movement") {
+    return clampText(`Что уже сдвинули по ${signals.topicLower}`, 68);
+  }
+
+  if (slideFunctionId === "evidence") {
+    return clampText(`Что уже подтверждено по ${signals.topicLower}`, 68);
+  }
+
+  if (slideFunctionId === "tension") {
+    return clampText(`Где ${signals.topicLower} буксует`, 68);
+  }
+
+  return clampText(`Какой шаг нужен по ${signals.topicLower}`, 68);
+}
+
+function pushTitleCandidate(target: string[], value?: string | null) {
+  if (!value) {
+    return;
+  }
+
+  const candidate = clampText(cleanLine(value), 68);
+
+  if (!candidate || !isUsefulTitle(candidate)) {
+    return;
+  }
+
+  target.push(candidate);
+}
+
+function titleFromSignal(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const candidate = clampText(cleanLine(value), 68);
+  return isUsefulTitle(candidate) ? candidate : null;
+}
+
+function normalizeTitleKey(value: string) {
+  return cleanLine(value).toLowerCase();
+}
+
+function dedupeTitles(titles: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const title of titles) {
+    const key = normalizeTitleKey(title);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(title);
+  }
+
+  return result;
+}
+
+function compactLines(lines: Array<string | null | undefined>) {
+  return uniqueLines(lines.filter(Boolean) as string[]);
+}
+
+function buildActionReason(signals: DraftSignals) {
+  if (signals.hasResourceIntent) {
+    return "Без этого запрос снова упрётся в ресурс.";
+  }
+
+  if (signals.riskLine) {
+    return "Именно это сейчас держит следующий шаг.";
+  }
+
+  if (signals.primaryGap) {
+    return "Без этого разговор снова уйдёт в уточнения.";
+  }
+
+  return "Следующий шаг уже можно формулировать.";
+}
+
+function defaultFactPlaceholder(signals: DraftSignals) {
+  const actionObject = detectActionObject(signals.primaryGap, signals.desiredOutcome);
+
+  if (actionObject === "срок") {
+    return "[подтвердить срок]";
+  }
+
+  if (actionObject === "охват") {
+    return "[уточнить охват]";
+  }
+
+  return "[нужна цифра]";
+}
+
+function defaultGapPlaceholder(signals: DraftSignals) {
+  const actionObject = detectActionObject(
+    signals.desiredOutcome,
+    signals.riskLine,
+    signals.primaryGap
+  );
+
+  if (actionObject === "ресурс" || actionObject === "бюджет" || actionObject === "найм") {
+    return "[уточнить объём запроса]";
+  }
+
+  if (actionObject === "охват") {
+    return "[уточнить охват]";
+  }
+
+  if (actionObject === "срок") {
+    return "[подтвердить срок]";
+  }
+
+  if (actionObject === "этап") {
+    return "[уточнить критерий]";
+  }
+
+  return "[нужна опора]";
+}
+
+function detectActionObject(...values: Array<string | null | undefined>) {
+  const source = values.filter(Boolean).join(" ").toLowerCase();
+
+  if (/найм|нанять|engineer|developer|qa/.test(source)) {
+    return "найм";
+  }
+
+  if (/ресурс/.test(source)) {
+    return "ресурс";
+  }
+
+  if (/бюджет/.test(source)) {
+    return "бюджет";
+  }
+
+  if (/срок|deadline|время|latency/.test(source)) {
+    return "срок";
+  }
+
+  if (/этап/.test(source)) {
+    return "этап";
+  }
+
+  if (/охват|выборк|coverage/.test(source)) {
+    return "охват";
+  }
+
+  if (/риск|блокер/.test(source)) {
+    return "риск";
+  }
+
+  if (/цифр|метрик|показател/.test(source)) {
+    return "цифру";
+  }
+
+  if (/решени/.test(source)) {
+    return "решение";
+  }
+
+  if (/шаг/.test(source)) {
+    return "шаг";
+  }
+
+  return null;
+}
+
+function firstUsefulSignal(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (!value) {
+      continue;
+    }
+
+    const cleaned = cleanBody(value);
+
+    if (isUsefulContentLine(cleaned)) {
+      return cleaned;
+    }
+  }
+
+  return null;
+}
+
+function buildStatusActionLabel(
+  slideFunctionId: SlideFunctionId,
+  actionObject: string,
+  signals: DraftSignals
+) {
+  if (slideFunctionId === "open_topic") {
+    return signals.riskLine ? "Заострить проблему" : "Собрать заход короче";
+  }
+
+  if (slideFunctionId === "main_point") {
+    return "Усилить главный вывод";
+  }
+
+  if (slideFunctionId === "movement") {
+    return "Собрать прогресс короче";
+  }
+
+  if (slideFunctionId === "evidence") {
+    return "Оставить одну опору";
+  }
+
+  if (slideFunctionId === "tension") {
+    return actionObject === "срок" ? "Упереть в срок" : "Заострить риск";
+  }
+
+  if (actionObject === "найм" || actionObject === "ресурс" || actionObject === "бюджет") {
+    return "Собрать один запрос";
+  }
+
+  return actionObject === "этап" ? "Свести к одному решению" : "Свести к одному шагу";
+}
+
+function buildExplainActionLabel(slideFunctionId: SlideFunctionId) {
+  if (slideFunctionId === "open_topic") {
+    return "Показать фон";
+  }
+
+  if (slideFunctionId === "main_point") {
+    return "Показать, на чём держится";
+  }
+
+  if (slideFunctionId === "movement") {
+    return "Разобрать движение";
+  }
+
+  if (slideFunctionId === "evidence") {
+    return "Разложить по опорам";
+  }
+
+  if (slideFunctionId === "tension") {
+    return "Показать, что держит";
+  }
+
+  return "Показать, что добрать";
+}
+
+function buildDecisionActionLabel(slideFunctionId: SlideFunctionId, actionObject: string) {
+  if (slideFunctionId === "tension") {
+    if (actionObject === "найм") {
+      return "Снять блокер по найму";
+    }
+
+    if (actionObject === "ресурс" || actionObject === "бюджет") {
+      return "Подвести к ресурсу";
+    }
+
+    if (actionObject === "срок") {
+      return "Снять риск по сроку";
+    }
+  }
+
+  if (actionObject === "найм") {
+    return "Подвести к найму";
+  }
+
+  if (actionObject === "ресурс" || actionObject === "бюджет") {
+    return "Подвести к ресурсу";
+  }
+
+  if (actionObject === "этап") {
+    return "Подвести к этапу";
+  }
+
+  if (actionObject === "срок") {
+    return "Подвести к сроку";
+  }
+
+  return slideFunctionId === "evidence" ? "Связать с решением" : "Подвести к решению";
+}
+
+function isPlaceholderToken(value?: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  return /^\[[^\]]+\]$/.test(cleanBody(value));
+}
+
+function isRiskSignal(value?: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  return /риск|блокер|упёр|застрял|не подтвержден|не дожм|не хватает|мешает|ресурс|найм|срок|coverage|latency/i.test(
+    cleanBody(value)
+  );
+}
+
+function firstNonRiskFact(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (!value || isRiskSignal(value)) {
+      continue;
+    }
+
+    return value;
+  }
+
+  return null;
+}
+
+function laterNonRiskFact(
+  current: string | null | undefined,
+  ...values: Array<string | null | undefined>
+) {
+  for (const value of values) {
+    if (!value || value === current || isRiskSignal(value)) {
+      continue;
+    }
+
+    return value;
+  }
+
+  return null;
+}
+
+function topicInPhrase(topic: string) {
+  if (/[A-Z]/.test(topic) && /[a-z]/.test(topic)) {
+    return topic;
+  }
+
+  return topic.charAt(0).toLowerCase() + topic.slice(1);
 }

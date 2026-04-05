@@ -140,7 +140,7 @@ export function EditorScreen({
           {drawerState === "open" ? (
             <aside className="editor-drawer">
               <div className="drawer-head">
-                <h2>Пересобрать слайд</h2>
+                <h2>Переосмыслить слайд</h2>
                 <button
                   type="button"
                   className="icon-button"
@@ -176,7 +176,7 @@ export function EditorScreen({
               className="drawer-trigger"
               onClick={onOpenDrawer}
             >
-              Пересобрать слайд
+              Другой взгляд
             </button>
           )}
         </div>

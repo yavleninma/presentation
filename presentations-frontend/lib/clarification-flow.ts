@@ -10,7 +10,7 @@ import type {
 import {
   assessFactCoverage,
   buildMissingFacts,
-  buildStartSummary,
+  buildPromptSignals,
   clampText,
   extractAudience,
   extractDesiredOutcome,
@@ -23,6 +23,20 @@ import {
 } from "@/lib/prompt-analysis";
 
 const MAX_ASSISTANT_TURNS = 5;
+const LOCAL_GENERIC_TOPIC_LABELS = new Set([
+  "рабочая тема",
+  "текущий период",
+  "нужного адресата",
+  "реального разговора",
+  "разговор",
+  "презентация",
+  "проект",
+  "команда",
+]);
+const LOCAL_FACT_HINTS =
+  /\b(?:\d+(?:[.,]\d+)?%?|q[1-4]\b|mvp|пилот|мигр|сниз|работ|упёр|застрял|сигнал|факт|подтвержд|доказ|срок|найм|бюдж|ресурс|риск|блокер|охват|выборк|coverage|latency|time|speed|mini-chat|мини-чат|черновик|редактор|пересбор|слайд|тихий)\b/i;
+const LOCAL_RISK_HINTS =
+  /\b(?:риск|риски|блокер|блокеры|упёр|застрял|не хватает|мешает|срок|найм|бюджет|ресурс|приоритет|coverage|latency|speed)\b/i;
 
 export function beginClarification(prompt: string): ClarificationSession {
   const sourcePrompt = normalizePrompt(prompt);
@@ -68,7 +82,16 @@ function appendAssistantTurn(session: ClarificationSession): ClarificationSessio
   const skeletonReadiness = session.insights.skeletonReadiness;
   const confidence = skeletonReadiness.confidence;
   const forcedReady = session.assistantTurns >= MAX_ASSISTANT_TURNS - 1;
-  const ready = forcedReady || isReadyToBuild(skeletonReadiness);
+  let ready = forcedReady || isReadyToBuild(session.insights);
+  let pendingSlot: ClarificationSlot | null = null;
+
+  if (!ready) {
+    pendingSlot = pickNextSlot(session.insights, session.askedSlots);
+
+    if (!pendingSlot) {
+      ready = true;
+    }
+  }
 
   if (ready) {
     const assistantText = buildReadyMessage(
@@ -94,7 +117,6 @@ function appendAssistantTurn(session: ClarificationSession): ClarificationSessio
     };
   }
 
-  const pendingSlot = pickNextSlot(session.insights, session.askedSlots);
   const assistantText = buildQuestionMessage(
     session.insights,
     pendingSlot,
@@ -119,30 +141,28 @@ function appendAssistantTurn(session: ClarificationSession): ClarificationSessio
 }
 
 function analyzePrompt(sourcePrompt: string): ClarificationInsights {
-  const presentationIntent = inferPresentationIntent(sourcePrompt);
-  const factCoverage = assessFactCoverage(sourcePrompt);
-  const knownFacts = extractKnownFacts(sourcePrompt);
-  const missingFacts = resolveMissingFacts(sourcePrompt, factCoverage, knownFacts);
-  const audience = extractAudience(sourcePrompt);
-  const desiredOutcome = extractDesiredOutcome(sourcePrompt, presentationIntent);
+  const signals = buildPromptSignals(sourcePrompt);
   const skeletonReadiness = buildSkeletonReadiness({
-    audience,
-    intent: presentationIntent,
-    desiredOutcome,
-    knownFacts,
-    missingFacts,
+    topicLabel: signals.topicLabel,
+    audience: signals.audience,
+    intent: signals.presentationIntent,
+    desiredOutcome: signals.desiredOutcome,
+    knownFacts: signals.knownFacts,
+    missingFacts: signals.missingFacts,
+    keyMessage: signals.keyMessage,
+    riskLine: signals.riskLine,
   });
 
   return {
-    topicLabel: extractTopicLabel(sourcePrompt),
-    period: extractPeriod(sourcePrompt),
-    audience,
-    presentationIntent,
-    desiredOutcome,
-    keyMessage: extractKeyMessage(sourcePrompt),
-    factCoverage,
-    knownFacts,
-    missingFacts,
+    topicLabel: signals.topicLabel,
+    period: signals.period,
+    audience: signals.audience,
+    presentationIntent: signals.presentationIntent,
+    desiredOutcome: signals.desiredOutcome,
+    keyMessage: signals.keyMessage,
+    factCoverage: signals.factCoverage,
+    knownFacts: signals.knownFacts,
+    missingFacts: signals.missingFacts,
     confidence: skeletonReadiness.confidence,
     skeletonReadiness,
   };
@@ -153,37 +173,48 @@ function mergeAnswerIntoInsights(
   answer: string,
   pendingSlot: ClarificationSlot | null
 ): ClarificationInsights {
-  const presentationIntent = updatePresentationIntent(
+  const answerSignals = buildPromptSignals(answer, insights.presentationIntent);
+  const presentationIntent = mergePresentationIntent(
     insights.presentationIntent,
-    answer,
+    answerSignals.presentationIntent,
     pendingSlot
   );
-  const nextAudience = updateAudience(insights.audience, answer, pendingSlot);
-  const nextDesiredOutcome = updateDesiredOutcome(
+  const nextAudience = mergeText(
+    insights.audience,
+    answerSignals.audience,
+    pendingSlot === "audience"
+  );
+  const nextDesiredOutcome = mergeText(
     insights.desiredOutcome,
-    answer,
-    presentationIntent,
-    pendingSlot
+    answerSignals.desiredOutcome,
+    pendingSlot === "desiredOutcome"
   );
-  const nextKeyMessage = insights.keyMessage ?? extractKeyMessage(answer);
-  const mergedFacts = updateKnownFacts(insights.knownFacts, answer, pendingSlot);
-  const nextFactCoverage = updateFactCoverage(
+  const nextKeyMessage = insights.keyMessage ?? answerSignals.keyMessage;
+  const mergedFacts = mergeFacts(
+    insights.knownFacts,
+    answerSignals.knownFacts,
+    answerSignals.riskLine ? [answerSignals.riskLine] : []
+  ).slice(0, 4);
+  const nextFactCoverage = mergeFactCoverage(
     insights.factCoverage,
-    answer,
-    mergedFacts.length
-  );
-  const nextMissingFacts = updateMissingFacts(
-    insights.missingFacts,
-    answer,
-    nextFactCoverage,
+    answerSignals.factCoverage,
     mergedFacts
   );
+  const nextMissingFacts = mergeMissingFacts(
+    insights.missingFacts,
+    answerSignals.missingFacts,
+    mergedFacts,
+    nextFactCoverage
+  );
   const skeletonReadiness = buildSkeletonReadiness({
+    topicLabel: insights.topicLabel,
     audience: nextAudience,
     intent: presentationIntent,
     desiredOutcome: nextDesiredOutcome,
     knownFacts: mergedFacts,
     missingFacts: nextMissingFacts,
+    keyMessage: nextKeyMessage,
+    riskLine: answerSignals.riskLine,
   });
 
   return {
@@ -201,12 +232,19 @@ function mergeAnswerIntoInsights(
 }
 
 function buildSkeletonReadiness({
+  topicLabel,
   audience,
   intent,
   desiredOutcome,
   knownFacts,
   missingFacts,
-}: Omit<SkeletonReadiness, "confidence">): SkeletonReadiness {
+  keyMessage,
+  riskLine,
+}: Omit<SkeletonReadiness, "confidence"> & {
+  topicLabel?: string;
+  keyMessage?: string | null;
+  riskLine?: string | null;
+}): SkeletonReadiness {
   return {
     audience,
     intent,
@@ -214,62 +252,105 @@ function buildSkeletonReadiness({
     knownFacts,
     missingFacts,
     confidence: calculateSkeletonConfidence({
+      topicLabel,
       audience,
       desiredOutcome,
       knownFacts,
       missingFacts,
+      keyMessage,
+      riskLine,
     }),
   };
 }
 
 function calculateSkeletonConfidence({
+  topicLabel,
   audience,
   desiredOutcome,
   knownFacts,
   missingFacts,
+  keyMessage,
+  riskLine,
 }: Pick<
   SkeletonReadiness,
   "audience" | "desiredOutcome" | "knownFacts" | "missingFacts"
->) {
-  let score = 0.2;
+> & {
+  topicLabel?: string;
+  keyMessage?: string | null;
+  riskLine?: string | null;
+}) {
+  let score = 0.08;
 
-  if (audience) {
-    score += 0.2;
+  if (isMeaningfulTopicLabel(topicLabel)) {
+    score += 0.18;
+  }
+
+  if (audience && isMeaningfulAudience(audience)) {
+    score += 0.18;
   }
 
   if (desiredOutcome) {
-    score += 0.25;
-  }
-
-  if (knownFacts.length > 0) {
     score += 0.2;
   }
 
-  if (knownFacts.length > 1) {
+  if (keyMessage) {
     score += 0.1;
   }
 
-  if (missingFacts.length > 0) {
+  if (riskLine) {
+    score += 0.12;
+  }
+
+  if (knownFacts.some((fact) => isFactLike(fact))) {
+    score += Math.min(0.2, knownFacts.length * 0.06);
+  }
+
+  if (knownFacts.length > 1) {
+    score += 0.06;
+  }
+
+  if (missingFacts.length <= 1) {
+    score += 0.03;
+  } else if (missingFacts.length === 0) {
     score += 0.05;
   }
 
   return Math.min(1, score);
 }
 
-function isReadyToBuild(readiness: SkeletonReadiness) {
-  if (readiness.confidence >= 0.8) {
-    return true;
+function isReadyToBuild(insights: ClarificationInsights) {
+  const readiness = insights.skeletonReadiness;
+  const concreteFacts = readiness.knownFacts.filter((fact) => isFactLike(fact));
+  const riskAnchored = readiness.knownFacts.some((fact) => /\b(?:риск|блокер|упёр|застрял|не хватает|мешает|срок|найм|бюджет|ресурс|приоритет)\b/i.test(fact));
+
+  if (!isMeaningfulTopicLabel(insights.topicLabel)) {
+    return false;
   }
 
   if (
-    readiness.confidence >= 0.65 &&
+    readiness.confidence >= 0.78 &&
+    Boolean(readiness.audience) &&
     Boolean(readiness.desiredOutcome) &&
-    readiness.knownFacts.length >= 1
+    concreteFacts.length >= 1 &&
+    (riskAnchored || concreteFacts.length >= 2)
   ) {
     return true;
   }
 
-  if (readiness.confidence >= 0.6 && Boolean(readiness.audience)) {
+  if (
+    readiness.confidence >= 0.7 &&
+    Boolean(readiness.audience) &&
+    concreteFacts.length >= 2
+  ) {
+    return true;
+  }
+
+  if (
+    readiness.confidence >= 0.74 &&
+    Boolean(readiness.desiredOutcome) &&
+    concreteFacts.length >= 2 &&
+    riskAnchored
+  ) {
     return true;
   }
 
@@ -300,7 +381,7 @@ function pickNextSlot(
         return !insights.desiredOutcome;
       }
 
-      return insights.knownFacts.length === 0;
+      return needsFactFollowUp(insights);
     }) ?? null
   );
 }
@@ -310,199 +391,194 @@ function buildQuestionMessage(
   slot: ClarificationSlot | null,
   isFirstAssistantTurn: boolean
 ) {
-  const summary = buildConversationSummary(insights);
-  const lead = isFirstAssistantTurn
-    ? `Сейчас вижу: ${summary}`
-    : `Сейчас вижу так: ${summary}`;
+  const lead = isFirstAssistantTurn ? buildConversationLead(insights) : "";
+  const prefix = lead ? `${lead} ` : "";
 
   if (!slot) {
-    return `${lead} Этого уже хватает, можно собирать черновик.`;
+    return `${prefix}Этого уже хватает для черновика.`;
   }
 
   if (slot === "audience") {
-    return `${lead} Кому это будете показывать?`;
+    return `${prefix}Кому показываем?`;
   }
 
   if (slot === "desiredOutcome") {
     if (insights.presentationIntent === "decision") {
-      return `${lead} После показа что нужно согласовать?`;
+      return `${prefix}Что после показа нужно согласовать?`;
     }
 
     if (insights.presentationIntent === "explain") {
-      return `${lead} После показа что должно стать понятнее?`;
+      return `${prefix}Что после показа должно стать понятнее?`;
     }
 
-    return `${lead} После показа что человек должен понять или сделать дальше?`;
+    return `${prefix}Что нужно получить после показа?`;
   }
 
-  return `${lead} Какие 1-2 факта уже точно можно назвать, а что честно оставим как пробел?`;
+  return `${prefix}Какие 1-2 факта уже можно назвать?`;
 }
 
 function buildReadyMessage(
   insights: ClarificationInsights,
   isFirstAssistantTurn: boolean
 ) {
-  const summary = buildConversationSummary(insights);
-
-  if (isFirstAssistantTurn) {
-    return `Сейчас вижу: ${summary} Этого уже хватает, можно собирать черновик.`;
+  if (!isFirstAssistantTurn) {
+    return "Этого уже хватает для черновика.";
   }
 
-  return `Картина собрана: ${summary} Дальше можно идти в черновик.`;
+  const lead = buildConversationLead(insights);
+
+  if (lead === "Понял.") {
+    return "Этого уже хватает для черновика.";
+  }
+
+  return `${lead} Этого уже хватает для черновика.`;
 }
 
-function buildConversationSummary(insights: ClarificationInsights) {
-  const audience =
-    insights.audience?.replace(/\.$/, "") ?? "нужного адресата";
-  const keyMessage =
-    insights.keyMessage?.replace(/\.$/, "") ??
-    buildStartSummary(insights.knownFacts[0] ?? insights.topicLabel).replace(
-      /\.$/,
-      ""
-    );
-  const desiredOutcome =
-    insights.desiredOutcome?.replace(/\.$/, "") ?? "понятный следующий шаг";
+function buildConversationLead(insights: ClarificationInsights) {
+  const topic = insights.topicLabel;
+  const topicLabel = isMeaningfulTopicLabel(topic) ? clampText(topic, 42) : null;
+  const period =
+    insights.period && insights.period !== "текущий период"
+      ? clampText(insights.period, 24)
+      : null;
 
-  return clampText(
-    `${keyMessage}. Показываем это для ${audience} и держим фокус на ${desiredOutcome.toLowerCase()}.`,
-    180
-  );
+  if (topicLabel && period) {
+    return `Понял, это про ${topicLabel} за ${period}.`;
+  }
+
+  if (topicLabel) {
+    return `Понял, это про ${topicLabel}.`;
+  }
+
+  if (period) {
+    return `Понял, это про ${period}.`;
+  }
+
+  return "Понял.";
 }
 
-function updatePresentationIntent(
+function mergePresentationIntent(
   currentIntent: PresentationIntent,
-  answer: string,
+  nextIntent: PresentationIntent,
   pendingSlot: ClarificationSlot | null
 ) {
-  const inferredIntent = inferPresentationIntent(answer);
-
-  if (pendingSlot === "desiredOutcome" && inferredIntent !== "update") {
-    return inferredIntent;
+  if (pendingSlot === "desiredOutcome" && nextIntent !== "update") {
+    return nextIntent;
   }
 
-  if (currentIntent === "update" && inferredIntent !== "update") {
-    return inferredIntent;
+  if (currentIntent === "update" && nextIntent !== "update") {
+    return nextIntent;
   }
 
   return currentIntent;
 }
 
-function updateAudience(
-  currentAudience: string | null,
-  answer: string,
-  pendingSlot: ClarificationSlot | null
+function mergeText(
+  currentValue: string | null,
+  nextValue: string | null,
+  preferNext: boolean
 ) {
-  if (currentAudience && pendingSlot !== "audience") {
-    return currentAudience;
+  if (preferNext) {
+    return nextValue ?? currentValue;
   }
 
-  const extracted = extractAudience(answer);
-
-  if (extracted) {
-    return extracted;
-  }
-
-  if (pendingSlot === "audience") {
-    return clampText(normalizeSentence(answer), 42);
-  }
-
-  return currentAudience;
+  return currentValue ?? nextValue;
 }
 
-function updateDesiredOutcome(
-  currentDesiredOutcome: string | null,
-  answer: string,
-  intent: PresentationIntent,
-  pendingSlot: ClarificationSlot | null
-) {
-  if (pendingSlot === "desiredOutcome") {
-    return clampText(normalizeSentence(answer), 100);
-  }
-
-  return currentDesiredOutcome ?? extractDesiredOutcome(answer, intent);
-}
-
-function updateKnownFacts(
-  currentFacts: string[],
-  answer: string,
-  pendingSlot: ClarificationSlot | null
-) {
-  const extracted = extractKnownFacts(answer);
-
-  if (!extracted.length && pendingSlot === "knownFacts") {
-    return currentFacts;
-  }
-
-  return mergeFacts(currentFacts, extracted).slice(0, 4);
-}
-
-function updateFactCoverage(
+function mergeFactCoverage(
   currentCoverage: FactCoverageId,
-  answer: string,
-  factCount: number
+  nextCoverage: FactCoverageId,
+  mergedFacts: string[]
 ) {
-  if (factCount >= 2) {
-    return "partial";
+  if (currentCoverage === "enough" && mergedFacts.length >= 1) {
+    return "enough";
   }
 
-  const nextCoverage = assessFactCoverage(answer);
-
-  if (currentCoverage === "enough") {
+  if (nextCoverage === "enough" && mergedFacts.length >= 1) {
     return "enough";
+  }
+
+  if (mergedFacts.length >= 2) {
+    return "partial";
   }
 
   return nextCoverage;
 }
 
-function updateMissingFacts(
+function mergeMissingFacts(
   currentMissingFacts: string[],
-  answer: string,
-  factCoverage: FactCoverageId,
-  facts: string[]
+  nextMissingFacts: string[],
+  mergedFacts: string[],
+  factCoverage: FactCoverageId
 ) {
   if (factCoverage === "enough") {
     return [];
   }
 
-  const officePlaceholders = buildMissingFacts(answer);
-
-  if (officePlaceholders.length > 0) {
-    return officePlaceholders.slice(0, facts.length > 1 ? 2 : 3);
+  if (nextMissingFacts.length > 0) {
+    return nextMissingFacts.slice(0, mergedFacts.length > 1 ? 2 : 3);
   }
 
-  return currentMissingFacts.slice(0, facts.length > 1 ? 2 : 3);
+  return currentMissingFacts.slice(0, mergedFacts.length > 1 ? 2 : 3);
 }
 
-function extractKnownFacts(source: string) {
-  return source
-    .split(/[.!?;]+/)
-    .map((item) => normalizeSentence(item))
-    .filter((item) => item.length > 18)
-    .slice(0, 3);
-}
-
-function resolveMissingFacts(
-  sourcePrompt: string,
-  factCoverage: FactCoverageId,
-  knownFacts: string[]
-) {
-  if (factCoverage === "enough") {
-    return [];
+function isMeaningfulTopicLabel(value: string | null | undefined) {
+  if (!value) {
+    return false;
   }
 
-  const placeholders = buildMissingFacts(sourcePrompt);
+  const normalized = normalizePrompt(value).toLowerCase();
 
-  return placeholders.slice(0, knownFacts.length > 1 ? 2 : 3);
+  if (!normalized || LOCAL_GENERIC_TOPIC_LABELS.has(normalized)) {
+    return false;
+  }
+
+  if (/^(?:собери|нужно|надо|показать|показываем|реального разговора)/i.test(normalized)) {
+    return false;
+  }
+
+  return normalized.length > 2;
 }
 
-function mergeFacts(currentFacts: string[], nextFacts: string[]) {
+function isMeaningfulAudience(value: string | null | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = normalizePrompt(value).toLowerCase();
+
+  return Boolean(normalized) && !/реальн[а-я]*\s+разговор|текущ[а-я]*\s+период|рабоч[а-я]*\s+тема/i.test(normalized);
+}
+
+function mergeFacts(currentFacts: string[], ...nextFactsGroups: string[][]) {
   const facts = new Set<string>(currentFacts);
 
-  for (const fact of nextFacts) {
-    facts.add(fact);
+  for (const nextFacts of nextFactsGroups) {
+    for (const fact of nextFacts) {
+      facts.add(fact);
+    }
   }
 
   return Array.from(facts);
+}
+
+function isFactLike(value: string) {
+  return LOCAL_FACT_HINTS.test(value) || LOCAL_RISK_HINTS.test(value) || /mvp|подтвержд|доказ|работ/i.test(value);
+}
+
+function needsFactFollowUp(insights: ClarificationInsights) {
+  const concreteFacts = insights.knownFacts.filter((fact) => isFactLike(fact));
+  const hasRiskAnchor = concreteFacts.some((fact) => LOCAL_RISK_HINTS.test(fact));
+
+  if (concreteFacts.length === 0) {
+    return true;
+  }
+
+  if (concreteFacts.length === 1 && !hasRiskAnchor) {
+    return true;
+  }
+
+  return false;
 }
 
 function createMessage(

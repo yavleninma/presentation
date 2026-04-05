@@ -71,7 +71,9 @@ export function SlideCanvas({
       data-debug-layer={showDebugLayer ? "on" : "off"}
     >
       <header className="slide-canvas__hero">
-        <p className="slide-canvas__subtitle">{slide.subtitle}</p>
+        {slide.subtitle ? (
+          <p className="slide-canvas__subtitle">{slide.subtitle}</p>
+        ) : null}
         <h2 className="slide-canvas__title">{slide.title}</h2>
       </header>
 

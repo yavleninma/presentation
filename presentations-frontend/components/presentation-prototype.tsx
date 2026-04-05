@@ -27,7 +27,6 @@ import { StartScreen } from "./prototype/start-screen";
 
 const BUILD_STATUSES = [
   "Собираем черновик",
-  "Уточняем структуру",
   "Проверяем читаемость",
 ] as const;
 
@@ -145,10 +144,7 @@ export function PresentationPrototype() {
     buildTimerRefs.current = [
       window.setTimeout(() => {
         setBuildStatus(BUILD_STATUSES[1]);
-      }, 180),
-      window.setTimeout(() => {
-        setBuildStatus(BUILD_STATUSES[2]);
-      }, 360),
+      }, 220),
       window.setTimeout(() => {
         const nextWorkingDraft = buildWorkingDraft(prompt, session);
         const nextDraft = buildPresentationDraft(nextWorkingDraft);
@@ -163,7 +159,7 @@ export function PresentationPrototype() {
         startTransition(() => {
           setScreen("editor");
         });
-      }, 540),
+      }, 440),
     ];
   }
 
