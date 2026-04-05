@@ -11,7 +11,7 @@ const interFont = Inter({
 });
 
 const monoFont = IBM_Plex_Mono({
-  subsets: ["latin"],
+  subsets: ["latin", "cyrillic"],
   variable: "--font-mono",
   display: "swap",
   weight: ["400", "500"],

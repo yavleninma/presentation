@@ -21,23 +21,40 @@ import type {
   PrototypeScreen,
   TemplateId,
 } from "../lib/presentation-types";
+import { BrandMark } from "./brand-mark";
 import { EditorScreen } from "./prototype/editor-screen";
 import { MiniClarificationChat } from "./prototype/mini-clarification-chat";
 import { StartScreen } from "./prototype/start-screen";
 
-const BUILD_STATUSES = [
-  "Собираем черновик",
-  "Проверяем читаемость",
+const BUILD_STEPS = [
+  "Анализ задачи",
+  "Структурирование",
+  "Генерация слайдов",
+  "Проверка читаемости",
 ] as const;
 
-type BuildStatus = (typeof BUILD_STATUSES)[number];
+const BUILD_SLIDE_LABELS = [
+  "Обложка",
+  "Проблема",
+  "Три шага",
+  "Результат",
+  "Для кого",
+  "CTA",
+] as const;
+
+const BUILD_SLIDES_READY_BY_STEP = [2, 4, 5, 6] as const;
+
+const BUILD_STEP_COUNT = BUILD_STEPS.length;
+
+const BUILD_FINISH_MS = 2200;
+const BUILD_STEP_DELAYS_MS = [450, 900, 1350] as const;
 
 export function PresentationPrototype() {
   const [prompt, setPrompt] = useState("");
   const [promptError, setPromptError] = useState<string | null>(null);
   const [screen, setScreen] = useState<PrototypeScreen>("start");
   const [entryPhase, setEntryPhase] = useState<EntryPhase>("idle");
-  const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
+  const [buildStepIndex, setBuildStepIndex] = useState<number | null>(null);
   const [session, setSession] = useState<ClarificationSession | null>(null);
   const [chatReply, setChatReply] = useState("");
   const [draft, setDraft] = useState<PresentationDraft | null>(null);
@@ -48,6 +65,7 @@ export function PresentationPrototype() {
   const [, startTransition] = useTransition();
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const buildSessionRef = useRef<ClarificationSession | null>(null);
   const buildTimerRefs = useRef<number[]>([]);
   const debugLayerEnabled = process.env.NEXT_PUBLIC_VNYATNO_DEBUG === "1";
 
@@ -84,7 +102,8 @@ export function PresentationPrototype() {
 
   function resetEntryFlow(nextPrompt?: string) {
     clearBuildTimers();
-    setBuildStatus(null);
+    setBuildStepIndex(null);
+    buildSessionRef.current = null;
 
     if (typeof nextPrompt === "string") {
       setPrompt(nextPrompt);
@@ -139,29 +158,45 @@ export function PresentationPrototype() {
     }
 
     clearBuildTimers();
+    buildSessionRef.current = session;
     setEntryPhase("building");
-    setBuildStatus(BUILD_STATUSES[0]);
+    setBuildStepIndex(0);
 
-    buildTimerRefs.current = [
+    const timers: number[] = [];
+    for (let i = 0; i < BUILD_STEP_DELAYS_MS.length; i++) {
+      const nextStep = i + 1;
+      timers.push(
+        window.setTimeout(() => {
+          setBuildStepIndex(nextStep);
+        }, BUILD_STEP_DELAYS_MS[i]),
+      );
+    }
+
+    timers.push(
       window.setTimeout(() => {
-        setBuildStatus(BUILD_STATUSES[1]);
-      }, 800),
-      window.setTimeout(() => {
-        const nextWorkingDraft = buildWorkingDraft(prompt, session);
+        const held = buildSessionRef.current;
+        if (!held) {
+          return;
+        }
+
+        const nextWorkingDraft = buildWorkingDraft(prompt, held);
         const nextDraft = buildPresentationDraft(nextWorkingDraft);
 
         setDraft(nextDraft);
         setSelectedSlideId(nextDraft.slides[0]?.id ?? null);
         setDrawerState("closed");
-        setBuildStatus(null);
+        setBuildStepIndex(null);
         setEntryPhase("idle");
+        buildSessionRef.current = null;
         clearBuildTimers();
 
         startTransition(() => {
           setScreen("editor");
         });
-      }, 1800),
-    ];
+      }, BUILD_FINISH_MS),
+    );
+
+    buildTimerRefs.current = timers;
   }
 
   function updateDocumentTitle(value: string) {
@@ -207,23 +242,31 @@ export function PresentationPrototype() {
     setDraft(regenerateSlide(draft, selectedSlideId, transformId));
   }
 
+  function updateSlideSpeakerNote(value: string) {
+    if (!draft || !selectedSlideId) {
+      return;
+    }
+
+    setDraft({
+      ...draft,
+      slideSpeakerNotes: {
+        ...draft.slideSpeakerNotes,
+        [selectedSlideId]: value,
+      },
+    });
+  }
+
   const activeSlide =
     draft?.slides.find((slide) => slide.id === selectedSlideId) ??
     draft?.slides[0] ??
     null;
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell${screen === "start" ? " app-shell--start" : ""}`}>
       {screen === "start" ? (
         <>
           <div className="start-logo">
-            <span className="start-logo__mark" aria-hidden="true">
-              <svg width="16" height="13" viewBox="0 0 16 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="16" height="2.4" rx="1.2" fill="white"/>
-                <rect y="5.3" width="10.5" height="2.4" rx="1.2" fill="white" fillOpacity="0.65"/>
-                <rect y="10.6" width="6.5" height="2.4" rx="1.2" fill="white" fillOpacity="0.38"/>
-              </svg>
-            </span>
+            <BrandMark />
             <span className="start-logo__name">Внятно</span>
           </div>
 
@@ -236,8 +279,17 @@ export function PresentationPrototype() {
             onUseScenario={handleUseScenario}
             onSubmit={beginClarify}
           >
-            {entryPhase === "building" ? (
-              <BuildStatusPanel status={buildStatus} />
+            {entryPhase === "building" && buildStepIndex !== null ? (
+              <div className="chat-card build-status-card">
+                <div className="chat-card-header chat-card-header--stacked">
+                  <h3 className="chat-card-title">Собираем черновик</h3>
+                  <p className="chat-card-subtitle">
+                    6 слайдов по структуре запроса
+                  </p>
+                </div>
+                <div className="chat-card-sep" />
+                <BuildStatusPanel stepIndex={buildStepIndex} />
+              </div>
             ) : session ? (
               <MiniClarificationChat
                 session={session}
@@ -266,6 +318,12 @@ export function PresentationPrototype() {
           onRegenerateSlide={regenerateActiveSlide}
           onRenameDocument={updateDocumentTitle}
           onBackToStart={handleBackToStart}
+          slideSpeakerNote={
+            selectedSlideId
+              ? (draft.slideSpeakerNotes[selectedSlideId] ?? "")
+              : ""
+          }
+          onSlideSpeakerNoteChange={updateSlideSpeakerNote}
           debugLayerEnabled={debugLayerEnabled}
         />
       ) : null}
@@ -273,26 +331,95 @@ export function PresentationPrototype() {
   );
 }
 
-function BuildStatusPanel({ status }: { status: BuildStatus | null }) {
-  const activeIndex = status ? BUILD_STATUSES.indexOf(status) : -1;
+function buildStepRowStatus(
+  stepRowIndex: number,
+  activeStepIndex: number
+): string {
+  if (stepRowIndex < activeStepIndex) {
+    return "Готово";
+  }
+
+  if (stepRowIndex > activeStepIndex) {
+    return "";
+  }
+
+  if (stepRowIndex === 2) {
+    return "Генерируем...";
+  }
+
+  return "В работе";
+}
+
+function BuildStatusPanel({ stepIndex }: { stepIndex: number }) {
+  const progressPct = Math.round(((stepIndex + 1) / BUILD_STEP_COUNT) * 100);
+  const slidesReady = BUILD_SLIDES_READY_BY_STEP[stepIndex] ?? 0;
 
   return (
     <section className="build-status" aria-live="polite">
+      <p className="build-status__slides-ready">
+        {slidesReady} из 6 слайдов готово
+      </p>
+      <div
+        className="build-status__progress"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progressPct}
+        aria-label="Прогресс сборки черновика"
+      >
+        <div className="build-status__progress-track">
+          <div
+            className="build-status__progress-fill"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
       <div className="build-status__steps">
-        {BUILD_STATUSES.map((step, index) => (
+        {BUILD_STEPS.map((step, index) => (
           <div
             key={step}
             className={`build-status__step${
-              index < activeIndex ? " is-done" : index === activeIndex ? " is-active" : ""
+              index < stepIndex
+                ? " is-done"
+                : index === stepIndex
+                  ? " is-active"
+                  : ""
             }`}
           >
             <span className="build-status__mark" aria-hidden="true">
-              {index < activeIndex ? "✓" : index === activeIndex ? "•" : "·"}
+              {index < stepIndex ? "✓" : index === stepIndex ? "•" : "·"}
             </span>
-            <span>{step}</span>
+            <span className="build-status__step-name">{step}</span>
+            <span className="build-status__step-status">
+              {buildStepRowStatus(index, stepIndex)}
+            </span>
           </div>
         ))}
       </div>
+
+      <div className="build-status__slides-head">Слайды</div>
+      <ul className="build-status__slides">
+        {BUILD_SLIDE_LABELS.map((label, index) => {
+          const done = index < slidesReady;
+          const active =
+            index === slidesReady &&
+            slidesReady < BUILD_SLIDE_LABELS.length;
+          return (
+            <li
+              key={label}
+              className={`build-status__slide-row${
+                done ? " is-done" : active ? " is-active" : ""
+              }`}
+            >
+              <span className="build-status__slide-num" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="build-status__slide-label">{label}</span>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

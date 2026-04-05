@@ -45,12 +45,14 @@ export function MiniClarificationChat({
     onSubmitReply(value);
   }
 
+  const qNum = Math.min(questionNumber, totalQuestions);
+
   return (
     <div className="chat-card" aria-live="polite">
       <div className="chat-card-header">
         <h3 className="chat-card-title">О чём презентация?</h3>
-        <span className="chat-card-counter">
-          Вопрос {Math.min(questionNumber, totalQuestions)} из {totalQuestions}
+        <span className="sr-only">
+          Вопрос {qNum} из {totalQuestions}
         </span>
       </div>
 
@@ -130,8 +132,13 @@ function ChatMessage({ message }: { message: ClarificationMessage }) {
       <span className={`chat-avatar is-${message.role}`}>
         {isUser ? "М" : "В"}
       </span>
-      <div className={`chat-bubble is-${message.role}`}>
-        <p>{message.text}</p>
+      <div className="chat-msg__column">
+        <div className={`chat-bubble is-${message.role}`}>
+          <p>{message.text}</p>
+        </div>
+        {message.time ? (
+          <span className="chat-msg__time">{message.time}</span>
+        ) : null}
       </div>
     </div>
   );

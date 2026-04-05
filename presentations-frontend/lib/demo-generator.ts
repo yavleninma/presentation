@@ -1,4 +1,5 @@
 import type {
+  CanvasLayoutId,
   ClarificationSession,
   ColorThemeId,
   FitPassResult,
@@ -40,6 +41,16 @@ const SLOT_MAP: Array<{ id: SlideId; slotId: SlideSlotId; fn: SlideFunctionId }>
   { id: "slide-5", slotId: 5, fn: "tension" },
   { id: "slide-6", slotId: 6, fn: "next_step" },
 ];
+
+/** Подписи rail как в макете v3 (Figma Screens / Brand Kit). */
+const FIGMA_RAIL_LABEL_BY_SLOT: Record<SlideSlotId, string> = {
+  1: "Обложка",
+  2: "Проблема",
+  3: "Три шага",
+  4: "Результат",
+  5: "Для кого",
+  6: "След. шаг",
+};
 
 const TEMPLATE_ICON_PACKS: Record<TemplateId, TemplateIconPackId> = {
   strict: "outline",
@@ -155,7 +166,10 @@ export function buildWorkingDraft(
 
 export function buildPresentationDraft(
   workingDraft: WorkingDraft,
-  options: { documentTitle?: string } = {}
+  options: {
+    documentTitle?: string;
+    slideSpeakerNotes?: PresentationDraft["slideSpeakerNotes"];
+  } = {}
 ): PresentationDraft {
   const normalizedWorkingDraft = normalizeWorkingDraft(workingDraft);
   const slides = normalizedWorkingDraft.slidePlan.map((entry, index) =>
@@ -170,6 +184,7 @@ export function buildPresentationDraft(
     documentSubtitle: `${extractPeriod(normalizedWorkingDraft.sourcePrompt)} · ${normalizedWorkingDraft.audience}`,
     workingDraft: normalizedWorkingDraft,
     slides,
+    slideSpeakerNotes: options.slideSpeakerNotes ?? {},
     debug: {
       currentWorkingDraft: normalizedWorkingDraft,
       hiddenSlidePlan: normalizedWorkingDraft.slidePlan,
@@ -191,7 +206,10 @@ export function updateDraftAppearance(
       templateId: appearance.templateId ?? draft.workingDraft.templateId,
       colorThemeId: appearance.colorThemeId ?? draft.workingDraft.colorThemeId,
     },
-    { documentTitle: draft.documentTitle }
+    {
+      documentTitle: draft.documentTitle,
+      slideSpeakerNotes: draft.slideSpeakerNotes,
+    }
   );
 }
 
@@ -244,7 +262,19 @@ export function regenerateSlide(
 
   return buildPresentationDraft(nextWorkingDraft, {
     documentTitle: draft.documentTitle,
+    slideSpeakerNotes: draft.slideSpeakerNotes,
   });
+}
+
+function slideFunctionToLayout(slideFunctionId: SlideFunctionId): CanvasLayoutId {
+  switch (slideFunctionId) {
+    case "open_topic": return "cover";
+    case "main_point": return "metrics";
+    case "movement": return "steps";
+    case "evidence": return "checklist";
+    case "tension": return "personas";
+    case "next_step": return "features";
+  }
 }
 
 function buildSlidePlanEntry(
@@ -256,17 +286,13 @@ function buildSlidePlanEntry(
   const signals = deriveDraftSignals(workingDraft);
   const transformId = lastTransformId ?? intentToTransform(workingDraft.presentationIntent);
   const coreMessage = buildCoreMessage(signals, slideFunctionId);
+  const canvasLayoutId = slideFunctionToLayout(slideFunctionId);
   const blocks = buildBlocks(signals, slideFunctionId, transformId, coreMessage);
 
   return {
     slotId,
     slideFunctionId,
-    canvasLayoutId:
-      slideFunctionId === "open_topic"
-        ? "hero"
-        : slideFunctionId === "tension" || slideFunctionId === "next_step"
-          ? "stack"
-          : "split",
+    canvasLayoutId,
     coreMessage,
     blockPlan: blocks,
     placeholderPlan: blocks.filter((block) => block.placeholder).map((block) => block.body),
@@ -282,6 +308,7 @@ function buildPresentationSlide(
 ): PresentationSlide {
   const slideId = SLOT_MAP[entry.slotId - 1].id;
   const signals = deriveDraftSignals(workingDraft);
+  const railTitle = `${entry.slotId} — ${FIGMA_RAIL_LABEL_BY_SLOT[entry.slotId]}`;
 
   return {
     id: slideId,
@@ -289,7 +316,7 @@ function buildPresentationSlide(
     slideFunctionId: entry.slideFunctionId,
     canvasLayoutId: entry.canvasLayoutId,
     index: String(entry.slotId).padStart(2, "0"),
-    railTitle: clampText(title, 44),
+    railTitle: clampText(railTitle, 44),
     railRhythm: entry.blockPlan.map(blockTone).slice(0, 4),
     title,
     subtitle: buildSubtitle(signals, entry, title),
@@ -325,7 +352,8 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
     notes.push("fit-pass сократил подзаголовок");
   }
 
-  const blocks = slide.blocks.slice(0, 3).map((block) => {
+  const maxBlocks = slide.canvasLayoutId === "checklist" ? 4 : slide.canvasLayoutId === "cover" ? 1 : 3;
+  const blocks = slide.blocks.slice(0, maxBlocks).map((block) => {
     const next = {
       ...block,
       title: clampText(block.title, 34),
@@ -371,7 +399,7 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
       ...slide,
       title,
       subtitle,
-      railTitle: clampText(title, 44),
+      railTitle: clampText(slide.railTitle, 44),
       railRhythm: blocks.map(blockTone).slice(0, 4),
       blocks,
       drawerActions,
@@ -567,129 +595,229 @@ function buildBlocks(
     defaultFactPlaceholder(signals)
   );
   const nextReason = buildActionReason(signals);
-  const supportSummary =
-    signals.facts.length > 1
-      ? "Опора уже есть, добираем только пробелы."
-      : "Есть один рабочий сигнал, но его ещё нужно укрепить.";
 
   if (slideFunctionId === "open_topic") {
-    if (transformId === "decision_next") {
-      return [
-        block("open-1", "focus", "flag", "Что важно сейчас", coreMessage),
-        block("open-2", "proof", "file", "Что уже подтверждено", facts.body, facts.placeholder),
-        block("open-3", "decision", "arrow", "Что нужно согласовать", signals.desiredOutcome),
-      ];
-    }
-
-    if (transformId === "breakdown_explain") {
-      return [
-        block("open-1", "focus", "spark", "О чём разговор", coreMessage),
-        block("open-2", "proof", "file", "Что уже известно", facts.body, facts.placeholder),
-        block("open-3", "decision", "arrow", "Что должно стать ясно", signals.desiredOutcome),
-      ];
-    }
-
-    return [
-      block("open-1", "movement", "trend", "Что уже видно", progressLines.body, progressLines.placeholder),
-      block("open-2", "constraint", "shield", "Где держит", pressureLine),
-      block("open-3", "decision", "arrow", "Куда это ведёт", signals.desiredOutcome),
-    ];
+    return buildCoverBlocks(signals, coreMessage);
   }
 
   if (slideFunctionId === "main_point") {
-    return [
-      block("main-1", "focus", "spark", "Ключевой вывод", coreMessage),
-      block(
-        "main-2",
-        transformId === "status_shift" ? "movement" : "proof",
-        transformId === "status_shift" ? "trend" : "file",
-        transformId === "status_shift" ? "Что уже подтверждено" : "На чём это держится",
-        facts.body,
-        facts.placeholder
-      ),
-      block(
-        "main-3",
-        transformId === "decision_next" ? "decision" : "constraint",
-        transformId === "decision_next" ? "arrow" : "shield",
-        transformId === "decision_next" ? "Что нужно согласовать" : "Что держит дальше",
-        transformId === "decision_next" ? signals.desiredOutcome : pressureLine
-      ),
-    ];
+    return buildMetricBlocks(signals, facts, pressureLine);
   }
 
   if (slideFunctionId === "movement") {
-    return [
-      block("move-1", "movement", "trend", "Что уже сдвинули", progressLines.body, progressLines.placeholder),
-      block(
-        "move-2",
-        transformId === "breakdown_explain" ? "proof" : "constraint",
-        transformId === "breakdown_explain" ? "file" : "gap",
-        transformId === "breakdown_explain" ? "За счёт чего" : "Что ещё держит",
-        transformId === "breakdown_explain" ? facts.body : gaps.body,
-        transformId === "breakdown_explain" ? facts.placeholder : gaps.placeholder
-      ),
-      block(
-        "move-3",
-        transformId === "decision_next" ? "decision" : "focus",
-        transformId === "decision_next" ? "flag" : "spark",
-        transformId === "decision_next" ? "Какой шаг открывается" : "Что это меняет сейчас",
-        transformId === "decision_next" ? signals.desiredOutcome : nextReason
-      ),
-    ];
+    return buildStepBlocks(signals, progressLines, facts, gaps, transformId);
   }
 
   if (slideFunctionId === "evidence") {
-    return [
-      block("evidence-1", "proof", "file", "Что уже подтверждено", facts.body, facts.placeholder),
-      block(
-        "evidence-2",
-        transformId === "decision_next" ? "decision" : "focus",
-        transformId === "decision_next" ? "flag" : "spark",
-        transformId === "decision_next" ? "Что это позволяет просить" : "Почему этого уже хватает",
-        transformId === "decision_next" ? signals.desiredOutcome : supportSummary
-      ),
-      block("evidence-3", "constraint", "gap", "Что ещё проверить", gaps.body, gaps.placeholder),
-    ];
+    return buildChecklistBlocks(signals, facts, gaps);
   }
 
   if (slideFunctionId === "tension") {
-    return [
-      block(
-        "tension-1",
-        "constraint",
-        "shield",
-        transformId === "status_shift" ? "Главный риск" : "Где упёрлись",
-        pressureLine
-      ),
-      block("tension-2", "constraint", "gap", "Чего не хватает", gaps.body, gaps.placeholder),
-      block(
-        "tension-3",
-        transformId === "breakdown_explain" ? "proof" : "decision",
-        transformId === "breakdown_explain" ? "clock" : "flag",
-        transformId === "breakdown_explain" ? "Почему это держит разговор" : "Что нужно снять сейчас",
-        transformId === "breakdown_explain" ? nextReason : signals.desiredOutcome
-      ),
-    ];
+    return buildPersonaBlocks(signals, pressureLine, gaps);
+  }
+
+  return buildFeatureBlocks(signals, facts, gaps, nextReason);
+}
+
+function buildCoverBlocks(signals: DraftSignals, coreMessage: string): SlideBlock[] {
+  return [
+    block("cover-1", "focus", "spark", coreMessage, signals.desiredOutcome),
+  ];
+}
+
+function buildMetricBlocks(
+  signals: DraftSignals,
+  facts: { body: string; placeholder: boolean },
+  pressureLine: string
+): SlideBlock[] {
+  const factLines = signals.facts.filter((f) => f.length > 0);
+  const metricValues = extractMetricValues(factLines);
+
+  if (metricValues.length >= 3) {
+    return metricValues.slice(0, 3).map((m, i) => ({
+      ...block(`metric-${i + 1}`, "fact", "file", m.label, m.description),
+      metric: m.value,
+    }));
+  }
+
+  if (metricValues.length >= 1) {
+    const result: SlideBlock[] = metricValues.slice(0, 2).map((m, i) => ({
+      ...block(`metric-${i + 1}`, "fact", "file", m.label, m.description),
+      metric: m.value,
+    }));
+    result.push({
+      ...block(`metric-${result.length + 1}`, "constraint", "shield", pressureLine || "Что держит дальше", signals.primaryGap ?? "[нужна опора]"),
+      metric: "?",
+      placeholder: !signals.primaryGap,
+    });
+    return result;
   }
 
   return [
-    block(
-      "next-1",
-      "decision",
-      transformId === "status_shift" ? "arrow" : "flag",
-      transformId === "decision_next" ? "Что нужно согласовать" : "Какой шаг нужен",
-      signals.desiredOutcome
-    ),
-    block(
-      "next-2",
-      transformId === "breakdown_explain" ? "proof" : "constraint",
-      transformId === "breakdown_explain" ? "file" : "gap",
-      transformId === "breakdown_explain" ? "Что уже на руках" : "Что ещё добрать",
-      transformId === "breakdown_explain" ? facts.body : gaps.body,
-      transformId === "breakdown_explain" ? facts.placeholder : gaps.placeholder
-    ),
-    block("next-3", "proof", "file", "Почему сейчас", nextReason),
+    { ...block("metric-1", "fact", "file", "Ключевое число", facts.body, facts.placeholder), metric: "[N]", placeholder: true },
+    { ...block("metric-2", "movement", "trend", "Сдвиг", signals.secondaryFact ?? "[нужна цифра]", !signals.secondaryFact), metric: "[%]", placeholder: true },
+    { ...block("metric-3", "constraint", "shield", "Ограничение", pressureLine), metric: "?", placeholder: !signals.riskLine },
   ];
+}
+
+function buildStepBlocks(
+  signals: DraftSignals,
+  progressLines: { body: string; placeholder: boolean },
+  facts: { body: string; placeholder: boolean },
+  gaps: { body: string; placeholder: boolean },
+  transformId: HiddenTransformId
+): SlideBlock[] {
+  const factLines = signals.facts.filter((f) => f.length > 0);
+  const stepBodies = buildStepBodies(signals);
+
+  if (factLines.length >= 3) {
+    return factLines.slice(0, 3).map((f, i) => ({
+      ...block(`step-${i + 1}`, "movement", "trend", cleanLine(f), stepBodies[i] ?? ""),
+      stepNumber: String(i + 1).padStart(2, "0"),
+    }));
+  }
+
+  if (factLines.length >= 1) {
+    const result: SlideBlock[] = factLines.slice(0, 2).map((f, i) => ({
+      ...block(`step-${i + 1}`, "movement", "trend", cleanLine(f), stepBodies[i] ?? ""),
+      stepNumber: String(i + 1).padStart(2, "0"),
+    }));
+    const nextStep = signals.desiredOutcome || signals.primaryGap || "[следующий шаг]";
+    result.push({
+      ...block(`step-${result.length + 1}`, "decision", "arrow", cleanLine(nextStep), stepBodies[result.length] ?? ""),
+      stepNumber: String(result.length + 1).padStart(2, "0"),
+    });
+    return result;
+  }
+
+  return [
+    { ...block("step-1", "focus", "spark", "Зафиксировать задачу", "Определить границы и ожидания"), stepNumber: "01" },
+    { ...block("step-2", "movement", "trend", "Собрать опору", "Факты и цифры для аргументации"), stepNumber: "02" },
+    { ...block("step-3", "decision", "arrow", "Принять решение", "Согласовать следующий шаг"), stepNumber: "03" },
+  ];
+}
+
+function buildStepBodies(signals: DraftSignals): string[] {
+  const pool: string[] = [];
+  if (signals.desiredOutcome && !isPlaceholderToken(signals.desiredOutcome)) {
+    pool.push(cleanBody(signals.desiredOutcome));
+  }
+  if (signals.primaryGap && !isPlaceholderToken(signals.primaryGap)) {
+    pool.push(cleanBody(signals.primaryGap));
+  }
+  if (signals.audience) {
+    pool.push(signals.audience);
+  }
+  return pool;
+}
+
+function buildChecklistBlocks(
+  signals: DraftSignals,
+  facts: { body: string; placeholder: boolean },
+  gaps: { body: string; placeholder: boolean }
+): SlideBlock[] {
+  const factLines = signals.facts.filter((f) => f.length > 0);
+  const gapLines = signals.gaps.filter((g) => g.length > 0);
+
+  const items: SlideBlock[] = [];
+
+  for (const f of factLines.slice(0, 3)) {
+    items.push(block(`check-${items.length + 1}`, "proof", "file", cleanBody(f), ""));
+  }
+
+  if (items.length < 4 && gapLines.length > 0) {
+    items.push({
+      ...block(`check-${items.length + 1}`, "constraint", "gap", cleanBody(gapLines[0]), ""),
+      placeholder: true,
+    });
+  }
+
+  if (items.length === 0) {
+    return [
+      { ...block("check-1", "proof", "file", facts.body, ""), placeholder: facts.placeholder },
+      { ...block("check-2", "constraint", "gap", gaps.body, ""), placeholder: gaps.placeholder },
+    ];
+  }
+
+  return items;
+}
+
+function buildPersonaBlocks(
+  signals: DraftSignals,
+  pressureLine: string,
+  gaps: { body: string; placeholder: boolean }
+): SlideBlock[] {
+  const audienceParts = splitAudience(signals.audience);
+
+  if (audienceParts.length >= 2) {
+    return audienceParts.slice(0, 3).map((role, i) => ({
+      ...block(`persona-${i + 1}`, "focus", "flag", role, buildPersonaTask(signals, i)),
+      tagline: signals.topic,
+    }));
+  }
+
+  const hasRealRisk = pressureLine && !isPlaceholderToken(pressureLine);
+  const riskTitle = hasRealRisk ? pressureLine : "Где упираемся";
+  const riskBody = hasRealRisk && signals.primaryGap && pressureLine !== signals.primaryGap
+    ? cleanBody(signals.primaryGap)
+    : hasRealRisk ? "" : (gaps.placeholder ? "" : gaps.body);
+  const factBody = signals.primaryFact ? cleanBody(signals.primaryFact) : "";
+  const decisionBody = signals.desiredOutcome ? cleanBody(signals.desiredOutcome) : "";
+
+  return [
+    { ...block("persona-1", "constraint", "shield", riskTitle, riskBody), tagline: signals.audience, placeholder: !hasRealRisk },
+    { ...block("persona-2", "proof", "file", "Что уже известно", factBody || "[добавить факт]"), tagline: signals.topic, placeholder: !signals.primaryFact },
+    { ...block("persona-3", "decision", "flag", "Какое решение нужно", decisionBody || "[уточнить решение]"), tagline: "Решение", placeholder: !signals.desiredOutcome },
+  ];
+}
+
+function buildFeatureBlocks(
+  signals: DraftSignals,
+  facts: { body: string; placeholder: boolean },
+  gaps: { body: string; placeholder: boolean },
+  nextReason: string
+): SlideBlock[] {
+  return [
+    block("feat-1", "decision", "flag", "Следующий шаг", nextReason),
+    block("feat-2", "proof", "file", "Что уже на руках", facts.body, facts.placeholder),
+    block("feat-3", "constraint", "gap", "Что ещё добрать", gaps.body, gaps.placeholder),
+  ];
+}
+
+function extractMetricValues(factLines: string[]): Array<{ value: string; label: string; description: string }> {
+  const results: Array<{ value: string; label: string; description: string }> = [];
+
+  for (const line of factLines) {
+    const numMatch = line.match(/(\d[\d.,]*\s*(?:%|×|мс|мин|сек|ч|дн|[xк])?)/i);
+    if (numMatch) {
+      const value = numMatch[1].trim();
+      const rest = line.replace(numMatch[0], "").trim().replace(/^[—–\-:,.\s]+/, "");
+      const label = cleanLine(rest) || cleanLine(line);
+      results.push({
+        value,
+        label,
+        description: "",
+      });
+    }
+  }
+
+  return results;
+}
+
+function splitAudience(audience: string): string[] {
+  return audience
+    .split(/[,;/&+]+|\s+и\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 2);
+}
+
+function buildPersonaTask(signals: DraftSignals, index: number): string {
+  const tasks = [
+    signals.desiredOutcome,
+    signals.primaryFact ? cleanBody(signals.primaryFact) : null,
+    signals.primaryGap ? cleanBody(signals.primaryGap) : null,
+  ].filter(Boolean) as string[];
+  return tasks[index] ?? tasks[0] ?? "";
 }
 
 function buildActionLabels(
@@ -731,7 +859,7 @@ function buildSubtitle(
       .join(" · ");
   }
 
-  if (entry.slideFunctionId === "tension" && signals.primaryGap) {
+  if (entry.slideFunctionId === "tension" && signals.primaryGap && !isPlaceholderToken(signals.primaryGap)) {
     return clampText(cleanBody(signals.primaryGap), 84);
   }
 
@@ -917,7 +1045,7 @@ function findRiskLine(sourcePrompt: string): string | null {
     .flatMap((item) => item.split(/,(?=\s*[а-яёa-z0-9])/i))
     .map((item) => cleanBody(item))
     .filter(Boolean)
-    .filter((item) => /\b(?:риск|блокер|упёр|застрял|не хватает|мешает|найм|ресурс|бюджет|latency|coverage|срок)\b/i.test(item))
+    .filter((item) => /\b(?:риск|блокер|упёр|застрял|не хватает|мешает|не доказано|не подтвержден|найм|ресурс|бюджет|latency|coverage|срок)\b/i.test(item))
     .filter((item) => !/^(?:нужно|собери|собрать|покажи|показать)\b/i.test(item))
     .sort((left, right) => right.length - left.length);
 
@@ -1342,7 +1470,7 @@ function isRiskSignal(value?: string | null) {
     return false;
   }
 
-  return /риск|блокер|упёр|застрял|не подтвержден|не дожм|не хватает|мешает|ресурс|найм|срок|coverage|latency/i.test(
+  return /риск|блокер|упёр|застрял|не подтвержден|не доказано|не дожм|не хватает|мешает|ресурс|найм|срок|coverage|latency/i.test(
     cleanBody(value)
   );
 }

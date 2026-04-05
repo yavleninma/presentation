@@ -581,6 +581,14 @@ function needsFactFollowUp(insights: ClarificationInsights) {
   return false;
 }
 
+function formatMessageTime(): string {
+  return new Date().toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 function createMessage(
   role: ClarificationMessage["role"],
   text: string,
@@ -590,5 +598,6 @@ function createMessage(
     id: `${role}-${position}`,
     role,
     text,
+    time: formatMessageTime(),
   };
 }

@@ -37,7 +37,16 @@ export type HiddenTransformId =
   | "breakdown_explain"
   | "decision_next";
 
-export type CanvasLayoutId = "hero" | "split" | "stack";
+export type CanvasLayoutId =
+  | "hero"
+  | "split"
+  | "stack"
+  | "cover"
+  | "metrics"
+  | "steps"
+  | "checklist"
+  | "personas"
+  | "features";
 
 export type TemplateId = "strict" | "cards" | "briefing";
 
@@ -74,6 +83,8 @@ export interface ClarificationMessage {
   id: string;
   role: ClarificationRole;
   text: string;
+  /** Время сообщения (ЧЧ:ММ), для согласования с макетом чата */
+  time?: string;
 }
 
 export interface SkeletonReadiness {
@@ -117,6 +128,9 @@ export interface SlideBlock {
   title: string;
   body: string;
   placeholder?: boolean;
+  metric?: string;
+  stepNumber?: string;
+  tagline?: string;
 }
 
 export interface WorkingDraftSlidePlanEntry {
@@ -193,5 +207,7 @@ export interface PresentationDraft {
   documentSubtitle: string;
   workingDraft: WorkingDraft;
   slides: PresentationSlide[];
+  /** Заметки к слайду по id; не входят в workingDraft, сохраняются при смене шаблона/цвета и пересборе слайда */
+  slideSpeakerNotes: Partial<Record<SlideId, string>>;
   debug: PresentationDebugState;
 }

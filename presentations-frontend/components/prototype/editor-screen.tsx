@@ -1,6 +1,13 @@
 "use client";
 
-import { X } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { COLOR_OPTIONS, TEMPLATE_OPTIONS } from "../../lib/demo-generator";
 import type {
   ColorThemeId,
@@ -9,6 +16,7 @@ import type {
   PresentationDraft,
   TemplateId,
 } from "../../lib/presentation-types";
+import { BrandMark } from "../brand-mark";
 import {
   SlideCanvas,
   SlideThumbnail,
@@ -27,6 +35,8 @@ export function EditorScreen({
   onRegenerateSlide,
   onRenameDocument,
   onBackToStart,
+  slideSpeakerNote,
+  onSlideSpeakerNoteChange,
   debugLayerEnabled = false,
 }: {
   draft: PresentationDraft;
@@ -40,6 +50,8 @@ export function EditorScreen({
   onRegenerateSlide: (transformId: HiddenTransformId) => void;
   onRenameDocument: (value: string) => void;
   onBackToStart: () => void;
+  slideSpeakerNote: string;
+  onSlideSpeakerNoteChange: (value: string) => void;
   debugLayerEnabled?: boolean;
 }) {
   const activeSlide =
@@ -54,6 +66,18 @@ export function EditorScreen({
   const debugPayload = showDebugLayer
     ? buildDebugPayload(draft, activeSlide.id)
     : null;
+
+  const templateLabel =
+    TEMPLATE_OPTIONS.find((o) => o.id === draft.workingDraft.templateId)
+      ?.label ?? "";
+  const colorLabel =
+    COLOR_OPTIONS.find((o) => o.id === draft.workingDraft.colorThemeId)
+      ?.label ?? "";
+
+  const slideList = draft.slides;
+  const activeIdx = slideList.findIndex((s) => s.id === activeSlide.id);
+  const slidePos = activeIdx >= 0 ? activeIdx + 1 : 1;
+  const slideTotal = slideList.length;
 
   return (
     <section className="editor-stage">
@@ -70,11 +94,9 @@ export function EditorScreen({
               aria-label="Новый запрос"
               title="Новый запрос"
             >
-              ←
+              <ArrowLeft size={16} />
             </button>
-            <span className="brand-mark" aria-hidden="true">
-              В
-            </span>
+            <BrandMark />
             <span className="brand-name">Внятно</span>
           </div>
 
@@ -87,44 +109,87 @@ export function EditorScreen({
             />
           </label>
 
-          <div className="editor-topbar-controls">
-            <div className="segmented-group">
-              <span className="segmented-label">Шаблон</span>
-              <div className="segmented-control">
+          <div className="editor-topbar-controls editor-topbar-pills">
+            <label className="editor-pill-select">
+              <span className="editor-pill-select__body">
+                <span className="editor-pill-select__prefix">Шаблон:</span>
+                <span className="editor-pill-select__value">{templateLabel}</span>
+              </span>
+              <ChevronDown
+                className="editor-pill-select__chevron"
+                size={16}
+                strokeWidth={2}
+                aria-hidden
+              />
+              <select
+                className="editor-pill-select__native"
+                value={draft.workingDraft.templateId}
+                onChange={(event) =>
+                  onSelectTemplate(event.target.value as TemplateId)
+                }
+                aria-label="Шаблон оформления"
+              >
                 {TEMPLATE_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={`segmented-option${draft.workingDraft.templateId === option.id ? " is-active" : ""}`}
-                    onClick={() => onSelectTemplate(option.id)}
-                  >
+                  <option key={option.id} value={option.id}>
                     {option.label}
-                  </button>
+                  </option>
                 ))}
-              </div>
-            </div>
+              </select>
+            </label>
 
-            <div className="segmented-group">
-              <span className="segmented-label">Цвет</span>
-              <div className="segmented-control">
+            <label className="editor-pill-select">
+              <span
+                className="editor-pill-color-dot"
+                data-color={draft.workingDraft.colorThemeId}
+                aria-hidden
+              />
+              <span className="editor-pill-select__body">
+                <span className="editor-pill-select__prefix">Цвет:</span>
+                <span className="editor-pill-select__value">{colorLabel}</span>
+              </span>
+              <ChevronDown
+                className="editor-pill-select__chevron"
+                size={16}
+                strokeWidth={2}
+                aria-hidden
+              />
+              <select
+                className="editor-pill-select__native"
+                value={draft.workingDraft.colorThemeId}
+                onChange={(event) =>
+                  onSelectColor(event.target.value as ColorThemeId)
+                }
+                aria-label="Цветовая схема"
+              >
                 {COLOR_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={`segmented-option${draft.workingDraft.colorThemeId === option.id ? " is-active" : ""}`}
-                    data-color={option.id}
-                    onClick={() => onSelectColor(option.id)}
-                  >
-                    <span className="segmented-color-dot" />
+                  <option key={option.id} value={option.id}>
                     {option.label}
-                  </button>
+                  </option>
                 ))}
-              </div>
-            </div>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              className={`drawer-trigger drawer-trigger--pill${drawerState === "open" ? " is-active" : ""}`}
+              onClick={drawerState === "open" ? onCloseDrawer : onOpenDrawer}
+              aria-label={
+                drawerState === "open"
+                  ? "Закрыть настройки слайда"
+                  : "Открыть настройки слайда"
+              }
+              title={
+                drawerState === "open"
+                  ? "Закрыть настройки слайда"
+                  : "Открыть настройки слайда"
+              }
+            >
+              <Sparkles size={16} strokeWidth={2} />
+            </button>
           </div>
         </div>
 
-        <div className="editor-body">
+        <div className="editor-body" data-drawer={drawerState}>
           <aside className="editor-rail" aria-label="Слайды презентации">
             <div className="rail-list">
               {draft.slides.map((slide) => (
@@ -148,15 +213,48 @@ export function EditorScreen({
                 debugPayload={debugPayload}
               />
             </div>
+            <footer
+              className="editor-slide-footer"
+              aria-label="Навигация по слайдам"
+            >
+              <button
+                type="button"
+                className="editor-slide-footer__btn"
+                disabled={activeIdx <= 0}
+                onClick={() =>
+                  activeIdx > 0 &&
+                  onSelectSlide(slideList[activeIdx - 1].id)
+                }
+                aria-label="Предыдущий слайд"
+              >
+                <ChevronLeft size={18} strokeWidth={2} aria-hidden />
+              </button>
+              <p className="editor-slide-footer__label">
+                Слайд {slidePos} из {slideTotal}
+              </p>
+              <button
+                type="button"
+                className="editor-slide-footer__btn"
+                disabled={activeIdx < 0 || activeIdx >= slideTotal - 1}
+                onClick={() =>
+                  activeIdx >= 0 &&
+                  activeIdx < slideTotal - 1 &&
+                  onSelectSlide(slideList[activeIdx + 1].id)
+                }
+                aria-label="Следующий слайд"
+              >
+                <ChevronRight size={18} strokeWidth={2} aria-hidden />
+              </button>
+            </footer>
           </section>
 
-          {drawerState === "open" ? (
-            <aside className="editor-drawer">
+          {drawerState === "open" && (
+            <aside className="editor-drawer editor-drawer--v3">
               <div className="drawer-head">
-                <h2>Переосмыслить слайд</h2>
+                <h2 className="drawer-head__title">Настройки слайда</h2>
                 <button
                   type="button"
-                  className="icon-button"
+                  className="icon-button icon-button--drawer"
                   onClick={onCloseDrawer}
                   aria-label="Закрыть панель"
                 >
@@ -164,33 +262,43 @@ export function EditorScreen({
                 </button>
               </div>
 
-              <div className="drawer-actions">
-                {activeSlide.drawerActions.slice(0, 3).map((action) => (
-                  <button
-                    key={action.id}
-                    type="button"
-                    className={`regen-button${
-                      activeSlide.lastTransformId === action.transformId
-                        ? " is-active"
-                        : ""
-                    }`}
-                    onClick={() => onRegenerateSlide(action.transformId)}
-                  >
-                    {action.label}
-                  </button>
-                ))}
+              <div className="drawer-section">
+                <h3 className="drawer-section__label">Действия</h3>
+                <div className="drawer-actions">
+                  {activeSlide.drawerActions.slice(0, 3).map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      className={`regen-button${
+                        activeSlide.lastTransformId === action.transformId
+                          ? " is-active"
+                          : ""
+                      }`}
+                      onClick={() => onRegenerateSlide(action.transformId)}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="drawer-void" aria-hidden="true" />
+              <div className="drawer-section">
+                <label className="drawer-section__label" htmlFor="drawer-slide-notes">
+                  Заметки к слайду
+                </label>
+                <textarea
+                  id="drawer-slide-notes"
+                  className="drawer-notes-field"
+                  value={slideSpeakerNote}
+                  onChange={(event) =>
+                    onSlideSpeakerNoteChange(event.target.value)
+                  }
+                  rows={5}
+                  placeholder="Коротко для выступления или правки…"
+                  autoComplete="off"
+                />
+              </div>
             </aside>
-          ) : (
-            <button
-              type="button"
-              className="drawer-trigger"
-              onClick={onOpenDrawer}
-            >
-              Другой взгляд
-            </button>
           )}
         </div>
       </div>

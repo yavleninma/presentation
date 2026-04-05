@@ -37,13 +37,13 @@ export function StartScreen({
               onSubmit();
             }}
           >
-            <div className="composer-box">
+            <div className="composer-box composer-box--start-v3">
               <textarea
                 ref={textareaRef}
                 value={prompt}
                 onChange={(event) => onChangePrompt(event.target.value)}
-                rows={3}
-                placeholder="Квартальный статус, итоги пилота, запрос на ресурс..."
+                rows={1}
+                placeholder="Нужно собрать питч для инвесторов..."
                 disabled={disabled}
               />
               <button
