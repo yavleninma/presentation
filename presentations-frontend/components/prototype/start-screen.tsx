@@ -26,60 +26,64 @@ export function StartScreen({
 
   return (
     <section className="entry-stage">
-      <div className="entry-card">
-        <h1>О чём презентация?</h1>
+      {showEntryActions ? (
+        <h2 className="entry-title">О чём презентация?</h2>
+      ) : null}
 
-        <form
-          className="composer-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSubmit();
-          }}
-        >
-          <div className="composer-box">
-            <textarea
-              ref={textareaRef}
-              value={prompt}
-              onChange={(event) => onChangePrompt(event.target.value)}
-              rows={5}
-              placeholder="Что нужно показать?"
-              disabled={disabled}
-            />
+      {children ? (
+        children
+      ) : (
+        <>
+          <form
+            className="composer-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmit();
+            }}
+          >
+            <div className="composer-box">
+              <textarea
+                ref={textareaRef}
+                value={prompt}
+                onChange={(event) => onChangePrompt(event.target.value)}
+                rows={3}
+                placeholder="Нужно собрать питч про наш сервис..."
+                disabled={disabled}
+              />
+              <button
+                type="submit"
+                className="composer-send"
+                disabled={disabled}
+                aria-label="Отправить"
+              >
+                ↑
+              </button>
+            </div>
+
+            {promptError ? (
+              <p className="inline-error">{promptError}</p>
+            ) : null}
+          </form>
+
+          <div className="example-row">
+            {SCENARIO_CHIPS.map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                className="example-chip"
+                onClick={() => onUseScenario(chip.prompt)}
+                disabled={disabled}
+              >
+                {chip.label}
+              </button>
+            ))}
           </div>
 
-          {showEntryActions ? (
-            <>
-              <div className="example-row">
-                {SCENARIO_CHIPS.map((chip) => (
-                  <button
-                    key={chip.id}
-                    type="button"
-                    className="example-chip"
-                    onClick={() => onUseScenario(chip.prompt)}
-                    disabled={disabled}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="entry-actions">
-                <button
-                  type="submit"
-                  className="primary-button primary-button-wide"
-                  disabled={disabled}
-                >
-                  Продолжить
-                </button>
-              </div>
-            </>
-          ) : null}
-
-          {promptError ? <p className="inline-error">{promptError}</p> : null}
-        </form>
-
-        {children}
-      </div>
+          <p className="entry-hint">
+            Или загрузи документ — мы извлечём главное
+          </p>
+        </>
+      )}
     </section>
   );
 }

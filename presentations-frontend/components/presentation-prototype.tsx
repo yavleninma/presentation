@@ -123,12 +123,13 @@ export function PresentationPrototype() {
     setEntryPhase("chat");
   }
 
-  function handleSubmitReply() {
-    if (!session || !chatReply.trim()) {
+  function handleSubmitReply(directValue?: string) {
+    const value = directValue ?? chatReply;
+    if (!session || !value.trim()) {
       return;
     }
 
-    setSession(continueClarification(session, chatReply));
+    setSession(continueClarification(session, value));
     setChatReply("");
   }
 
@@ -207,14 +208,10 @@ export function PresentationPrototype() {
     <main className="app-shell">
       {screen === "start" ? (
         <>
-          <header className="app-topbar">
-            <div className="brand-block">
-              <span className="brand-mark" aria-hidden="true">
-                В
-              </span>
-              <span className="brand-name">Внятно</span>
-            </div>
-          </header>
+          <div className="start-logo">
+            <span className="start-logo__mark" aria-hidden="true">В</span>
+            <span className="start-logo__name">Внятно</span>
+          </div>
 
           <StartScreen
             prompt={prompt}

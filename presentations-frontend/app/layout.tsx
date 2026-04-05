@@ -1,23 +1,13 @@
 import type { Metadata } from "next";
-import {
-  IBM_Plex_Mono,
-  IBM_Plex_Sans,
-  Rubik,
-} from "next/font/google";
+import { Inter, IBM_Plex_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-const bodyFont = IBM_Plex_Sans({
+const interFont = Inter({
   subsets: ["latin", "cyrillic"],
-  variable: "--font-body",
+  variable: "--font-inter",
   display: "swap",
-});
-
-const headingFont = Rubik({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-heading",
-  display: "swap",
-  weight: ["500", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const monoFont = IBM_Plex_Mono({
@@ -37,7 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="ru"
-      className={`${bodyFont.variable} ${headingFont.variable} ${monoFont.variable}`}
+      className={`${interFont.variable} ${monoFont.variable}`}
     >
       <body>{children}</body>
     </html>
