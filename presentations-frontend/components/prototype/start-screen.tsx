@@ -42,7 +42,7 @@ export function StartScreen({
               value={prompt}
               onChange={(event) => onChangePrompt(event.target.value)}
               rows={5}
-              placeholder="О чём эта презентация?"
+              placeholder="Что нужно показать?"
               disabled={disabled}
             />
           </div>
