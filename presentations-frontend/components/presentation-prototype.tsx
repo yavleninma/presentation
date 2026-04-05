@@ -1,47 +1,44 @@
 "use client";
 
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   buildPresentationDraft,
   buildWorkingDraft,
   regenerateSlide,
-  runFitPassOnDraft,
-} from "@/lib/demo-generator";
+  updateDraftAppearance,
+} from "../lib/demo-generator";
 import {
   beginClarification,
   continueClarification,
-} from "@/lib/clarification-flow";
+} from "../lib/clarification-flow";
 import type {
   ClarificationSession,
-  ColorId,
+  ColorThemeId,
   EditorDrawerState,
   EntryPhase,
-  HiddenBuildStage,
+  HiddenTransformId,
   PresentationDraft,
   PrototypeScreen,
-  StorylineModeId,
   TemplateId,
-} from "@/lib/presentation-types";
-import { EditorScreen } from "@/components/prototype/editor-screen";
-import { MiniClarificationChat } from "@/components/prototype/mini-clarification-chat";
-import { StartScreen } from "@/components/prototype/start-screen";
+} from "../lib/presentation-types";
+import { EditorScreen } from "./prototype/editor-screen";
+import { MiniClarificationChat } from "./prototype/mini-clarification-chat";
+import { StartScreen } from "./prototype/start-screen";
 
-const DEFAULT_TEMPLATE: TemplateId = "strict";
-const DEFAULT_COLOR: ColorId = "cobalt";
+const BUILD_STATUSES = [
+  "Собираем черновик",
+  "Уточняем структуру",
+  "Проверяем читаемость",
+] as const;
+
+type BuildStatus = (typeof BUILD_STATUSES)[number];
 
 export function PresentationPrototype() {
   const [prompt, setPrompt] = useState("");
   const [promptError, setPromptError] = useState<string | null>(null);
   const [screen, setScreen] = useState<PrototypeScreen>("start");
   const [entryPhase, setEntryPhase] = useState<EntryPhase>("idle");
-  const [hiddenBuildStage, setHiddenBuildStage] =
-    useState<HiddenBuildStage>("idle");
+  const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
   const [session, setSession] = useState<ClarificationSession | null>(null);
   const [chatReply, setChatReply] = useState("");
   const [draft, setDraft] = useState<PresentationDraft | null>(null);
@@ -49,11 +46,11 @@ export function PresentationPrototype() {
     useState<PresentationDraft["slides"][number]["id"] | null>(null);
   const [drawerState, setDrawerState] =
     useState<EditorDrawerState>("closed");
-  const [templateId, setTemplateId] = useState<TemplateId>(DEFAULT_TEMPLATE);
-  const [colorId, setColorId] = useState<ColorId>(DEFAULT_COLOR);
   const [, startTransition] = useTransition();
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const buildTimerRefs = useRef<number[]>([]);
+  const debugLayerEnabled = process.env.NEXT_PUBLIC_VNYATNO_DEBUG === "1";
 
   useEffect(() => {
     if (screen === "start" && entryPhase === "idle") {
@@ -72,49 +69,30 @@ export function PresentationPrototype() {
     }
   }, [entryPhase, screen, session]);
 
-  const finishHiddenBuild = useEffectEvent(() => {
-    if (!session) {
-      setHiddenBuildStage("idle");
-      setEntryPhase("idle");
-      return;
-    }
-
-    const nextWorkingDraft = buildWorkingDraft(prompt, session);
-    const nextDraft = runFitPassOnDraft(buildPresentationDraft(nextWorkingDraft));
-
-    setDraft(nextDraft);
-    setSelectedSlideId(nextDraft.slides[0]?.id ?? null);
-    setDrawerState("closed");
-    setHiddenBuildStage("idle");
-    setEntryPhase("idle");
-
-    startTransition(() => {
-      setScreen("editor");
-    });
-  });
-
   useEffect(() => {
-    if (hiddenBuildStage !== "fit-pass") {
-      return;
+    return () => {
+      clearBuildTimers();
+    };
+  }, []);
+
+  function clearBuildTimers() {
+    for (const timerId of buildTimerRefs.current) {
+      window.clearTimeout(timerId);
     }
 
-    const timer = window.setTimeout(() => {
-      finishHiddenBuild();
-    }, 320);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [finishHiddenBuild, hiddenBuildStage]);
+    buildTimerRefs.current = [];
+  }
 
   function resetEntryFlow(nextPrompt?: string) {
+    clearBuildTimers();
+    setBuildStatus(null);
+
     if (typeof nextPrompt === "string") {
       setPrompt(nextPrompt);
     }
 
     setPromptError(null);
     setEntryPhase("idle");
-    setHiddenBuildStage("idle");
     setSession(null);
     setChatReply("");
   }
@@ -160,31 +138,68 @@ export function PresentationPrototype() {
       return;
     }
 
+    clearBuildTimers();
     setEntryPhase("building");
-    setHiddenBuildStage("fit-pass");
+    setBuildStatus(BUILD_STATUSES[0]);
+
+    buildTimerRefs.current = [
+      window.setTimeout(() => {
+        setBuildStatus(BUILD_STATUSES[1]);
+      }, 180),
+      window.setTimeout(() => {
+        setBuildStatus(BUILD_STATUSES[2]);
+      }, 360),
+      window.setTimeout(() => {
+        const nextWorkingDraft = buildWorkingDraft(prompt, session);
+        const nextDraft = buildPresentationDraft(nextWorkingDraft);
+
+        setDraft(nextDraft);
+        setSelectedSlideId(nextDraft.slides[0]?.id ?? null);
+        setDrawerState("closed");
+        setBuildStatus(null);
+        setEntryPhase("idle");
+        clearBuildTimers();
+
+        startTransition(() => {
+          setScreen("editor");
+        });
+      }, 540),
+    ];
   }
 
-  function resetFlow() {
-    setPrompt("");
-    setPromptError(null);
-    setScreen("start");
-    setEntryPhase("idle");
-    setHiddenBuildStage("idle");
-    setSession(null);
-    setChatReply("");
-    setDraft(null);
-    setSelectedSlideId(null);
-    setDrawerState("closed");
-    setTemplateId(DEFAULT_TEMPLATE);
-    setColorId(DEFAULT_COLOR);
+  function updateDocumentTitle(value: string) {
+    setDraft((currentDraft) =>
+      currentDraft
+        ? {
+            ...currentDraft,
+            documentTitle: value,
+          }
+        : currentDraft
+    );
   }
 
-  function regenerateActiveSlide(variant: StorylineModeId) {
+  function updateDraftTemplate(templateId: TemplateId) {
+    setDraft((currentDraft) =>
+      currentDraft
+        ? updateDraftAppearance(currentDraft, { templateId })
+        : currentDraft
+    );
+  }
+
+  function updateDraftColor(colorThemeId: ColorThemeId) {
+    setDraft((currentDraft) =>
+      currentDraft
+        ? updateDraftAppearance(currentDraft, { colorThemeId })
+        : currentDraft
+    );
+  }
+
+  function regenerateActiveSlide(transformId: HiddenTransformId) {
     if (!draft || !selectedSlideId) {
       return;
     }
 
-    setDraft(regenerateSlide(draft, selectedSlideId, variant));
+    setDraft(regenerateSlide(draft, selectedSlideId, transformId));
   }
 
   const activeSlide =
@@ -194,45 +209,41 @@ export function PresentationPrototype() {
 
   return (
     <main className="app-shell">
-      <header className="app-topbar">
-        <div className="brand-block">
-          <span className="brand-mark" aria-hidden="true">
-            В
-          </span>
-          <span className="brand-name">Внятно</span>
-        </div>
-
-        <div className="topbar-actions">
-          {screen === "editor" ? (
-            <button type="button" className="ghost-button" onClick={resetFlow}>
-              Новый запрос
-            </button>
-          ) : null}
-        </div>
-      </header>
-
       {screen === "start" ? (
-        <StartScreen
-          prompt={prompt}
-          promptError={promptError}
-          textareaRef={promptInputRef}
-          disabled={entryPhase === "building"}
-          onChangePrompt={handlePromptChange}
-          onUseScenario={handleUseScenario}
-          onSubmit={beginClarify}
-        >
-          {session ? (
-            <MiniClarificationChat
-              session={session}
-              reply={chatReply}
-              replyRef={chatInputRef}
-              phase={entryPhase}
-              onChangeReply={setChatReply}
-              onSubmitReply={handleSubmitReply}
-              onBuild={startBuild}
-            />
-          ) : null}
-        </StartScreen>
+        <>
+          <header className="app-topbar">
+            <div className="brand-block">
+              <span className="brand-mark" aria-hidden="true">
+                В
+              </span>
+              <span className="brand-name">Внятно</span>
+            </div>
+          </header>
+
+          <StartScreen
+            prompt={prompt}
+            promptError={promptError}
+            textareaRef={promptInputRef}
+            disabled={entryPhase === "building"}
+            onChangePrompt={handlePromptChange}
+            onUseScenario={handleUseScenario}
+            onSubmit={beginClarify}
+          >
+            {entryPhase === "building" ? (
+              <BuildStatusPanel status={buildStatus} />
+            ) : session ? (
+              <MiniClarificationChat
+                session={session}
+                reply={chatReply}
+                replyRef={chatInputRef}
+                phase={entryPhase}
+                onChangeReply={setChatReply}
+                onSubmitReply={handleSubmitReply}
+                onBuild={startBuild}
+              />
+            ) : null}
+          </StartScreen>
+        </>
       ) : null}
 
       {screen === "editor" && draft && activeSlide ? (
@@ -240,16 +251,40 @@ export function PresentationPrototype() {
           draft={draft}
           activeSlideId={selectedSlideId}
           drawerState={drawerState}
-          templateId={templateId}
-          colorId={colorId}
           onSelectSlide={setSelectedSlideId}
           onOpenDrawer={() => setDrawerState("open")}
           onCloseDrawer={() => setDrawerState("closed")}
-          onSelectTemplate={setTemplateId}
-          onSelectColor={setColorId}
+          onSelectTemplate={updateDraftTemplate}
+          onSelectColor={updateDraftColor}
           onRegenerateSlide={regenerateActiveSlide}
+          onRenameDocument={updateDocumentTitle}
+          debugLayerEnabled={debugLayerEnabled}
         />
       ) : null}
     </main>
+  );
+}
+
+function BuildStatusPanel({ status }: { status: BuildStatus | null }) {
+  const activeIndex = status ? BUILD_STATUSES.indexOf(status) : -1;
+
+  return (
+    <section className="build-status" aria-live="polite">
+      <div className="build-status__steps">
+        {BUILD_STATUSES.map((step, index) => (
+          <div
+            key={step}
+            className={`build-status__step${
+              index < activeIndex ? " is-done" : index === activeIndex ? " is-active" : ""
+            }`}
+          >
+            <span className="build-status__mark" aria-hidden="true">
+              {index < activeIndex ? "✓" : index === activeIndex ? "•" : "·"}
+            </span>
+            <span>{step}</span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

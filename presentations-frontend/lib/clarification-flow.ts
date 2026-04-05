@@ -1,8 +1,11 @@
 import type {
   ClarificationInsights,
+  ClarificationMessage,
   ClarificationSession,
   ClarificationSlot,
   FactCoverageId,
+  PresentationIntent,
+  SkeletonReadiness,
 } from "@/lib/presentation-types";
 import {
   assessFactCoverage,
@@ -13,9 +16,8 @@ import {
   extractDesiredOutcome,
   extractKeyMessage,
   extractPeriod,
-  extractShortFacts,
   extractTopicLabel,
-  inferStorylineMode,
+  inferPresentationIntent,
   normalizePrompt,
   normalizeSentence,
 } from "@/lib/prompt-analysis";
@@ -34,6 +36,7 @@ export function beginClarification(prompt: string): ClarificationSession {
     pendingSlot: null,
     askedSlots: [],
     insights,
+    skeletonReadiness: insights.skeletonReadiness,
   });
 }
 
@@ -41,13 +44,14 @@ export function continueClarification(
   session: ClarificationSession,
   answer: string
 ): ClarificationSession {
+  const normalizedAnswer = normalizeSentence(answer);
   const nextTranscript = [
     ...session.transcript,
-    createMessage("user", normalizeSentence(answer), session.transcript.length + 1),
+    createMessage("user", normalizedAnswer, session.transcript.length + 1),
   ];
   const nextInsights = mergeAnswerIntoInsights(
     session.insights,
-    answer,
+    normalizedAnswer,
     session.pendingSlot
   );
 
@@ -56,13 +60,15 @@ export function continueClarification(
     transcript: nextTranscript,
     insights: nextInsights,
     pendingSlot: null,
+    skeletonReadiness: nextInsights.skeletonReadiness,
   });
 }
 
 function appendAssistantTurn(session: ClarificationSession): ClarificationSession {
-  const confidence = calculateConfidence(session.insights);
+  const skeletonReadiness = session.insights.skeletonReadiness;
+  const confidence = skeletonReadiness.confidence;
   const forcedReady = session.assistantTurns >= MAX_ASSISTANT_TURNS - 1;
-  const ready = forcedReady || isReadyToBuild(session.insights, confidence);
+  const ready = forcedReady || isReadyToBuild(skeletonReadiness);
 
   if (ready) {
     const assistantText = buildReadyMessage(
@@ -84,6 +90,7 @@ function appendAssistantTurn(session: ClarificationSession): ClarificationSessio
       confidence,
       readyToBuild: true,
       pendingSlot: null,
+      skeletonReadiness,
     };
   }
 
@@ -107,110 +114,162 @@ function appendAssistantTurn(session: ClarificationSession): ClarificationSessio
     askedSlots: pendingSlot
       ? [...session.askedSlots, pendingSlot]
       : session.askedSlots,
+    skeletonReadiness,
   };
 }
 
 function analyzePrompt(sourcePrompt: string): ClarificationInsights {
-  const mode = inferStorylineMode(sourcePrompt);
+  const presentationIntent = inferPresentationIntent(sourcePrompt);
   const factCoverage = assessFactCoverage(sourcePrompt);
+  const knownFacts = extractKnownFacts(sourcePrompt);
+  const missingFacts = resolveMissingFacts(sourcePrompt, factCoverage, knownFacts);
+  const audience = extractAudience(sourcePrompt);
+  const desiredOutcome = extractDesiredOutcome(sourcePrompt, presentationIntent);
+  const skeletonReadiness = buildSkeletonReadiness({
+    audience,
+    intent: presentationIntent,
+    desiredOutcome,
+    knownFacts,
+    missingFacts,
+  });
 
   return {
     topicLabel: extractTopicLabel(sourcePrompt),
     period: extractPeriod(sourcePrompt),
-    mode,
-    audience: extractAudience(sourcePrompt),
+    audience,
+    presentationIntent,
+    desiredOutcome,
     keyMessage: extractKeyMessage(sourcePrompt),
-    desiredOutcome: extractDesiredOutcome(sourcePrompt, mode),
     factCoverage,
-    knownFacts: extractShortFacts(sourcePrompt).slice(0, 3),
-    missingFacts: buildMissingFacts(sourcePrompt).slice(
-      0,
-      factCoverage === "enough" ? 2 : 3
-    ),
+    knownFacts,
+    missingFacts,
+    confidence: skeletonReadiness.confidence,
+    skeletonReadiness,
   };
 }
 
 function mergeAnswerIntoInsights(
   insights: ClarificationInsights,
-  rawAnswer: string,
+  answer: string,
   pendingSlot: ClarificationSlot | null
 ): ClarificationInsights {
-  const answer = normalizePrompt(rawAnswer);
-  const mode = inferStorylineMode(`${serializeInsights(insights)} ${answer}`) || insights.mode;
+  const presentationIntent = updatePresentationIntent(
+    insights.presentationIntent,
+    answer,
+    pendingSlot
+  );
   const nextAudience = updateAudience(insights.audience, answer, pendingSlot);
-  const nextKeyMessage = updateKeyMessage(insights.keyMessage, answer, pendingSlot);
   const nextDesiredOutcome = updateDesiredOutcome(
     insights.desiredOutcome,
     answer,
-    mode,
+    presentationIntent,
     pendingSlot
   );
+  const nextKeyMessage = insights.keyMessage ?? extractKeyMessage(answer);
+  const mergedFacts = updateKnownFacts(insights.knownFacts, answer, pendingSlot);
   const nextFactCoverage = updateFactCoverage(
     insights.factCoverage,
     answer,
-    pendingSlot
+    mergedFacts.length
   );
-  const facts = mergeFacts(insights.knownFacts, extractShortFacts(answer));
-  const missingFacts =
-    pendingSlot === "factCoverage" && nextFactCoverage === "enough"
-      ? insights.missingFacts.slice(0, 2)
-      : insights.missingFacts;
+  const nextMissingFacts = updateMissingFacts(
+    insights.missingFacts,
+    answer,
+    nextFactCoverage,
+    mergedFacts
+  );
+  const skeletonReadiness = buildSkeletonReadiness({
+    audience: nextAudience,
+    intent: presentationIntent,
+    desiredOutcome: nextDesiredOutcome,
+    knownFacts: mergedFacts,
+    missingFacts: nextMissingFacts,
+  });
 
   return {
     ...insights,
-    mode,
     audience: nextAudience,
-    keyMessage: nextKeyMessage,
+    presentationIntent,
     desiredOutcome: nextDesiredOutcome,
+    keyMessage: nextKeyMessage,
     factCoverage: nextFactCoverage,
-    knownFacts: facts,
-    missingFacts,
+    knownFacts: mergedFacts,
+    missingFacts: nextMissingFacts,
+    confidence: skeletonReadiness.confidence,
+    skeletonReadiness,
   };
 }
 
-function calculateConfidence(insights: ClarificationInsights) {
-  let score = 0;
-
-  if (insights.audience) {
-    score += 1;
-  }
-
-  if (insights.keyMessage) {
-    score += 1;
-  }
-
-  if (insights.desiredOutcome) {
-    score += 1;
-  }
-
-  if (insights.factCoverage !== "thin") {
-    score += 1;
-  }
-
-  if (insights.mode === "choice" && insights.desiredOutcome) {
-    score += 0.5;
-  }
-
-  return score;
+function buildSkeletonReadiness({
+  audience,
+  intent,
+  desiredOutcome,
+  knownFacts,
+  missingFacts,
+}: Omit<SkeletonReadiness, "confidence">): SkeletonReadiness {
+  return {
+    audience,
+    intent,
+    desiredOutcome,
+    knownFacts,
+    missingFacts,
+    confidence: calculateSkeletonConfidence({
+      audience,
+      desiredOutcome,
+      knownFacts,
+      missingFacts,
+    }),
+  };
 }
 
-function isReadyToBuild(insights: ClarificationInsights, confidence: number) {
-  if (confidence >= 3) {
+function calculateSkeletonConfidence({
+  audience,
+  desiredOutcome,
+  knownFacts,
+  missingFacts,
+}: Pick<
+  SkeletonReadiness,
+  "audience" | "desiredOutcome" | "knownFacts" | "missingFacts"
+>) {
+  let score = 0.2;
+
+  if (audience) {
+    score += 0.2;
+  }
+
+  if (desiredOutcome) {
+    score += 0.25;
+  }
+
+  if (knownFacts.length > 0) {
+    score += 0.2;
+  }
+
+  if (knownFacts.length > 1) {
+    score += 0.1;
+  }
+
+  if (missingFacts.length > 0) {
+    score += 0.05;
+  }
+
+  return Math.min(1, score);
+}
+
+function isReadyToBuild(readiness: SkeletonReadiness) {
+  if (readiness.confidence >= 0.8) {
     return true;
   }
 
   if (
-    confidence >= 2.5 &&
-    Boolean(insights.keyMessage || insights.desiredOutcome)
+    readiness.confidence >= 0.65 &&
+    Boolean(readiness.desiredOutcome) &&
+    readiness.knownFacts.length >= 1
   ) {
     return true;
   }
 
-  if (
-    confidence >= 2 &&
-    insights.factCoverage === "enough" &&
-    Boolean(insights.keyMessage)
-  ) {
+  if (readiness.confidence >= 0.6 && Boolean(readiness.audience)) {
     return true;
   }
 
@@ -223,32 +282,27 @@ function pickNextSlot(
 ): ClarificationSlot | null {
   const slotOrder: ClarificationSlot[] = [
     "audience",
-    "keyMessage",
     "desiredOutcome",
-    "factCoverage",
+    "knownFacts",
   ];
 
-  const missing = slotOrder.filter((slot) => {
-    if (askedSlots.includes(slot)) {
-      return false;
-    }
+  return (
+    slotOrder.find((slot) => {
+      if (askedSlots.includes(slot)) {
+        return false;
+      }
 
-    if (slot === "audience") {
-      return !insights.audience;
-    }
+      if (slot === "audience") {
+        return !insights.audience;
+      }
 
-    if (slot === "keyMessage") {
-      return !insights.keyMessage;
-    }
+      if (slot === "desiredOutcome") {
+        return !insights.desiredOutcome;
+      }
 
-    if (slot === "desiredOutcome") {
-      return !insights.desiredOutcome;
-    }
-
-    return insights.factCoverage === "thin";
-  });
-
-  return missing[0] ?? null;
+      return insights.knownFacts.length === 0;
+    }) ?? null
+  );
 }
 
 function buildQuestionMessage(
@@ -258,34 +312,30 @@ function buildQuestionMessage(
 ) {
   const summary = buildConversationSummary(insights);
   const lead = isFirstAssistantTurn
-    ? `Понял так: ${summary}`
-    : `Держу так: ${summary}`;
+    ? `Сейчас вижу: ${summary}`
+    : `Сейчас вижу так: ${summary}`;
 
   if (!slot) {
     return `${lead} Этого уже хватает, можно собирать черновик.`;
   }
 
   if (slot === "audience") {
-    return `${lead} Кому будете это показывать?`;
-  }
-
-  if (slot === "keyMessage") {
-    return `${lead} Какой один вывод должен остаться после показа?`;
+    return `${lead} Кому это будете показывать?`;
   }
 
   if (slot === "desiredOutcome") {
-    if (insights.mode === "choice") {
+    if (insights.presentationIntent === "decision") {
       return `${lead} После показа что нужно согласовать?`;
     }
 
-    if (insights.mode === "structure") {
+    if (insights.presentationIntent === "explain") {
       return `${lead} После показа что должно стать понятнее?`;
     }
 
     return `${lead} После показа что человек должен понять или сделать дальше?`;
   }
 
-  return `${lead} Какие факты уже на руках, а что пока оставим как пустое место?`;
+  return `${lead} Какие 1-2 факта уже точно можно назвать, а что честно оставим как пробел?`;
 }
 
 function buildReadyMessage(
@@ -295,10 +345,10 @@ function buildReadyMessage(
   const summary = buildConversationSummary(insights);
 
   if (isFirstAssistantTurn) {
-    return `Понял так: ${summary} Этого уже хватает, можно собирать черновик.`;
+    return `Сейчас вижу: ${summary} Этого уже хватает, можно собирать черновик.`;
   }
 
-  return `Теперь картина собрана: ${summary} Дальше можно идти в черновик.`;
+  return `Картина собрана: ${summary} Дальше можно идти в черновик.`;
 }
 
 function buildConversationSummary(insights: ClarificationInsights) {
@@ -314,9 +364,27 @@ function buildConversationSummary(insights: ClarificationInsights) {
     insights.desiredOutcome?.replace(/\.$/, "") ?? "понятный следующий шаг";
 
   return clampText(
-    `${keyMessage}. Показываем это для ${audience} и держим разговор на ${desiredOutcome.toLowerCase()}.`,
+    `${keyMessage}. Показываем это для ${audience} и держим фокус на ${desiredOutcome.toLowerCase()}.`,
     180
   );
+}
+
+function updatePresentationIntent(
+  currentIntent: PresentationIntent,
+  answer: string,
+  pendingSlot: ClarificationSlot | null
+) {
+  const inferredIntent = inferPresentationIntent(answer);
+
+  if (pendingSlot === "desiredOutcome" && inferredIntent !== "update") {
+    return inferredIntent;
+  }
+
+  if (currentIntent === "update" && inferredIntent !== "update") {
+    return inferredIntent;
+  }
+
+  return currentIntent;
 }
 
 function updateAudience(
@@ -341,84 +409,109 @@ function updateAudience(
   return currentAudience;
 }
 
-function updateKeyMessage(
-  currentKeyMessage: string | null,
-  answer: string,
-  pendingSlot: ClarificationSlot | null
-) {
-  if (pendingSlot === "keyMessage") {
-    return clampText(normalizeSentence(answer), 100);
-  }
-
-  return currentKeyMessage ?? extractKeyMessage(answer);
-}
-
 function updateDesiredOutcome(
   currentDesiredOutcome: string | null,
   answer: string,
-  mode: ClarificationInsights["mode"],
+  intent: PresentationIntent,
   pendingSlot: ClarificationSlot | null
 ) {
   if (pendingSlot === "desiredOutcome") {
     return clampText(normalizeSentence(answer), 100);
   }
 
-  return currentDesiredOutcome ?? extractDesiredOutcome(answer, mode);
+  return currentDesiredOutcome ?? extractDesiredOutcome(answer, intent);
+}
+
+function updateKnownFacts(
+  currentFacts: string[],
+  answer: string,
+  pendingSlot: ClarificationSlot | null
+) {
+  const extracted = extractKnownFacts(answer);
+
+  if (!extracted.length && pendingSlot === "knownFacts") {
+    return currentFacts;
+  }
+
+  return mergeFacts(currentFacts, extracted).slice(0, 4);
 }
 
 function updateFactCoverage(
   currentCoverage: FactCoverageId,
   answer: string,
-  pendingSlot: ClarificationSlot | null
+  factCount: number
 ) {
-  const nextCoverage = assessFactCoverage(answer);
-
-  if (pendingSlot !== "factCoverage") {
-    if (currentCoverage === "enough" || nextCoverage === "thin") {
-      return currentCoverage;
-    }
-
-    return nextCoverage;
-  }
-
-  if (/есть цифры|есть данные|подтверждено|точно есть/i.test(answer)) {
-    return "enough";
-  }
-
-  if (/нет цифр|пока без цифр|позже добер/i.test(answer)) {
+  if (factCount >= 2) {
     return "partial";
   }
 
-  return nextCoverage === "thin" ? "partial" : nextCoverage;
+  const nextCoverage = assessFactCoverage(answer);
+
+  if (currentCoverage === "enough") {
+    return "enough";
+  }
+
+  return nextCoverage;
+}
+
+function updateMissingFacts(
+  currentMissingFacts: string[],
+  answer: string,
+  factCoverage: FactCoverageId,
+  facts: string[]
+) {
+  if (factCoverage === "enough") {
+    return [];
+  }
+
+  const officePlaceholders = buildMissingFacts(answer);
+
+  if (officePlaceholders.length > 0) {
+    return officePlaceholders.slice(0, facts.length > 1 ? 2 : 3);
+  }
+
+  return currentMissingFacts.slice(0, facts.length > 1 ? 2 : 3);
+}
+
+function extractKnownFacts(source: string) {
+  return source
+    .split(/[.!?;]+/)
+    .map((item) => normalizeSentence(item))
+    .filter((item) => item.length > 18)
+    .slice(0, 3);
+}
+
+function resolveMissingFacts(
+  sourcePrompt: string,
+  factCoverage: FactCoverageId,
+  knownFacts: string[]
+) {
+  if (factCoverage === "enough") {
+    return [];
+  }
+
+  const placeholders = buildMissingFacts(sourcePrompt);
+
+  return placeholders.slice(0, knownFacts.length > 1 ? 2 : 3);
 }
 
 function mergeFacts(currentFacts: string[], nextFacts: string[]) {
-  const uniqueFacts = new Set<string>(currentFacts);
+  const facts = new Set<string>(currentFacts);
 
   for (const fact of nextFacts) {
-    uniqueFacts.add(fact);
+    facts.add(fact);
   }
 
-  return Array.from(uniqueFacts).slice(0, 4);
-}
-
-function serializeInsights(insights: ClarificationInsights) {
-  return [
-    insights.topicLabel,
-    insights.period,
-    insights.audience ?? "",
-    insights.keyMessage ?? "",
-    insights.desiredOutcome ?? "",
-  ].join(" ");
+  return Array.from(facts);
 }
 
 function createMessage(
-  role: "user" | "assistant",
+  role: ClarificationMessage["role"],
   text: string,
-  index: number
-) {
+  position: number
+): ClarificationMessage {
   return {
-    id: `${role}-${index}`,
+    id: `${role}-${position}`,
     role,
     text,
   };

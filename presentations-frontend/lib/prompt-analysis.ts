@@ -1,6 +1,6 @@
 import type {
   FactCoverageId,
-  StorylineModeId,
+  PresentationIntent,
 } from "@/lib/presentation-types";
 
 const STOP_WORDS = new Set([
@@ -17,16 +17,12 @@ const STOP_WORDS = new Set([
   "показать",
   "презентацию",
   "презентация",
-  "квартальный",
-  "статус",
   "команда",
   "команды",
   "проект",
   "проекта",
   "важно",
-  "нужен",
   "период",
-  "period",
   "team",
   "show",
   "need",
@@ -57,24 +53,24 @@ export function clampText(value: string, maxLength: number) {
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-export function inferStorylineMode(source: string): StorylineModeId {
+export function inferPresentationIntent(source: string): PresentationIntent {
   if (
-    /утверд|соглас|выделить|бюджет|ресурс|найм|приоритет|approve|budget|resource|hire|decision|выбор/i.test(
+    /принят|одобр|соглас|выбор|решени|approve|budget|resource|hire|decision/i.test(
       source
     )
   ) {
-    return "choice";
+    return "decision";
   }
 
   if (
-    /объясн|разлож|почему|как устро|структур|понять|суть|контекст|доказ|логик/i.test(
+    /объясн|разлож|почему|понять|суть|структур|контекст|explain|breakdown/i.test(
       source
     )
   ) {
-    return "structure";
+    return "explain";
   }
 
-  return "progress";
+  return "update";
 }
 
 export function extractAudience(source: string) {
@@ -140,7 +136,7 @@ export function extractTopicLabel(source: string) {
     return normalizeSentence(keywords.slice(0, 2).join(" "));
   }
 
-  return "Команда";
+  return "Рабочая тема";
 }
 
 export function extractShortFacts(source: string) {
@@ -155,9 +151,9 @@ export function extractShortFacts(source: string) {
   }
 
   return [
-    "Есть движение по главному сценарию периода",
-    "Риск уже локализован и назван отдельно",
-    "Следующий шаг можно обсуждать без длинного вступления",
+    "Есть движение по главной теме.",
+    "Один риск уже можно назвать отдельно.",
+    "Следующий шаг можно обсуждать без долгого захода.",
   ];
 }
 
@@ -192,14 +188,14 @@ export function assessFactCoverage(source: string): FactCoverageId {
 export function buildMissingFacts(source: string) {
   const items = [
     /точност|accuracy/i.test(source)
-      ? "Точность: подтвердить замер"
-      : "Точность: нужна опора",
+      ? "Уточнить опорный факт по точности."
+      : "Уточнить 1 опорный факт.",
     /latency|время|speed|срок/i.test(source)
-      ? "Срок эффекта: подтвердить цифру"
-      : "Срок эффекта: уточнить",
+      ? "Подтвердить срок эффекта."
+      : "Подтвердить срок следующего шага.",
     /выборк|coverage|сценар|охват/i.test(source)
-      ? "Охват: уточнить выборку"
-      : "Охват: уточнить",
+      ? "Проверить охват и выборку."
+      : "Проверить, что осталось вне охвата.",
   ];
 
   return items;
@@ -207,7 +203,7 @@ export function buildMissingFacts(source: string) {
 
 export function extractDesiredOutcome(
   source: string,
-  mode: StorylineModeId
+  intent: PresentationIntent
 ) {
   if (
     /утверд|соглас|подтверд|выделить|дать добро|бюджет|ресурс|найм|приоритет/i.test(
@@ -225,11 +221,11 @@ export function extractDesiredOutcome(
     return "Зафиксировать текущее состояние.";
   }
 
-  if (mode === "choice") {
+  if (intent === "decision") {
     return "Согласовать следующий шаг.";
   }
 
-  if (mode === "structure") {
+  if (intent === "explain") {
     return "Снять вопросы по сути.";
   }
 
@@ -280,14 +276,14 @@ function extractKeywords(source: string) {
     .toLowerCase()
     .replace(/[^a-zа-яё0-9\s-]/gi, " ")
     .split(/\s+/)
-    .filter((word) => word.length > 3 && !STOP_WORDS.has(word))
-    .slice(0, 6);
+    .filter((word) => word.length > 2 && !STOP_WORDS.has(word))
+    .slice(0, 3);
 }
 
 function toTitleCase(value: string) {
   return value
-    .split(/[\s-]+/)
+    .split(/\s+/)
     .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }

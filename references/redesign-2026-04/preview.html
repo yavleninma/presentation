@@ -189,7 +189,7 @@
       <div style="display:grid;gap:14px;align-content:start">
         <div class="kicker">Prompt → мини-чат → черновик → редактор → локальная пересборка слайда</div>
         <h1>Внятно превращает сырой рабочий запрос в собранную презентацию, которая помогает провести разговор, а не просто заполняет слайды.</h1>
-        <p class="sub">MVP делает одну вещь. Из короткого prompt собирает офисный 6-слайдовый draft, удерживает спикерскую полезность, не выдумывает цифры, даёт минимум выбора на входе и переносит умность в сам редактор.</p>
+        <p class="sub">MVP делает одну вещь. Из короткого prompt собирает офисный 6-слайдовый draft, удерживает логику разговора, не выдумывает цифры, даёт минимум выбора на входе и переносит сложную механику в скрытый слой.</p>
         <div class="grid-3">
           <div class="info">
             <h3>Что входит</h3>
@@ -231,7 +231,7 @@
         </ul>
         <div class="pills">
           <div class="pill accent">office balance</div>
-          <div class="pill green">speaker-first</div>
+          <div class="pill green">local rebuild</div>
           <div class="pill">no fake data</div>
         </div>
       </aside>
@@ -313,7 +313,7 @@
                 </div>
                 <div class="steps">
                   <div class="step"><div class="num">Шаг 01</div><div class="title">Собрать структуру</div><div class="desc">Зафиксировать 6 слайдов и распределить главный тезис по каждой сцене.</div></div>
-                  <div class="step"><div class="num">Шаг 02</div><div class="title">Наполнить draft</div><div class="desc">Текст, speaker-support, placeholder’ы, иконки, подложки блоков.</div></div>
+                  <div class="step"><div class="num">Шаг 02</div><div class="title">Наполнить draft</div><div class="desc">Текст, рабочие placeholder’ы, иконки, подложки блоков.</div></div>
                   <div class="step"><div class="num">Шаг 03</div><div class="title">Прогнать fit-pass</div><div class="desc">Проверить влезание, контраст, плотность, рваную вёрстку, слишком длинные заголовки.</div></div>
                   <div class="step"><div class="num">Шаг 04</div><div class="title">Сделать микро-ремонт</div><div class="desc">Укоротить заголовок, уменьшить плотность, переставить блоки, подправить акценты.</div></div>
                   <div class="step"><div class="num">Шаг 05</div><div class="title">Показать редактор</div><div class="desc">Пользователь видит уже собранный draft, а не сырую первую раскладку.</div></div>
@@ -417,8 +417,8 @@
                       </ul>
                     </div>
                     <div class="block speaker">
-                      <div class="b-head"><div class="b-ic">◔</div><h4>Опора спикеру</h4></div>
-                      <p>Начни с сигнала, затем покажи одну недостающую цифру и переведи разговор к решению про ресурс.</p>
+                      <div class="b-head"><div class="b-ic">◔</div><h4>Рамка решения</h4></div>
+                      <p>Сначала зафиксируй сигнал, потом назови недостающий факт и верни разговор к решению про ресурс.</p>
                     </div>
                   </div>
                 </div>
@@ -504,7 +504,7 @@
                       </ul>
                     </div>
                     <div class="block speaker">
-                      <div class="b-head"><div class="b-ic">◉</div><h4>Опора спикеру</h4></div>
+                      <div class="b-head"><div class="b-ic">◉</div><h4>Ход разговора</h4></div>
                       <p>Сначала дай один ясный сигнал. Потом назови дыру. Потом верни разговор к решению.</p>
                     </div>
                   </div>
@@ -538,7 +538,7 @@
         <li><strong>MiniClarificationChat</strong> — 1–3 сообщения, максимум 5.</li>
         <li><strong>SlideRail</strong> — 6 фиксированных сцен по умолчанию.</li>
         <li><strong>TemplateColorHeader</strong> — независимый выбор шаблона и цвета.</li>
-        <li><strong>SlideCanvas</strong> — один главный тезис, блоки, speaker-support.</li>
+        <li><strong>SlideCanvas</strong> — один главный тезис и максимум три содержательных блока.</li>
         <li><strong>SlideRegenDrawer</strong> — три кнопки для локальной пересборки текущего слайда.</li>
       </ul>
     </div>

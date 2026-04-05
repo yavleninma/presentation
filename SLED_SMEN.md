@@ -162,3 +162,34 @@
 
 **Проблемы**
 - `mcp__playwright__browser_*` снова упёрся в занятый профиль браузера -> визуальную проверку пришлось закрывать сборкой, текстовым поиском, `next start -p 3002` и headless Edge-скриншотом вместо нормального click-through.
+
+### 009 Quiet shell
+_Дополнение 2026-04-05:_ локальный слой дочищен до конца: `editor-screen` переведён на живые `drawerActions`, `clarification-flow` и `presentation-types` доведены до рабочей схемы после старого type-drift, `npm run verify` снова зелёный; quiet shell дополнительно прогнан на свежем `next start --port 3012` через headless Playwright на desktop и mobile, а `https://vnyatno.vercel.app` сверён как live baseline со старым редактором.
+
+**Что уложено** Основной редактор перестроен в quiet working shell: после мини-чата путь идёт прямо в editor без отдельного full-screen шага; в `presentations-frontend/components/presentation-prototype.tsx` убран hidden build-stage с таймером, а draft теперь собирается сразу с внутренним `fit-pass`; в `presentations-frontend/lib/presentation-types.ts` и `presentations-frontend/lib/demo-generator.ts` скрытый 6-слотовый каркас разведён с публичным UI-слоем через `railTitle`, `railRhythm`, `drawerActions` и семантический `kind` у блоков; в `presentations-frontend/components/prototype/editor-screen.tsx`, `presentations-frontend/components/slide-canvas.tsx` и `presentations-frontend/app/globals.css` собран тихий top bar с редактируемым названием, отдельными dropdown `Шаблон` и `Цвет`, compact rail на 6 карточек, светлый офисный canvas и закрытый по умолчанию drawer с тремя локальными действиями без раскрытия внутренних режимов; `npm run verify` проходит.
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Редактор теперь читается как собранный рабочий документ, а не как промежуточный конструктор: служебные названия слотов больше не нужны UI, rail держится на живых заголовках из содержания, шаблон и цвет разведены как независимые оси, а правая панель даёт только локальные правки активного слайда.
+
+**Что ещё мутно** Из этой смены изменения ещё не уехали на `vnyatno.vercel.app`, поэтому live-домен проверен только как baseline `200 OK`, а не как подтверждение нового shell; локальный автоматизированный click-through в главном треде снова упёрся в занятый профиль Playwright MCP, так что маршрут подтверждён сборкой, локальным `next start --port 3011`, HTML-дампом и headless Edge-скрином стартового экрана, но не полноценным авто-кликом до editor.
+
+**Передача смены** Дальше важно не вернуть `Новый запрос` и другие лишние элементы в тихую шапку редактора, не вытаскивать наружу служебный канон из 6 слотов и не превращать drawer в историю диалога; ближайший полезный следующий шаг уже не про локальную модель, а про живой click-through нового shell после отправки изменений по production-дороге.
+
+**Проблемы**
+- `mcp__playwright__browser_*` в главном треде снова упёрся в занятый профиль браузера (`Browser is already in use`) -> локальную браузерную проверку пришлось закрывать через `npm run verify`, `next start --port 3011`, HTML-дамп и headless Edge-скрин вместо полного авто-клика до editor.
+
+### 010 Надёжный draft
+
+**Что уложено** Генеративный слой перестроен вокруг одного скрытого `WorkingDraft`: в `presentations-frontend/lib/presentation-types.ts` зафиксирован новый контракт с `presentationIntent`, `confidence`, `slidePlan[6]`, `visibleSlideTitles[6]`, `templateId` и `colorThemeId`; в `presentations-frontend/lib/prompt-analysis.ts` и `presentations-frontend/lib/clarification-flow.ts` mini-chat сокращён до skeleton-readiness по аудитории, цели, фактам и недостающим данным; в `presentations-frontend/lib/demo-generator.ts` собран новый pipeline `prompt + mini-chat -> WorkingDraft -> 6-slot plan -> visible slides -> fit-pass -> single repair`, локальная пересборка ограничена активным слайдом, а правые action labels генерируются из скрытых transform'ов без системных слов. `presentations-frontend/components/presentation-prototype.tsx`, `presentations-frontend/components/prototype/editor-screen.tsx`, `presentations-frontend/components/slide-canvas.tsx` и `presentations-frontend/app/globals.css` переведены на тихий editor-shell без `activeVariant`, без видимых `speakerNote`/`ask`, с максимум тремя блоками на слайд, с build-status `Собираем черновик -> Уточняем структуру -> Проверяем читаемость` и dev-only debug-слоем под `NEXT_PUBLIC_VNYATNO_DEBUG=1`; `references/redesign-2026-04/preview.html` синхронизирован с новым слоем и больше не описывает visible speaker-support.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Из сырого prompt и короткого чата теперь собирается взрослый office-draft на 6 слайдов без фальшивых чисел и без пустых заголовков; недостающие данные остаются в рабочих placeholder'ах, а не тормозят сборку. Шаблон и цвет живут в модели draft как source of truth, локальная пересборка меняет только активный слайд, fit-pass и debug-пакет, а наружу выходят только собранные слайды, человеческие заголовки и короткие статусы.
+
+**Что ещё мутно** Полный browser-MCP click-through до editor в этой смене не подтвердился: локальный `mcp__playwright__browser_navigate` упирается в `EPERM` при попытке создать `C:\Windows\System32\.playwright-mcp`, поэтому визуальная автоматизация среды сейчас ненадёжна сама по себе, а не из-за кода приложения.
+
+**Передача смены** Следующий полезный шаг уже не про модель и не про layout, а про инфраструктуру проверки: либо починить путь данных для browser MCP, либо добавить отдельный устойчивый визуальный раннер. Если после живого прогона всплывут реальные overflow-кейсы, можно отдельно усилить fit-pass DOM-метриками, не возвращая наружу hidden vocabulary и не ломая локальную пересборку.
+
+**Проблемы**
+- `mcp__playwright__browser_navigate` в этой среде блокируется на `EPERM: operation not permitted, mkdir 'C:\\Windows\\System32\\.playwright-mcp'` -> функциональную проверку закрыли через `npm run verify`, `next start` и HTML-ответ живого маршрута вместо полного auto-click сценария.
