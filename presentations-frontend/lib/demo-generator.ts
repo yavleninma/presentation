@@ -31,8 +31,8 @@ import {
   normalizePrompt,
 } from "@/lib/prompt-analysis";
 
-const DEFAULT_TEMPLATE: TemplateId = "strict";
-const DEFAULT_COLOR_THEME: ColorThemeId = "slate";
+const DEFAULT_TEMPLATE: TemplateId = "cards";
+const DEFAULT_COLOR_THEME: ColorThemeId = "indigo";
 
 const SLOT_MAP: Array<{ id: SlideId; slotId: SlideSlotId; fn: SlideFunctionId }> = [
   { id: "slide-1", slotId: 1, fn: "open_topic" },
@@ -63,12 +63,14 @@ export const EXAMPLE_PROMPTS = [
   "Нужно собрать квартальный статус для руководителя: что уже сдвинули, где риск и какой следующий шаг важен сейчас.",
   "Показываем итоги пилота поиска для продуктового руководителя: что уже работает, что пока не доказано и что нужно решить по следующему этапу.",
   "Нужен запрос на ресурс по platform team: что успели сделать, где упёрлись и зачем нужен следующий слот на найм.",
+  "Нужно показать клиентам наш сервис Вняtно — помогает собрать рабочую презентацию из описания задачи за 90 секунд. Аудитория: команды и руководители, которые часто готовят презентации.",
 ];
 
 export const SCENARIO_CHIPS = [
   { id: "quarter", label: "Квартальный статус", prompt: EXAMPLE_PROMPTS[0] },
   { id: "pilot", label: "Итоги пилота", prompt: EXAMPLE_PROMPTS[1] },
   { id: "resource", label: "Запрос на ресурс", prompt: EXAMPLE_PROMPTS[2] },
+  { id: "pokaz", label: "Показ продукта", prompt: EXAMPLE_PROMPTS[3] },
 ] as const;
 
 export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
@@ -1665,27 +1667,102 @@ const SLIDE_FN_BY_SLOT: SlideFunctionId[] = [
 
 const CANVAS_LAYOUT_BY_SLOT: CanvasLayoutId[] = [
   "cover",
-  "checklist",
-  "checklist",
-  "features",
-  "checklist",
+  "metrics",
   "steps",
+  "checklist",
+  "personas",
+  "features",
 ];
 
 const BLOCK_ICONS = ["spark", "file", "trend", "shield", "flag", "arrow"] as const;
+
+function buildBlocksForLayout(
+  layout: CanvasLayoutId,
+  entry: SlideTextEntry
+): SlideBlock[] {
+  if (layout === "metrics") {
+    return entry.bullets.slice(0, 3).map((bullet, bi) => {
+      const sepIdx = bullet.indexOf(" — ");
+      const metric = sepIdx !== -1 ? bullet.slice(0, sepIdx).trim() : null;
+      const title = sepIdx !== -1 ? bullet.slice(sepIdx + 3).trim() : bullet;
+      return {
+        id: `${entry.id}-block-${bi}`,
+        type: (bi === 0 ? "focus" : "fact") as SlideBlock["type"],
+        icon: "trend" as SlideBlock["icon"],
+        title,
+        body: "",
+        ...(metric ? { metric } : {}),
+      };
+    });
+  }
+
+  if (layout === "steps") {
+    return entry.bullets.slice(0, 3).map((bullet, bi) => {
+      const match = bullet.match(/^(0[1-9]|\d{2})\s+(.+)$/);
+      const stepNumber = match ? match[1] : String(bi + 1).padStart(2, "0");
+      const title = match ? match[2] : bullet;
+      return {
+        id: `${entry.id}-block-${bi}`,
+        type: "movement" as SlideBlock["type"],
+        icon: "arrow" as SlideBlock["icon"],
+        title,
+        body: "",
+        stepNumber,
+      };
+    });
+  }
+
+  if (layout === "personas") {
+    return entry.bullets.slice(0, 3).map((bullet, bi) => {
+      const sepIdx = bullet.indexOf(" — ");
+      const title = sepIdx !== -1 ? bullet.slice(0, sepIdx).trim() : bullet;
+      const tagline = sepIdx !== -1 ? bullet.slice(sepIdx + 3).trim() : "";
+      return {
+        id: `${entry.id}-block-${bi}`,
+        type: (bi === 0 ? "focus" : "fact") as SlideBlock["type"],
+        icon: "people" as SlideBlock["icon"],
+        title,
+        body: tagline,
+        ...(tagline ? { tagline } : {}),
+      };
+    });
+  }
+
+  if (layout === "features") {
+    return entry.bullets.map((bullet, bi) => ({
+      id: `${entry.id}-block-${bi}`,
+      type: "decision" as SlideBlock["type"],
+      icon: "arrow" as SlideBlock["icon"],
+      title: bullet,
+      body: "",
+    }));
+  }
+
+  if (layout === "checklist") {
+    return entry.bullets.map((bullet, bi) => ({
+      id: `${entry.id}-block-${bi}`,
+      type: "fact" as SlideBlock["type"],
+      icon: "check" as SlideBlock["icon"],
+      title: bullet,
+      body: "",
+    }));
+  }
+
+  return entry.bullets.map((bullet, bi) => ({
+    id: `${entry.id}-block-${bi}`,
+    type: (bi === 0 ? "focus" : "fact") as SlideBlock["type"],
+    icon: BLOCK_ICONS[bi % BLOCK_ICONS.length],
+    title: bullet,
+    body: "",
+  }));
+}
 
 function slideTextEntryToSlide(entry: SlideTextEntry, index: number): PresentationSlide {
   const slotId = (index + 1) as SlideSlotId;
   const slideFunctionId = SLIDE_FN_BY_SLOT[index] ?? "main_point";
   const canvasLayoutId = CANVAS_LAYOUT_BY_SLOT[index] ?? "hero";
 
-  const blocks: SlideBlock[] = entry.bullets.map((bullet, bi) => ({
-    id: `${entry.id}-block-${bi}`,
-    type: bi === 0 ? "focus" : "fact",
-    icon: BLOCK_ICONS[bi % BLOCK_ICONS.length],
-    title: bullet,
-    body: "",
-  }));
+  const blocks = buildBlocksForLayout(canvasLayoutId, entry);
 
   const drawerActions: SlideActionLabel[] = [
     { id: `${slideFunctionId}-status_shift`, label: "Апдейт статуса", transformId: "status_shift" },

@@ -5,9 +5,11 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
   Sparkles,
   X,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { COLOR_OPTIONS, TEMPLATE_OPTIONS } from "../../lib/demo-generator";
 import type {
   ColorThemeId,
@@ -54,8 +56,66 @@ export function EditorScreen({
   onSlideSpeakerNoteChange: (value: string) => void;
   debugLayerEnabled?: boolean;
 }) {
+  // — hooks first, before any early return —
+  const [isPresenting, setIsPresenting] = useState(false);
+  const [presenterScale, setPresenterScale] = useState(1);
+
+  // Natural slide dimensions (matches .slide-canvas max width = 58rem at 16px)
+  const SLIDE_W = 928;
+  const SLIDE_H = 522; // 928 * 9/16
+
   const activeSlide =
     draft.slides.find((slide) => slide.id === activeSlideId) ?? draft.slides[0];
+
+  const slideList = draft.slides;
+  const activeIdx = slideList.findIndex((s) => s.id === (activeSlide?.id ?? ""));
+  const slidePos = activeIdx >= 0 ? activeIdx + 1 : 1;
+  const slideTotal = slideList.length;
+
+  // Keep latest nav values in a ref to avoid stale closures in keyboard handler
+  const navRef = useRef({ activeIdx, slideList, slideTotal, onSelectSlide });
+  navRef.current = { activeIdx, slideList, slideTotal, onSelectSlide };
+
+  useEffect(() => {
+    function onFSChange() {
+      if (!document.fullscreenElement) {
+        setIsPresenting(false);
+      }
+    }
+    document.addEventListener("fullscreenchange", onFSChange);
+    return () => document.removeEventListener("fullscreenchange", onFSChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isPresenting) return;
+    const PAD = 48;
+    function computeScale() {
+      const maxW = window.innerWidth - PAD * 2;
+      const maxH = window.innerHeight - PAD * 2;
+      setPresenterScale(Math.min(maxW / SLIDE_W, maxH / SLIDE_H));
+    }
+    computeScale();
+    window.addEventListener("resize", computeScale);
+    return () => window.removeEventListener("resize", computeScale);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPresenting]);
+
+  useEffect(() => {
+    if (!isPresenting) return;
+    function onKeyDown(e: KeyboardEvent) {
+      const { activeIdx: idx, slideList: list, slideTotal: total, onSelectSlide: select } =
+        navRef.current;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") {
+        e.preventDefault();
+        if (idx >= 0 && idx < total - 1) select(list[idx + 1].id);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (idx > 0) select(list[idx - 1].id);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isPresenting]);
 
   if (!activeSlide) {
     return null;
@@ -74,12 +134,83 @@ export function EditorScreen({
     COLOR_OPTIONS.find((o) => o.id === draft.workingDraft.colorThemeId)
       ?.label ?? "";
 
-  const slideList = draft.slides;
-  const activeIdx = slideList.findIndex((s) => s.id === activeSlide.id);
-  const slidePos = activeIdx >= 0 ? activeIdx + 1 : 1;
-  const slideTotal = slideList.length;
+  function enterPresentation() {
+    setIsPresenting(true);
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  }
+
+  function exitPresentation() {
+    setIsPresenting(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
 
   return (
+    <>
+    {isPresenting && (
+      <div className="presenter-overlay" role="dialog" aria-modal="true" aria-label="Показ презентации">
+        {/* Wrapper takes the scaled visual dimensions so the flex container centres it correctly */}
+        <div
+          className="presenter-scale-host"
+          style={{ width: SLIDE_W * presenterScale, height: SLIDE_H * presenterScale }}
+        >
+          <div
+            className="presenter-slide-inner"
+            style={{
+              width: SLIDE_W,
+              height: SLIDE_H,
+              transform: `scale(${presenterScale})`,
+              transformOrigin: "top left",
+            }}
+          >
+            <SlideCanvas
+              slide={activeSlide}
+              templateId={draft.workingDraft.templateId}
+              colorThemeId={draft.workingDraft.colorThemeId}
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="presenter-nav-btn presenter-nav-btn--prev"
+          disabled={activeIdx <= 0}
+          onClick={() => activeIdx > 0 && onSelectSlide(slideList[activeIdx - 1].id)}
+          aria-label="Предыдущий слайд"
+        >
+          <ChevronLeft size={28} strokeWidth={2} aria-hidden />
+        </button>
+
+        <button
+          type="button"
+          className="presenter-nav-btn presenter-nav-btn--next"
+          disabled={activeIdx < 0 || activeIdx >= slideTotal - 1}
+          onClick={() =>
+            activeIdx >= 0 && activeIdx < slideTotal - 1 &&
+            onSelectSlide(slideList[activeIdx + 1].id)
+          }
+          aria-label="Следующий слайд"
+        >
+          <ChevronRight size={28} strokeWidth={2} aria-hidden />
+        </button>
+
+        <div className="presenter-footer">
+          <span className="presenter-counter">{slidePos} / {slideTotal}</span>
+        </div>
+
+        <button
+          type="button"
+          className="presenter-exit-btn"
+          onClick={exitPresentation}
+          aria-label="Выйти из показа"
+          title="Выйти (Escape)"
+        >
+          <X size={18} strokeWidth={2} aria-hidden />
+        </button>
+      </div>
+    )}
+
     <section className="editor-stage">
       <div
         className="editor-shell"
@@ -168,6 +299,17 @@ export function EditorScreen({
                 ))}
               </select>
             </label>
+
+            <button
+              type="button"
+              className="editor-pill-btn"
+              onClick={enterPresentation}
+              aria-label="Показать презентацию"
+              title="Показать"
+            >
+              <Maximize2 size={15} strokeWidth={2} aria-hidden />
+              <span>Показать</span>
+            </button>
 
             <button
               type="button"
@@ -303,6 +445,7 @@ export function EditorScreen({
         </div>
       </div>
     </section>
+    </>
   );
 }
 
