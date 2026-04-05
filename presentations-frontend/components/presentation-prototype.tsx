@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
+  buildDraftFromSlideTexts,
   buildPresentationDraft,
   buildWorkingDraft,
   regenerateSlide,
@@ -14,14 +15,17 @@ import {
 import type {
   ClarificationSession,
   ColorThemeId,
+  DraftChatMessage,
   EditorDrawerState,
   EntryPhase,
   HiddenTransformId,
   PresentationDraft,
   PrototypeScreen,
+  SlideTextEntry,
   TemplateId,
 } from "../lib/presentation-types";
 import { BrandMark } from "./brand-mark";
+import { DraftScreen } from "./prototype/draft-screen";
 import { EditorScreen } from "./prototype/editor-screen";
 import { MiniClarificationChat } from "./prototype/mini-clarification-chat";
 import { StartScreen } from "./prototype/start-screen";
@@ -58,6 +62,9 @@ export function PresentationPrototype() {
   const [session, setSession] = useState<ClarificationSession | null>(null);
   const [chatReply, setChatReply] = useState("");
   const [draft, setDraft] = useState<PresentationDraft | null>(null);
+  const [slideTexts, setSlideTexts] = useState<SlideTextEntry[]>([]);
+  const [draftMessages, setDraftMessages] = useState<DraftChatMessage[]>([]);
+  const [draftLoading, setDraftLoading] = useState(false);
   const [selectedSlideId, setSelectedSlideId] =
     useState<PresentationDraft["slides"][number]["id"] | null>(null);
   const [drawerState, setDrawerState] =
@@ -140,6 +147,111 @@ export function PresentationPrototype() {
     setChatReply("");
     setSession(beginClarification(prompt));
     setEntryPhase("chat");
+  }
+
+  async function beginDraft() {
+    if (!prompt.trim()) {
+      setPromptError("Нужен рабочий запрос.");
+      return;
+    }
+
+    setPromptError(null);
+    setSlideTexts([]);
+    setDraftMessages([]);
+    setDraftLoading(true);
+    setScreen("draft");
+
+    try {
+      const res = await fetch("/api/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "generate", prompt }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = (await res.json()) as {
+        slides: SlideTextEntry[];
+        assistantMessage: string;
+      };
+
+      setSlideTexts(data.slides);
+      setDraftMessages([{ role: "assistant", text: data.assistantMessage }]);
+    } catch {
+      setDraftMessages([
+        {
+          role: "assistant",
+          text: "Не удалось сгенерировать слайды. Попробуйте ещё раз.",
+        },
+      ]);
+    } finally {
+      setDraftLoading(false);
+    }
+  }
+
+  async function handleDraftChatSend(userMessage: string) {
+    if (!userMessage.trim() || draftLoading) return;
+
+    const userMsg: DraftChatMessage = { role: "user", text: userMessage };
+    const nextMessages = [...draftMessages, userMsg];
+    setDraftMessages(nextMessages);
+    setDraftLoading(true);
+
+    try {
+      const res = await fetch("/api/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "chat",
+          userMessage,
+          history: draftMessages,
+          slides: slideTexts,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = (await res.json()) as {
+        slides: SlideTextEntry[];
+        assistantMessage: string;
+      };
+
+      setSlideTexts(data.slides);
+      setDraftMessages([
+        ...nextMessages,
+        { role: "assistant", text: data.assistantMessage },
+      ]);
+    } catch {
+      setDraftMessages([
+        ...nextMessages,
+        { role: "assistant", text: "Не удалось обработать запрос. Попробуйте ещё раз." },
+      ]);
+    } finally {
+      setDraftLoading(false);
+    }
+  }
+
+  function handleUpdateSlideText(
+    id: SlideTextEntry["id"],
+    field: "title" | "subtitle" | "bullets",
+    value: string | string[]
+  ) {
+    setSlideTexts((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, [field]: value } : s))
+    );
+  }
+
+  function handleBuildFromDraft() {
+    if (slideTexts.length === 0) return;
+
+    const presentationDraft = buildDraftFromSlideTexts(slideTexts, prompt);
+    setDraft(presentationDraft);
+    setSelectedSlideId(presentationDraft.slides[0]?.id ?? null);
+    setDrawerState("closed");
+
+    startTransition(() => {
+      setScreen("editor");
+    });
   }
 
   function handleSubmitReply(directValue?: string) {
@@ -229,6 +341,9 @@ export function PresentationPrototype() {
   function handleBackToStart() {
     resetEntryFlow("");
     setDraft(null);
+    setSlideTexts([]);
+    setDraftMessages([]);
+    setDraftLoading(false);
     setSelectedSlideId(null);
     setDrawerState("closed");
     setScreen("start");
@@ -277,7 +392,7 @@ export function PresentationPrototype() {
             disabled={entryPhase === "building"}
             onChangePrompt={handlePromptChange}
             onUseScenario={handleUseScenario}
-            onSubmit={beginClarify}
+            onSubmit={beginDraft}
           >
             {entryPhase === "building" && buildStepIndex !== null ? (
               <div className="chat-card build-status-card">
@@ -303,6 +418,18 @@ export function PresentationPrototype() {
             ) : null}
           </StartScreen>
         </>
+      ) : null}
+
+      {screen === "draft" ? (
+        <DraftScreen
+          slides={slideTexts}
+          messages={draftMessages}
+          isLoading={draftLoading}
+          onSendMessage={handleDraftChatSend}
+          onUpdateSlide={handleUpdateSlideText}
+          onBuild={handleBuildFromDraft}
+          onBack={handleBackToStart}
+        />
       ) : null}
 
       {screen === "editor" && draft && activeSlide ? (

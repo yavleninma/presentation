@@ -12,6 +12,7 @@ import type {
   SlideFunctionId,
   SlideId,
   SlideSlotId,
+  SlideTextEntry,
   SlideToneId,
   TemplateIconPackId,
   TemplateId,
@@ -277,6 +278,38 @@ function slideFunctionToLayout(slideFunctionId: SlideFunctionId): CanvasLayoutId
   }
 }
 
+function chooseBestLayout(slideFunctionId: SlideFunctionId, signals: DraftSignals): CanvasLayoutId {
+  if (slideFunctionId === "main_point") {
+    const factLines = signals.facts.filter((f) => f.length > 0);
+    const metricValues = extractMetricValues(factLines);
+    if (metricValues.length === 1) return "stat-focus";
+    return "metrics";
+  }
+
+  if (slideFunctionId === "evidence") {
+    if (detectComparison(signals)) return "comparison";
+    return "checklist";
+  }
+
+  if (slideFunctionId === "tension") {
+    const audienceParts = splitAudience(signals.audience);
+    if (audienceParts.length >= 2) return "personas";
+    return "quote";
+  }
+
+  return slideFunctionToLayout(slideFunctionId);
+}
+
+function detectComparison(signals: DraftSignals): boolean {
+  return !!(
+    signals.primaryGap &&
+    signals.desiredOutcome &&
+    !isPlaceholderToken(signals.primaryGap) &&
+    !isPlaceholderToken(signals.desiredOutcome) &&
+    signals.primaryGap !== signals.desiredOutcome
+  );
+}
+
 function buildSlidePlanEntry(
   workingDraft: WorkingDraftSeed | WorkingDraft,
   slideFunctionId: SlideFunctionId,
@@ -286,8 +319,8 @@ function buildSlidePlanEntry(
   const signals = deriveDraftSignals(workingDraft);
   const transformId = lastTransformId ?? intentToTransform(workingDraft.presentationIntent);
   const coreMessage = buildCoreMessage(signals, slideFunctionId);
-  const canvasLayoutId = slideFunctionToLayout(slideFunctionId);
-  const blocks = buildBlocks(signals, slideFunctionId, transformId, coreMessage);
+  const canvasLayoutId = chooseBestLayout(slideFunctionId, signals);
+  const blocks = buildBlocks(signals, slideFunctionId, transformId, coreMessage, canvasLayoutId);
 
   return {
     slotId,
@@ -352,7 +385,13 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
     notes.push("fit-pass сократил подзаголовок");
   }
 
-  const maxBlocks = slide.canvasLayoutId === "checklist" ? 4 : slide.canvasLayoutId === "cover" ? 1 : 3;
+  const maxBlocks =
+    slide.canvasLayoutId === "checklist" ? 4 :
+    slide.canvasLayoutId === "cover" ? 1 :
+    slide.canvasLayoutId === "stat-focus" ? 2 :
+    slide.canvasLayoutId === "quote" ? 2 :
+    slide.canvasLayoutId === "comparison" ? 2 :
+    3;
   const blocks = slide.blocks.slice(0, maxBlocks).map((block) => {
     const next = {
       ...block,
@@ -583,7 +622,8 @@ function buildBlocks(
   signals: DraftSignals,
   slideFunctionId: SlideFunctionId,
   transformId: HiddenTransformId,
-  coreMessage: string
+  coreMessage: string,
+  canvasLayoutId: CanvasLayoutId
 ) {
   const facts = linesOrPlaceholder(signals.facts, defaultFactPlaceholder(signals));
   const gaps = linesOrPlaceholder(signals.gaps, defaultGapPlaceholder(signals));
@@ -601,6 +641,7 @@ function buildBlocks(
   }
 
   if (slideFunctionId === "main_point") {
+    if (canvasLayoutId === "stat-focus") return buildStatFocusBlocks(signals, pressureLine);
     return buildMetricBlocks(signals, facts, pressureLine);
   }
 
@@ -609,10 +650,12 @@ function buildBlocks(
   }
 
   if (slideFunctionId === "evidence") {
+    if (canvasLayoutId === "comparison") return buildComparisonBlocks(signals, facts, gaps);
     return buildChecklistBlocks(signals, facts, gaps);
   }
 
   if (slideFunctionId === "tension") {
+    if (canvasLayoutId === "quote") return buildQuoteBlocks(signals, pressureLine, gaps);
     return buildPersonaBlocks(signals, pressureLine, gaps);
   }
 
@@ -782,6 +825,102 @@ function buildFeatureBlocks(
     block("feat-2", "proof", "file", "Что уже на руках", facts.body, facts.placeholder),
     block("feat-3", "constraint", "gap", "Что ещё добрать", gaps.body, gaps.placeholder),
   ];
+}
+
+function buildStatFocusBlocks(
+  signals: DraftSignals,
+  pressureLine: string
+): SlideBlock[] {
+  const factLines = signals.facts.filter((f) => f.length > 0);
+  const metricValues = extractMetricValues(factLines);
+  const main = metricValues[0];
+
+  const mainBlock: SlideBlock = {
+    ...block("stat-1", "fact", "trend", main.label || "Ключевой показатель", main.description || ""),
+    metric: main.value,
+  };
+
+  const supportBody = signals.primaryGap
+    ? cleanBody(signals.primaryGap)
+    : pressureLine || "";
+
+  const supportBlock = block(
+    "stat-2",
+    "constraint",
+    "shield",
+    "Что это значит",
+    supportBody || cleanBody(signals.desiredOutcome),
+    !supportBody
+  );
+
+  return [mainBlock, supportBlock];
+}
+
+function buildQuoteBlocks(
+  signals: DraftSignals,
+  pressureLine: string,
+  gaps: { body: string; placeholder: boolean }
+): SlideBlock[] {
+  const quoteBody = cleanBody(
+    signals.riskLine ?? pressureLine ?? signals.primaryGap ?? gaps.body
+  );
+  const attribution = signals.audience || signals.topic;
+
+  const quoteBlock: SlideBlock = {
+    ...block(
+      "quote-1",
+      "constraint",
+      "shield",
+      "Ключевое препятствие",
+      quoteBody || gaps.body,
+      !quoteBody
+    ),
+    tagline: attribution,
+  };
+
+  const supportBody = signals.primaryFact ? cleanBody(signals.primaryFact) : "";
+  const supportBlock = block(
+    "quote-2",
+    "proof",
+    "file",
+    "Что уже известно",
+    supportBody || "[добавить факт]",
+    !supportBody
+  );
+
+  return [quoteBlock, supportBlock];
+}
+
+function buildComparisonBlocks(
+  signals: DraftSignals,
+  facts: { body: string; placeholder: boolean },
+  gaps: { body: string; placeholder: boolean }
+): SlideBlock[] {
+  const leftTitle = signals.primaryGap
+    ? cleanLine(signals.primaryGap)
+    : "Где упираемся";
+  const leftBody = signals.riskLine
+    ? cleanBody(signals.riskLine)
+    : gaps.body;
+
+  const rightTitle = signals.primaryFact
+    ? cleanLine(signals.primaryFact)
+    : "Что нужно сделать";
+  const rightBody = signals.desiredOutcome
+    ? cleanBody(signals.desiredOutcome)
+    : facts.body;
+
+  const leftBlock: SlideBlock = {
+    ...block("comp-left", "constraint", "shield", leftTitle, leftBody, !signals.primaryGap),
+    tagline: "Сейчас",
+  };
+
+  const rightBlock: SlideBlock = {
+    ...block("comp-right", "movement", "trend", rightTitle, rightBody, !signals.primaryFact),
+    tagline: "Нужно",
+  };
+
+  return [leftBlock, rightBlock];
 }
 
 function extractMetricValues(factLines: string[]): Array<{ value: string; label: string; description: string }> {
@@ -1513,4 +1652,118 @@ function topicInPhrase(topic: string) {
   }
 
   return topic.charAt(0).toLowerCase() + topic.slice(1);
+}
+
+const SLIDE_FN_BY_SLOT: SlideFunctionId[] = [
+  "open_topic",
+  "main_point",
+  "movement",
+  "evidence",
+  "tension",
+  "next_step",
+];
+
+const CANVAS_LAYOUT_BY_SLOT: CanvasLayoutId[] = [
+  "cover",
+  "checklist",
+  "checklist",
+  "features",
+  "checklist",
+  "steps",
+];
+
+const BLOCK_ICONS = ["spark", "file", "trend", "shield", "flag", "arrow"] as const;
+
+function slideTextEntryToSlide(entry: SlideTextEntry, index: number): PresentationSlide {
+  const slotId = (index + 1) as SlideSlotId;
+  const slideFunctionId = SLIDE_FN_BY_SLOT[index] ?? "main_point";
+  const canvasLayoutId = CANVAS_LAYOUT_BY_SLOT[index] ?? "hero";
+
+  const blocks: SlideBlock[] = entry.bullets.map((bullet, bi) => ({
+    id: `${entry.id}-block-${bi}`,
+    type: bi === 0 ? "focus" : "fact",
+    icon: BLOCK_ICONS[bi % BLOCK_ICONS.length],
+    title: bullet,
+    body: "",
+  }));
+
+  const drawerActions: SlideActionLabel[] = [
+    { id: `${slideFunctionId}-status_shift`, label: "Апдейт статуса", transformId: "status_shift" },
+    { id: `${slideFunctionId}-breakdown_explain`, label: "Объяснить подробнее", transformId: "breakdown_explain" },
+    { id: `${slideFunctionId}-decision_next`, label: "Добиться решения", transformId: "decision_next" },
+  ];
+
+  return {
+    id: entry.id,
+    slotId,
+    slideFunctionId,
+    canvasLayoutId,
+    index: String(slotId).padStart(2, "0"),
+    railTitle: `${slotId} — ${entry.railTitle}`,
+    railRhythm: (["primary", "neutral", "neutral", "neutral"] as SlideToneId[]).slice(0, blocks.length),
+    title: entry.title,
+    subtitle: entry.subtitle,
+    blocks,
+    drawerActions,
+    lastTransformId: null,
+  };
+}
+
+export function buildDraftFromSlideTexts(
+  slideTexts: SlideTextEntry[],
+  sourcePrompt: string,
+  appearance: { templateId?: TemplateId; colorThemeId?: ColorThemeId } = {}
+): PresentationDraft {
+  const templateId: TemplateId = appearance.templateId ?? DEFAULT_TEMPLATE;
+  const colorThemeId: ColorThemeId = appearance.colorThemeId ?? DEFAULT_COLOR_THEME;
+
+  const slides = slideTexts.slice(0, 6).map((entry, i) => slideTextEntryToSlide(entry, i));
+
+  const firstSlide = slideTexts[0];
+  const documentTitle = firstSlide?.title || extractTopicLabel(sourcePrompt) || "Рабочая презентация";
+
+  const dummyWorkingDraft: WorkingDraft = {
+    sourcePrompt,
+    audience: "Руководитель",
+    presentationIntent: "update",
+    desiredOutcome: "",
+    knownFacts: [],
+    missingFacts: [],
+    confidence: 0.8,
+    slidePlan: tuple6(
+      SLOT_MAP.map(({ slotId, fn }) => ({
+        slotId,
+        slideFunctionId: fn,
+        canvasLayoutId: CANVAS_LAYOUT_BY_SLOT[slotId - 1] ?? "hero",
+        coreMessage: slideTexts[slotId - 1]?.title ?? "",
+        blockPlan: (slideTexts[slotId - 1]?.bullets ?? []).map((b, bi) => ({
+          id: `slide-${slotId}-block-${bi}`,
+          type: bi === 0 ? "focus" : ("fact" as SlideBlock["type"]),
+          icon: "spark" as SlideBlock["icon"],
+          title: b,
+          body: "",
+        })),
+        placeholderPlan: [],
+        speakerAngle: undefined,
+        lastTransformId: null,
+      }))
+    ),
+    visibleSlideTitles: tuple6(slideTexts.map((s) => s.title).slice(0, 6) as [string, string, string, string, string, string]),
+    templateId,
+    colorThemeId,
+  };
+
+  return {
+    documentTitle,
+    documentSubtitle: sourcePrompt.slice(0, 80),
+    workingDraft: dummyWorkingDraft,
+    slides,
+    slideSpeakerNotes: {},
+    debug: {
+      currentWorkingDraft: dummyWorkingDraft,
+      hiddenSlidePlan: dummyWorkingDraft.slidePlan,
+      chosenTransformIds: {} as PresentationDraft["debug"]["chosenTransformIds"],
+      fitPassResultBySlide: {} as PresentationDraft["debug"]["fitPassResultBySlide"],
+    },
+  };
 }

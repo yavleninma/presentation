@@ -1,4 +1,4 @@
-export type PrototypeScreen = "start" | "editor";
+export type PrototypeScreen = "start" | "draft" | "editor";
 
 export type EntryPhase = "idle" | "chat" | "building";
 
@@ -46,7 +46,10 @@ export type CanvasLayoutId =
   | "steps"
   | "checklist"
   | "personas"
-  | "features";
+  | "features"
+  | "stat-focus"
+  | "quote"
+  | "comparison";
 
 export type TemplateId = "strict" | "cards" | "briefing";
 
@@ -75,7 +78,13 @@ export type SlideBlockIconId =
   | "flag"
   | "gap"
   | "arrow"
-  | "clock";
+  | "clock"
+  | "chart"
+  | "people"
+  | "star"
+  | "warning"
+  | "rocket"
+  | "check";
 
 export type SixSlotTuple<T> = [T, T, T, T, T, T];
 
@@ -200,6 +209,19 @@ export interface PresentationDebugState {
   hiddenSlidePlan: SixSlotTuple<WorkingDraftSlidePlanEntry>;
   chosenTransformIds: Record<SlideId, HiddenTransformId | null>;
   fitPassResultBySlide: Record<SlideId, FitPassResult>;
+}
+
+export interface SlideTextEntry {
+  id: SlideId;
+  railTitle: string;
+  title: string;
+  subtitle: string;
+  bullets: string[];
+}
+
+export interface DraftChatMessage {
+  role: "user" | "assistant";
+  text: string;
 }
 
 export interface PresentationDraft {

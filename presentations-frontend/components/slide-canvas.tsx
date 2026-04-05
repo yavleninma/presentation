@@ -1,15 +1,23 @@
 import {
+  AlertTriangle,
   ArrowUpRight,
   BarChart3,
   Check,
+  CheckCircle,
   Hourglass,
   type LucideIcon,
+  PieChart,
+  Rocket,
   Search,
   ShieldAlert,
+  Star,
   Target,
+  TrendingDown,
   TrendingUp,
+  Users,
   Zap,
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import type {
   CanvasLayoutId,
   ColorThemeId,
@@ -37,6 +45,12 @@ const BLOCK_ICON_MAP: Record<SlideBlock["icon"], LucideIcon> = {
   gap: Search,
   arrow: ArrowUpRight,
   clock: Hourglass,
+  chart: PieChart,
+  people: Users,
+  star: Star,
+  warning: AlertTriangle,
+  rocket: Rocket,
+  check: CheckCircle,
 };
 
 export interface SlideCanvasDebugPayload {
@@ -154,19 +168,70 @@ function renderSlideBody(
   iconPack: TemplateIconPackId
 ) {
   const layout = slide.canvasLayoutId;
+  const iconStrokeWidth = getIconStrokeWidth(iconPack);
 
   if (layout === "cover") return null;
 
   if (layout === "metrics") {
     return (
       <section className="slide-canvas__body is-metrics">
-        {slide.blocks.slice(0, 3).map((b) => (
-          <article key={b.id} className={`slide-metric tone-${blockTone(b)}${b.placeholder ? " is-placeholder" : ""}`}>
-            <span className="slide-metric__value">{b.metric ?? "—"}</span>
-            <span className="slide-metric__label">{b.title}</span>
-            {b.body ? <span className="slide-metric__desc">{b.body}</span> : null}
+        {slide.blocks.slice(0, 3).map((b) => {
+          const tone = blockTone(b);
+          const DeltaIcon = tone === "success" ? TrendingUp : tone === "warning" ? TrendingDown : null;
+          const percentMatch = b.metric?.match(/^(\d+)%$/);
+          const percentVal = percentMatch ? Math.min(parseInt(percentMatch[1], 10), 100) : null;
+          return (
+            <article key={b.id} className={`slide-metric tone-${tone}${b.placeholder ? " is-placeholder" : ""}`}>
+              <div className="slide-metric__value-row">
+                <span className="slide-metric__value">{b.metric ?? "—"}</span>
+                {DeltaIcon ? (
+                  <span className={`slide-metric__delta tone-${tone}`} aria-hidden="true">
+                    <DeltaIcon strokeWidth={2} />
+                  </span>
+                ) : null}
+              </div>
+              {percentVal !== null ? (
+                <span
+                  className="slide-metric__bar"
+                  style={{ "--bar-fill": `${percentVal}%` } as CSSProperties}
+                  aria-hidden="true"
+                />
+              ) : null}
+              <span className="slide-metric__label">{b.title}</span>
+              {b.body ? <span className="slide-metric__desc">{b.body}</span> : null}
+            </article>
+          );
+        })}
+      </section>
+    );
+  }
+
+  if (layout === "stat-focus") {
+    const mainBlock = slide.blocks[0];
+    const supportBlock = slide.blocks[1];
+    if (!mainBlock) return null;
+    const tone = blockTone(mainBlock);
+    const DeltaIcon = tone === "success" ? TrendingUp : tone === "warning" ? TrendingDown : null;
+    return (
+      <section className="slide-canvas__body is-stat-focus">
+        <article className="slide-stat">
+          <div className="slide-stat__value-row">
+            <span className="slide-stat__value">{mainBlock.metric ?? "—"}</span>
+            {DeltaIcon ? (
+              <span className={`slide-stat__delta tone-${tone}`} aria-hidden="true">
+                <DeltaIcon strokeWidth={2} />
+              </span>
+            ) : null}
+          </div>
+          <span className="slide-stat__label">{mainBlock.title}</span>
+          {mainBlock.body ? <p className="slide-stat__desc">{mainBlock.body}</p> : null}
+        </article>
+        {supportBlock ? (
+          <article className={`slide-stat__support tone-${blockTone(supportBlock)}${supportBlock.placeholder ? " is-placeholder" : ""}`}>
+            <h3 className="slide-stat__support-title">{supportBlock.title}</h3>
+            {supportBlock.body ? <p className="slide-stat__support-body">{supportBlock.body}</p> : null}
           </article>
-        ))}
+        ) : null}
       </section>
     );
   }
@@ -174,14 +239,22 @@ function renderSlideBody(
   if (layout === "steps") {
     return (
       <section className="slide-canvas__body is-steps">
-        {slide.blocks.slice(0, 3).map((b, i) => (
-          <article key={b.id} className="slide-step">
-            <span className="slide-step__num">{b.stepNumber ?? String(i + 1).padStart(2, "0")}</span>
-            <span className="slide-step__connector" aria-hidden="true" />
-            <h3 className="slide-step__title">{b.title}</h3>
-            {b.body ? <p className="slide-step__body">{b.body}</p> : null}
-          </article>
-        ))}
+        {slide.blocks.slice(0, 3).map((b, i) => {
+          const BlockIcon = BLOCK_ICON_MAP[b.icon] ?? Zap;
+          return (
+            <article key={b.id} className="slide-step">
+              <div className="slide-step__head">
+                <span className="slide-step__num">{b.stepNumber ?? String(i + 1).padStart(2, "0")}</span>
+                <span className="slide-step__icon" aria-hidden="true">
+                  <BlockIcon strokeWidth={iconStrokeWidth} />
+                </span>
+              </div>
+              <span className="slide-step__connector" aria-hidden="true" />
+              <h3 className="slide-step__title">{b.title}</h3>
+              {b.body ? <p className="slide-step__body">{b.body}</p> : null}
+            </article>
+          );
+        })}
       </section>
     );
   }
@@ -189,14 +262,18 @@ function renderSlideBody(
   if (layout === "checklist") {
     return (
       <section className="slide-canvas__body is-checklist">
-        {slide.blocks.slice(0, 4).map((b) => (
-          <article key={b.id} className={`slide-check tone-${blockTone(b)}${b.placeholder ? " is-placeholder" : ""}`}>
-            <span className="slide-check__icon" aria-hidden="true">
-              <Check strokeWidth={2.5} />
-            </span>
-            <span className="slide-check__text">{b.title}</span>
-          </article>
-        ))}
+        {slide.blocks.slice(0, 4).map((b) => {
+          const tone = blockTone(b);
+          const CheckIcon = getCheckIcon(b.type);
+          return (
+            <article key={b.id} className={`slide-check tone-${tone}${b.placeholder ? " is-placeholder" : ""}`}>
+              <span className={`slide-check__icon tone-${tone}`} aria-hidden="true">
+                <CheckIcon strokeWidth={2.5} />
+              </span>
+              <span className="slide-check__text">{b.title}</span>
+            </article>
+          );
+        })}
       </section>
     );
   }
@@ -204,24 +281,31 @@ function renderSlideBody(
   if (layout === "personas") {
     return (
       <section className="slide-canvas__body is-personas">
-        {slide.blocks.slice(0, 3).map((b) => (
-          <article key={b.id} className={`slide-persona tone-${blockTone(b)}${b.placeholder ? " is-placeholder" : ""}`}>
-            <h3 className="slide-persona__role">{b.title}</h3>
-            {b.body ? <p className="slide-persona__task">{b.body}</p> : null}
-            {b.tagline ? (
-              <>
-                <span className="slide-persona__sep" aria-hidden="true" />
-                <p className="slide-persona__tagline">{b.tagline}</p>
-              </>
-            ) : null}
-          </article>
-        ))}
+        {slide.blocks.slice(0, 3).map((b) => {
+          const BlockIcon = BLOCK_ICON_MAP[b.icon] ?? Target;
+          return (
+            <article key={b.id} className={`slide-persona tone-${blockTone(b)}${b.placeholder ? " is-placeholder" : ""}`}>
+              <div className="slide-persona__head">
+                <span className="slide-persona__icon" aria-hidden="true">
+                  <BlockIcon strokeWidth={iconStrokeWidth} />
+                </span>
+                <h3 className="slide-persona__role">{b.title}</h3>
+              </div>
+              {b.body ? <p className="slide-persona__task">{b.body}</p> : null}
+              {b.tagline ? (
+                <>
+                  <span className="slide-persona__sep" aria-hidden="true" />
+                  <p className="slide-persona__tagline">{b.tagline}</p>
+                </>
+              ) : null}
+            </article>
+          );
+        })}
       </section>
     );
   }
 
   if (layout === "features") {
-    const iconStrokeWidth = getIconStrokeWidth(iconPack);
     return (
       <section className="slide-canvas__body is-features">
         {slide.blocks.slice(0, 3).map((b) => {
@@ -242,7 +326,50 @@ function renderSlideBody(
     );
   }
 
-  const iconStrokeWidth = getIconStrokeWidth(iconPack);
+  if (layout === "quote") {
+    const quoteBlock = slide.blocks[0];
+    const supportBlock = slide.blocks[1];
+    if (!quoteBlock) return null;
+    return (
+      <section className="slide-canvas__body is-quote">
+        <blockquote className={`slide-quote tone-${blockTone(quoteBlock)}${quoteBlock.placeholder ? " is-placeholder" : ""}`}>
+          <p className="slide-quote__text">{quoteBlock.body || quoteBlock.title}</p>
+          {quoteBlock.tagline ? (
+            <footer className="slide-quote__attribution">{quoteBlock.tagline}</footer>
+          ) : null}
+        </blockquote>
+        {supportBlock ? (
+          <article className={`slide-quote__support tone-${blockTone(supportBlock)}${supportBlock.placeholder ? " is-placeholder" : ""}`}>
+            <h3 className="slide-quote__support-title">{supportBlock.title}</h3>
+            {supportBlock.body ? <p className="slide-quote__support-body">{supportBlock.body}</p> : null}
+          </article>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (layout === "comparison") {
+    const [leftBlock, rightBlock] = slide.blocks;
+    if (!leftBlock) return null;
+    return (
+      <section className="slide-canvas__body is-comparison">
+        <article className={`slide-compare slide-compare--left tone-${blockTone(leftBlock)}${leftBlock.placeholder ? " is-placeholder" : ""}`}>
+          {leftBlock.tagline ? <span className="slide-compare__label">{leftBlock.tagline}</span> : null}
+          <h3 className="slide-compare__title">{leftBlock.title}</h3>
+          {leftBlock.body ? <p className="slide-compare__body">{leftBlock.body}</p> : null}
+        </article>
+        <div className="slide-compare__divider" aria-hidden="true" />
+        {rightBlock ? (
+          <article className={`slide-compare slide-compare--right tone-${blockTone(rightBlock)}${rightBlock.placeholder ? " is-placeholder" : ""}`}>
+            {rightBlock.tagline ? <span className="slide-compare__label">{rightBlock.tagline}</span> : null}
+            <h3 className="slide-compare__title">{rightBlock.title}</h3>
+            {rightBlock.body ? <p className="slide-compare__body">{rightBlock.body}</p> : null}
+          </article>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <section className={`slide-canvas__body is-${layout}`}>
       {slide.blocks.slice(0, 3).map((b) => {
@@ -269,6 +396,15 @@ function renderSlideBody(
       })}
     </section>
   );
+}
+
+function getCheckIcon(blockType: SlideBlock["type"]): LucideIcon {
+  switch (blockType) {
+    case "constraint": return AlertTriangle;
+    case "movement": return CheckCircle;
+    case "focus": case "decision": return Target;
+    default: return Check;
+  }
 }
 
 function getSectionLabel(layout: CanvasLayoutId): string | null {
