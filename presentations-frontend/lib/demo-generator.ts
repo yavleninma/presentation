@@ -73,6 +73,9 @@ export const SCENARIO_CHIPS = [
   { id: "pokaz", label: "Показ продукта", prompt: EXAMPLE_PROMPTS[3] },
 ] as const;
 
+/** На старте кликабелен только этот чип; остальные видны, но заблокированы. */
+export const START_SCREEN_ENABLED_SCENARIO_ID: (typeof SCENARIO_CHIPS)[number]["id"] = "pokaz";
+
 export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
   { id: "strict", label: "Строгий" },
   { id: "cards", label: "Карточки" },

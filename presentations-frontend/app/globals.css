@@ -417,6 +417,19 @@ select:disabled {
   color: var(--accent-primary);
 }
 
+.example-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+}
+
+.example-chip:disabled:hover {
+  background: var(--start-chip-bg);
+  border-color: var(--border-soft);
+  color: var(--start-chip-text);
+  transform: none;
+}
+
 .entry-hint {
   margin: var(--space-3) 0 0;
   text-align: center;

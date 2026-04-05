@@ -1,7 +1,10 @@
 "use client";
 
 import type { ReactNode, RefObject } from "react";
-import { SCENARIO_CHIPS } from "@/lib/demo-generator";
+import {
+  SCENARIO_CHIPS,
+  START_SCREEN_ENABLED_SCENARIO_ID,
+} from "@/lib/demo-generator";
 
 export function StartScreen({
   prompt,
@@ -62,17 +65,20 @@ export function StartScreen({
           </form>
 
           <div className="example-row">
-            {SCENARIO_CHIPS.map((chip) => (
-              <button
-                key={chip.id}
-                type="button"
-                className="example-chip"
-                onClick={() => onUseScenario(chip.prompt)}
-                disabled={disabled}
-              >
-                {chip.label}
-              </button>
-            ))}
+            {SCENARIO_CHIPS.map((chip) => {
+              const chipEnabled = chip.id === START_SCREEN_ENABLED_SCENARIO_ID;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className="example-chip"
+                  onClick={() => onUseScenario(chip.prompt)}
+                  disabled={disabled || !chipEnabled}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
           </div>
         </>
       )}
