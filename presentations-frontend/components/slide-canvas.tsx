@@ -1,13 +1,13 @@
 import {
-  AlertTriangle,
-  ArrowRight,
-  CircleSlash,
-  Clock3,
-  FileText,
-  Flag,
-  Gauge,
-  Lightbulb,
+  ArrowUpRight,
+  BarChart3,
+  Hourglass,
   type LucideIcon,
+  Search,
+  ShieldAlert,
+  Target,
+  TrendingUp,
+  Zap,
 } from "lucide-react";
 import type {
   ColorThemeId,
@@ -27,14 +27,14 @@ const TEMPLATE_ICON_PACKS: Record<TemplateId, TemplateIconPackId> = {
 };
 
 const BLOCK_ICON_MAP: Record<SlideBlock["icon"], LucideIcon> = {
-  spark: Lightbulb,
-  file: FileText,
-  trend: Gauge,
-  shield: AlertTriangle,
-  flag: Flag,
-  gap: CircleSlash,
-  arrow: ArrowRight,
-  clock: Clock3,
+  spark: Zap,
+  file: BarChart3,
+  trend: TrendingUp,
+  shield: ShieldAlert,
+  flag: Target,
+  gap: Search,
+  arrow: ArrowUpRight,
+  clock: Hourglass,
 };
 
 export interface SlideCanvasDebugPayload {
@@ -79,7 +79,7 @@ export function SlideCanvas({
 
       <section className={`slide-canvas__body is-${slide.canvasLayoutId}`}>
         {slide.blocks.slice(0, 3).map((block) => {
-          const BlockIcon = BLOCK_ICON_MAP[block.icon] ?? Lightbulb;
+          const BlockIcon = BLOCK_ICON_MAP[block.icon] ?? Zap;
           const tone = blockTone(block);
 
           return (

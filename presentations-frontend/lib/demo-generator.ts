@@ -67,9 +67,9 @@ export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
 
 export const COLOR_OPTIONS: Array<{ id: ColorThemeId; label: string }> = [
   { id: "slate", label: "Графит" },
-  { id: "indigo", label: "Индиго" },
-  { id: "teal", label: "Шалфей" },
-  { id: "sand", label: "Песок" },
+  { id: "indigo", label: "Кобальт" },
+  { id: "teal", label: "Изумруд" },
+  { id: "sand", label: "Янтарь" },
 ];
 
 type WorkingDraftSeed = Omit<WorkingDraft, "slidePlan" | "visibleSlideTitles">;
