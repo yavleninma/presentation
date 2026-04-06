@@ -27,6 +27,7 @@ const RAIL_TITLES_BY_ID: Record<SlideId, string> = {
 export type DraftApiErrorCode =
   | "INVALID_REQUEST"
   | "GENERATE_TIMEOUT"
+  | "REVISE_TIMEOUT"
   | "CHAT_TIMEOUT"
   | "OPENAI_HTTP_ERROR"
   | "OPENAI_EMPTY_RESPONSE"

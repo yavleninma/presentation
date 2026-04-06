@@ -40,7 +40,6 @@ export {
   START_SCREEN_ENABLED_SCENARIO_ID,
   TEMPLATE_OPTIONS,
 } from "@/lib/presentation-options";
-export { buildDraftFromSlideTexts } from "@/lib/draft-from-slide-texts";
 
 const DEFAULT_TEMPLATE: TemplateId = "cards";
 const DEFAULT_COLOR_THEME: ColorThemeId = "indigo";
@@ -92,6 +91,69 @@ type DraftSignals = {
 
 export function getTemplateIconPack(templateId: TemplateId) {
   return TEMPLATE_ICON_PACKS[templateId];
+}
+
+export function buildWorkingDraftFromPrompt(
+  sourcePrompt: string,
+  overrides: Partial<
+    Pick<
+      WorkingDraft,
+      | "audience"
+      | "presentationIntent"
+      | "desiredOutcome"
+      | "knownFacts"
+      | "missingFacts"
+      | "confidence"
+      | "templateId"
+      | "colorThemeId"
+    >
+  > = {}
+): WorkingDraft {
+  const promptSignals = buildPromptSignals(
+    sourcePrompt,
+    overrides.presentationIntent
+  );
+  const presentationIntent =
+    overrides.presentationIntent ?? promptSignals.presentationIntent;
+  const baseSeed: WorkingDraftSeed = {
+    sourcePrompt,
+    audience: overrides.audience ?? promptSignals.audience ?? "Рабочая аудитория",
+    presentationIntent,
+    desiredOutcome:
+      overrides.desiredOutcome ??
+      promptSignals.desiredOutcome ??
+      buildFallbackOutcome(presentationIntent),
+    knownFacts:
+      overrides.knownFacts && overrides.knownFacts.length > 0
+        ? overrides.knownFacts.slice(0, 3)
+        : promptSignals.knownFacts.slice(0, 3),
+    missingFacts:
+      overrides.missingFacts && overrides.missingFacts.length > 0
+        ? overrides.missingFacts.slice(0, 3)
+        : promptSignals.missingFacts.slice(0, 3),
+    confidence: overrides.confidence ?? promptSignals.confidence,
+    templateId: overrides.templateId ?? DEFAULT_TEMPLATE,
+    colorThemeId: overrides.colorThemeId ?? DEFAULT_COLOR_THEME,
+  };
+
+  const slidePlan = tuple6(
+    SLOT_MAP.map(({ fn, slotId }) =>
+      buildSlidePlanEntry(baseSeed, fn, slotId, null)
+    )
+  );
+
+  return normalizeWorkingDraft({
+    ...baseSeed,
+    slidePlan,
+    visibleSlideTitles: tuple6([
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]),
+  });
 }
 
 export function buildPresentationDraft(

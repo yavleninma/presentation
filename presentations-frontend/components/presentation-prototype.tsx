@@ -1,15 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  buildDraftFromSlideTexts,
-  regenerateSlide,
-  updateDraftAppearance,
-} from "../lib/demo-generator";
 import { readDraftApiErrorMessage } from "../lib/draft-api";
+import { buildDraftFromSlideTexts } from "../lib/draft-from-slide-texts";
+import { syncSessionWithSlideTexts } from "../lib/draft-session";
 import type {
   ColorThemeId,
-  DraftChatMessage,
+  DraftSession,
   EditorDrawerState,
   HiddenTransformId,
   PresentationDraft,
@@ -17,19 +14,25 @@ import type {
   SlideTextEntry,
   TemplateId,
 } from "../lib/presentation-types";
-import { BrandMark } from "./brand-mark";
+import { regenerateSlide, updateDraftAppearance } from "../lib/demo-generator";
+import { BrandMark, BrandWordmark } from "./brand-mark";
+import { BuildingScreen } from "./prototype/building-screen";
+import { ClarifyScreen } from "./prototype/clarify-screen";
 import { DraftScreen } from "./prototype/draft-screen";
 import { EditorScreen } from "./prototype/editor-screen";
 import { StartScreen } from "./prototype/start-screen";
 
+type PendingMode = "clarify" | "generate" | "revise" | null;
+
 export function PresentationPrototype() {
   const [prompt, setPrompt] = useState("");
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [clarifyError, setClarifyError] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [screen, setScreen] = useState<PrototypeScreen>("start");
+  const [session, setSession] = useState<DraftSession | null>(null);
   const [draft, setDraft] = useState<PresentationDraft | null>(null);
-  const [slideTexts, setSlideTexts] = useState<SlideTextEntry[]>([]);
-  const [draftMessages, setDraftMessages] = useState<DraftChatMessage[]>([]);
-  const [draftLoading, setDraftLoading] = useState(false);
+  const [pendingMode, setPendingMode] = useState<PendingMode>(null);
   const [selectedSlideId, setSelectedSlideId] =
     useState<PresentationDraft["slides"][number]["id"] | null>(null);
   const [drawerState, setDrawerState] = useState<EditorDrawerState>("closed");
@@ -54,7 +57,7 @@ export function PresentationPrototype() {
     promptInputRef.current?.focus();
   }
 
-  async function beginDraft() {
+  async function beginClarify() {
     const nextPrompt = prompt.trim();
     if (!nextPrompt) {
       setPromptError("Нужен рабочий запрос.");
@@ -62,18 +65,103 @@ export function PresentationPrototype() {
     }
 
     setPromptError(null);
-    setSlideTexts([]);
-    setDraftMessages([]);
-    setDraftLoading(true);
-    setScreen("draft");
+    setClarifyError(null);
+    setDraftError(null);
+    setPendingMode("clarify");
 
     try {
       const res = await fetch("/api/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "generate", prompt: nextPrompt }),
+        body: JSON.stringify({ mode: "clarify", prompt: nextPrompt }),
       });
+      const payload = (await res.json().catch(() => null)) as unknown;
+      if (!res.ok) {
+        throw new Error(
+          readDraftApiErrorMessage(payload) ??
+            `Не удалось начать уточнение (HTTP ${res.status}).`,
+        );
+      }
 
+      setSession(payload as DraftSession);
+      setScreen("clarify");
+    } catch (error) {
+      setPromptError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось начать уточнение. Попробуйте ещё раз.",
+      );
+    } finally {
+      setPendingMode(null);
+    }
+  }
+
+  async function handleClarifySend(userMessage: string) {
+    if (!session || pendingMode) {
+      return false;
+    }
+
+    const nextMessage = userMessage.trim();
+    if (!nextMessage) {
+      return false;
+    }
+
+    const currentSession = session;
+    setClarifyError(null);
+    setPendingMode("clarify");
+
+    try {
+      const res = await fetch("/api/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "clarify",
+          session: currentSession,
+          userMessage: nextMessage,
+        }),
+      });
+      const payload = (await res.json().catch(() => null)) as unknown;
+      if (!res.ok) {
+        throw new Error(
+          readDraftApiErrorMessage(payload) ??
+            `Не удалось уточнить запрос (HTTP ${res.status}).`,
+        );
+      }
+
+      setSession(payload as DraftSession);
+      return true;
+    } catch (error) {
+      setSession(currentSession);
+      setClarifyError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось уточнить запрос. Попробуйте ещё раз.",
+      );
+      return false;
+    } finally {
+      setPendingMode(null);
+    }
+  }
+
+  async function handleGenerateFromClarify() {
+    if (!session || pendingMode) {
+      return;
+    }
+
+    const currentSession = session;
+    setClarifyError(null);
+    setScreen("building");
+    setPendingMode("generate");
+
+    try {
+      const res = await fetch("/api/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "generate",
+          session: currentSession,
+        }),
+      });
       const payload = (await res.json().catch(() => null)) as unknown;
       if (!res.ok) {
         throw new Error(
@@ -82,48 +170,44 @@ export function PresentationPrototype() {
         );
       }
 
-      const data = payload as {
-        slides: SlideTextEntry[];
-        assistantMessage: string;
-      };
-
-      setSlideTexts(data.slides);
-      setDraftMessages([{ role: "assistant", text: data.assistantMessage }]);
+      setSession(payload as DraftSession);
+      setDraftError(null);
+      setScreen("draft");
     } catch (error) {
-      setDraftMessages([
-        {
-          role: "assistant",
-          text:
-            error instanceof Error
-              ? error.message
-              : "Не удалось сгенерировать слайды. Попробуйте ещё раз.",
-        },
-      ]);
+      setSession(currentSession);
+      setClarifyError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось собрать черновик. Попробуйте ещё раз.",
+      );
+      setScreen("clarify");
     } finally {
-      setDraftLoading(false);
+      setPendingMode(null);
     }
   }
 
   async function handleDraftChatSend(userMessage: string) {
-    const nextMessage = userMessage.trim();
-    if (!nextMessage || draftLoading) {
-      return;
+    if (!session || pendingMode) {
+      return false;
     }
 
-    const userEntry: DraftChatMessage = { role: "user", text: nextMessage };
-    const nextMessages = [...draftMessages, userEntry];
-    setDraftMessages(nextMessages);
-    setDraftLoading(true);
+    const nextMessage = userMessage.trim();
+    if (!nextMessage) {
+      return false;
+    }
+
+    const currentSession = session;
+    setDraftError(null);
+    setPendingMode("revise");
 
     try {
       const res = await fetch("/api/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode: "chat",
+          mode: "revise",
+          session: currentSession,
           userMessage: nextMessage,
-          history: draftMessages,
-          slides: slideTexts,
         }),
       });
 
@@ -135,29 +219,18 @@ export function PresentationPrototype() {
         );
       }
 
-      const data = payload as {
-        slides: SlideTextEntry[];
-        assistantMessage: string;
-      };
-
-      setSlideTexts(data.slides);
-      setDraftMessages([
-        ...nextMessages,
-        { role: "assistant", text: data.assistantMessage },
-      ]);
+      setSession(payload as DraftSession);
+      return true;
     } catch (error) {
-      setDraftMessages([
-        ...nextMessages,
-        {
-          role: "assistant",
-          text:
-            error instanceof Error
-              ? error.message
-              : "Не удалось обработать запрос. Попробуйте ещё раз.",
-        },
-      ]);
+      setSession(currentSession);
+      setDraftError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось обработать запрос. Попробуйте ещё раз.",
+      );
+      return false;
     } finally {
-      setDraftLoading(false);
+      setPendingMode(null);
     }
   }
 
@@ -166,26 +239,45 @@ export function PresentationPrototype() {
     field: "title" | "subtitle" | "bullets",
     value: string | string[],
   ) {
-    setSlideTexts((currentSlides) =>
-      currentSlides.map((slide) =>
-        slide.id === id ? { ...slide, [field]: value } : slide,
-      ),
+    setDraftError(null);
+    setSession((currentSession) =>
+      currentSession
+        ? syncSessionWithSlideTexts(currentSession, currentSession.slideTexts.map((slide) =>
+            slide.id === id ? { ...slide, [field]: value } : slide,
+          ))
+        : currentSession,
     );
   }
 
   function handleBuildFromDraft() {
-    if (slideTexts.length === 0) {
-      return;
+    if (!session || session.slideTexts.length === 0) {
+      return false;
     }
 
-    const presentationDraft = buildDraftFromSlideTexts(slideTexts, prompt);
-    setDraft(presentationDraft);
-    setSelectedSlideId(presentationDraft.slides[0]?.id ?? null);
-    setDrawerState("closed");
+    setDraftError(null);
 
-    startTransition(() => {
-      setScreen("editor");
-    });
+    try {
+      const presentationDraft = buildDraftFromSlideTexts(
+        session.slideTexts,
+        session.workingDraft,
+      );
+      setDraft(presentationDraft);
+      setSelectedSlideId(presentationDraft.slides[0]?.id ?? null);
+      setDrawerState("closed");
+
+      startTransition(() => {
+        setScreen("editor");
+      });
+
+      return true;
+    } catch (error) {
+      setDraftError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось открыть редактор. Попробуйте ещё раз.",
+      );
+      return false;
+    }
   }
 
   function updateDocumentTitle(value: string) {
@@ -215,13 +307,27 @@ export function PresentationPrototype() {
     );
   }
 
-  function handleBackToStart() {
+  function handleBackToPrompt() {
+    setPromptError(null);
+    setClarifyError(null);
+    setPendingMode(null);
+    setScreen("start");
+  }
+
+  function handleBackToClarify() {
+    setDraftError(null);
+    setPendingMode(null);
+    setScreen("clarify");
+  }
+
+  function handleResetFlow() {
     setPrompt("");
     setPromptError(null);
+    setClarifyError(null);
+    setDraftError(null);
+    setSession(null);
     setDraft(null);
-    setSlideTexts([]);
-    setDraftMessages([]);
-    setDraftLoading(false);
+    setPendingMode(null);
     setSelectedSlideId(null);
     setDrawerState("closed");
     setScreen("start");
@@ -253,37 +359,54 @@ export function PresentationPrototype() {
     draft?.slides.find((slide) => slide.id === selectedSlideId) ??
     draft?.slides[0] ??
     null;
+  const startLikeScreen =
+    screen === "start" || screen === "clarify" || screen === "building";
 
   return (
-    <main className={`app-shell${screen === "start" ? " app-shell--start" : ""}`}>
-      {screen === "start" ? (
-        <>
-          <div className="start-logo">
-            <BrandMark />
-            <span className="start-logo__name">Внятно</span>
-          </div>
-
-          <StartScreen
-            prompt={prompt}
-            promptError={promptError}
-            textareaRef={promptInputRef}
-            disabled={draftLoading}
-            onChangePrompt={handlePromptChange}
-            onUseScenario={handleUseScenario}
-            onSubmit={beginDraft}
-          />
-        </>
+    <main className={`app-shell${startLikeScreen ? " app-shell--start" : ""}`}>
+      {startLikeScreen ? (
+        <div className="start-logo">
+          <BrandMark />
+          <BrandWordmark className="start-logo__name" />
+        </div>
       ) : null}
 
-      {screen === "draft" ? (
+      {screen === "start" ? (
+        <StartScreen
+          prompt={prompt}
+          promptError={promptError}
+          textareaRef={promptInputRef}
+          disabled={pendingMode === "clarify"}
+          isSubmitting={pendingMode === "clarify"}
+          onChangePrompt={handlePromptChange}
+          onUseScenario={handleUseScenario}
+          onSubmit={beginClarify}
+        />
+      ) : null}
+
+      {screen === "clarify" && session ? (
+        <ClarifyScreen
+          session={session}
+          isLoading={pendingMode === "clarify"}
+          errorMessage={clarifyError}
+          onSendMessage={handleClarifySend}
+          onUseQuickReply={handleClarifySend}
+          onBuild={handleGenerateFromClarify}
+          onBack={handleBackToPrompt}
+        />
+      ) : null}
+
+      {screen === "building" && session ? <BuildingScreen session={session} /> : null}
+
+      {screen === "draft" && session ? (
         <DraftScreen
-          slides={slideTexts}
-          messages={draftMessages}
-          isLoading={draftLoading}
+          session={session}
+          isLoading={pendingMode === "revise"}
+          errorMessage={draftError}
           onSendMessage={handleDraftChatSend}
           onUpdateSlide={handleUpdateSlideText}
           onBuild={handleBuildFromDraft}
-          onBack={handleBackToStart}
+          onBack={handleBackToClarify}
         />
       ) : null}
 
@@ -299,7 +422,7 @@ export function PresentationPrototype() {
           onSelectColor={updateDraftColor}
           onRegenerateSlide={regenerateActiveSlide}
           onRenameDocument={updateDocumentTitle}
-          onBackToStart={handleBackToStart}
+          onBackToStart={handleResetFlow}
           slideSpeakerNote={
             selectedSlideId ? (draft.slideSpeakerNotes[selectedSlideId] ?? "") : ""
           }

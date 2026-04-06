@@ -161,12 +161,6 @@ select:disabled {
   letter-spacing: -0.03em;
 }
 
-/* Латинская t в вордмарке — опора (акцент как у CTA в v3) */
-.brand-wordmark__t {
-  color: var(--accent-primary);
-  font-weight: 700;
-}
-
 .ghost-button,
 .primary-button,
 .example-chip,
@@ -401,7 +395,9 @@ select:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  justify-content: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 37.5rem;
   margin-top: var(--space-7);
 }
 
@@ -441,6 +437,15 @@ select:disabled {
   text-align: center;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+.entry-hint--status,
+.entry-hint--scenario {
+  max-width: 37.5rem;
+}
+
+.entry-hint--status {
+  text-align: left;
 }
 
 .inline-error {
@@ -570,6 +575,7 @@ select:disabled {
 .chat-avatar.is-assistant {
   background: var(--accent-primary);
   color: #fff;
+  font-size: 1rem;
 }
 
 .chat-bubble {
@@ -623,6 +629,14 @@ select:disabled {
   display: flex;
   justify-content: center;
   padding: var(--space-2) 0;
+}
+
+.chat-inline-error {
+  margin: 0;
+  padding: 0 var(--space-6) var(--space-3);
+  color: #a53f3f;
+  font-size: 0.8125rem;
+  line-height: 1.45;
 }
 
 .chat-cta {
@@ -720,11 +734,12 @@ select:disabled {
   padding: var(--space-4) var(--space-6);
 }
 
-.build-status__slides-ready {
+.build-status__lead {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-secondary);
+  line-height: 1.45;
 }
 
 .build-status__steps {
@@ -734,7 +749,7 @@ select:disabled {
 
 .build-status__step {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   gap: var(--space-3);
   align-items: center;
   min-height: 2.9rem;
@@ -749,21 +764,6 @@ select:disabled {
 
 .build-status__step-name {
   min-width: 0;
-}
-
-.build-status__step-status {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-}
-
-.build-status__step.is-active .build-status__step-status {
-  color: var(--accent-primary);
-}
-
-.build-status__step.is-done .build-status__step-status {
-  color: #0d7a3e;
 }
 
 .build-status__step.is-active {
@@ -785,6 +785,13 @@ select:disabled {
   width: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+.build-status__note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-tertiary);
 }
 
 .build-status__progress {
@@ -3010,6 +3017,57 @@ select:disabled {
   overflow: hidden;
 }
 
+.draft-screen__summary {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-card);
+}
+
+.draft-screen__summary-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.draft-screen__summary-text {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.draft-screen__summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.draft-screen__summary-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--accent-primary-soft);
+  color: var(--accent-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.draft-screen__summary-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
 .draft-screen__slides-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -3178,6 +3236,13 @@ select:disabled {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.draft-screen__error {
+  margin: 0;
+  color: #a53f3f;
+  font-size: 0.8125rem;
+  line-height: 1.45;
 }
 
 .draft-screen__chat-input {
@@ -3423,6 +3488,10 @@ select:disabled {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .draft-screen__summary {
+    padding: var(--space-4);
+  }
+
   .draft-screen__chat-messages {
     padding: var(--space-3) var(--space-4);
   }
@@ -3435,6 +3504,14 @@ select:disabled {
 @media (max-width: 640px) {
   .draft-screen {
     grid-template-rows: 1fr 280px;
+  }
+
+  .draft-screen__summary {
+    padding: var(--space-4);
+  }
+
+  .draft-screen__summary-chips {
+    gap: var(--space-2);
   }
 
   .draft-screen__slides-grid {

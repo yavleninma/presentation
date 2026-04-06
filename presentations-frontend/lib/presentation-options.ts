@@ -1,21 +1,22 @@
 import type { ColorThemeId, TemplateId } from "@/lib/presentation-types";
 
-export const EXAMPLE_PROMPTS = [
-  "Нужно собрать квартальный статус для руководителя: что уже сдвинули, где риск и какой следующий шаг важен сейчас.",
-  "Показываем итоги пилота поиска для продуктового руководителя: что уже работает, что пока не доказано и что нужно решить по следующему этапу.",
-  "Нужен запрос на ресурс по platform team: что успели сделать, где упёрлись и зачем нужен следующий слот на найм.",
-  "Нужно показать клиентам наш сервис Внятно - помогает собрать рабочую презентацию из описания задачи за 90 секунд. Аудитория: команды и руководители, которые часто готовят презентации.",
-] as const;
+export const PRODUCT_DEMO_PROMPT =
+  "Нужно показать сервис Внятно: что это за сервис, как мы его создаём и как развиваем дальше. Аудитория: команды и руководители, которым нужно быстро собирать рабочие презентации из сырой мысли. Важно показать главный сценарий, пользу и следующий шаг в развитии.";
+
+export const EXAMPLE_PROMPTS = [PRODUCT_DEMO_PROMPT] as const;
 
 export const SCENARIO_CHIPS = [
-  { id: "quarter", label: "Квартальный статус", prompt: EXAMPLE_PROMPTS[0] },
-  { id: "pilot", label: "Итоги пилота", prompt: EXAMPLE_PROMPTS[1] },
-  { id: "resource", label: "Запрос на ресурс", prompt: EXAMPLE_PROMPTS[2] },
-  { id: "pokaz", label: "Показ продукта", prompt: EXAMPLE_PROMPTS[3] },
+  {
+    id: "product",
+    label: "Показ продукта",
+    prompt: PRODUCT_DEMO_PROMPT,
+    description:
+      "Тестовый поток: рассказать про сервис Внятно, его создание и развитие.",
+  },
 ] as const;
 
 export const START_SCREEN_ENABLED_SCENARIO_ID: (typeof SCENARIO_CHIPS)[number]["id"] =
-  "pokaz";
+  "product";
 
 export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
   { id: "strict", label: "Строгий" },

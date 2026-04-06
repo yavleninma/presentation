@@ -1,4 +1,9 @@
-export type PrototypeScreen = "start" | "draft" | "editor";
+export type PrototypeScreen =
+  | "start"
+  | "clarify"
+  | "building"
+  | "draft"
+  | "editor";
 
 export type EditorDrawerState = "closed" | "open";
 
@@ -172,6 +177,17 @@ export interface SlideTextEntry {
 export interface DraftChatMessage {
   role: "user" | "assistant";
   text: string;
+  kind?: "content" | "error";
+}
+
+export interface DraftSession {
+  workingDraft: WorkingDraft;
+  slideTexts: SlideTextEntry[];
+  messages: DraftChatMessage[];
+  quickReplies: string[];
+  readyToGenerate: boolean;
+  missingFacts: string[];
+  summary: string;
 }
 
 export interface PresentationDraft {

@@ -1,27 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState, KeyboardEvent } from "react";
-import type { DraftChatMessage, SlideTextEntry } from "@/lib/presentation-types";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import type { DraftSession, SlideTextEntry } from "@/lib/presentation-types";
 import { SlideTextCard } from "./slide-text-card";
 
 interface DraftScreenProps {
-  slides: SlideTextEntry[];
-  messages: DraftChatMessage[];
+  session: DraftSession;
   isLoading: boolean;
-  onSendMessage: (text: string) => void;
+  errorMessage: string | null;
+  onSendMessage: (text: string) => Promise<boolean>;
   onUpdateSlide: (
     id: SlideTextEntry["id"],
     field: "title" | "subtitle" | "bullets",
     value: string | string[]
   ) => void;
-  onBuild: () => void;
+  onBuild: () => boolean | Promise<boolean>;
   onBack: () => void;
 }
 
 export function DraftScreen({
-  slides,
-  messages,
+  session,
   isLoading,
+  errorMessage,
   onSendMessage,
   onUpdateSlide,
   onBuild,
@@ -30,51 +30,96 @@ export function DraftScreen({
   const [input, setInput] = useState("");
   const [isBuilding, setIsBuilding] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const slides = session.slideTexts;
+  const messages = session.messages;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isLoading]);
 
-  function handleSend() {
-    const text = input.trim();
-    if (!text || isLoading) return;
-    setInput("");
-    onSendMessage(text);
+  useEffect(() => {
+    if (!isLoading) {
+      setIsBuilding(false);
+    }
+  }, [isLoading]);
+
+  async function handleBuild() {
+    if (isLoading || isBuilding || slides.length === 0) {
+      return;
+    }
+
+    setIsBuilding(true);
+    const success = await onBuild();
+    if (!success) {
+      setIsBuilding(false);
+    }
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || isLoading) {
+      return;
+    }
+
+    const success = await onSendMessage(text);
+    if (success) {
+      setInput("");
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void handleSend();
     }
   }
 
   return (
     <div className="draft-screen">
       <div className="draft-screen__slides">
+        <section className="draft-screen__summary">
+          <p className="draft-screen__summary-eyebrow">Что держим в фокусе</p>
+          <p className="draft-screen__summary-text">{session.summary}</p>
+
+          <div className="draft-screen__summary-chips">
+            <span className="draft-screen__summary-chip">
+              Аудитория: {session.workingDraft.audience}
+            </span>
+
+            <span className="draft-screen__summary-chip">
+              Следующий шаг: {session.workingDraft.desiredOutcome}
+            </span>
+
+            {session.workingDraft.knownFacts.slice(0, 2).map((fact) => (
+              <span key={fact} className="draft-screen__summary-chip">
+                {fact}
+              </span>
+            ))}
+          </div>
+        </section>
+
         <div className="draft-screen__slides-grid">
           {isLoading && slides.length === 0
-            ? Array.from({ length: 6 }, (_, i) => (
+            ? Array.from({ length: 6 }, (_, index) => (
                 <SlideTextCard
-                  key={i}
+                  key={index}
                   slide={{
-                    id: `slide-${i + 1}` as SlideTextEntry["id"],
+                    id: `slide-${index + 1}` as SlideTextEntry["id"],
                     railTitle: "",
                     title: "",
                     subtitle: "",
                     bullets: [],
                   }}
-                  index={i}
+                  index={index}
                   isLoading
                   onUpdate={onUpdateSlide}
                 />
               ))
-            : slides.map((slide, i) => (
+            : slides.map((slide, index) => (
                 <SlideTextCard
                   key={slide.id}
                   slide={slide}
-                  index={i}
+                  index={index}
                   isLoading={isLoading}
                   onUpdate={onUpdateSlide}
                 />
@@ -84,13 +129,10 @@ export function DraftScreen({
         <div className="draft-screen__build-bar">
           <button
             className="draft-screen__build-btn"
-            onClick={() => {
-              setIsBuilding(true);
-              onBuild();
-            }}
+            onClick={() => void handleBuild()}
             disabled={isLoading || isBuilding || slides.length === 0}
           >
-            {isBuilding ? "Собираем…" : "Собрать черновик →"}
+            {isBuilding ? "Открываем…" : "Открыть редактор →"}
           </button>
         </div>
       </div>
@@ -102,25 +144,28 @@ export function DraftScreen({
               type="button"
               className="draft-screen__back-btn"
               onClick={onBack}
-              aria-label="Вернуться к вводу"
+              aria-label="Вернуться к уточнению"
             >
               ← Назад
             </button>
           </div>
-          <span className="draft-screen__chat-title">Помощник</span>
-          <span className="draft-screen__chat-hint">Уточняйте, меняйте, спрашивайте</span>
+          <span className="draft-screen__chat-title">Уточнения</span>
+          <span className="draft-screen__chat-hint">
+            Можно усилить смысл, поправить формулировки или сменить акцент.
+          </span>
         </div>
 
         <div className="draft-screen__chat-messages">
-          {messages.map((m, i) => (
+          {messages.map((message, index) => (
             <div
-              key={i}
-              className={`draft-screen__msg draft-screen__msg--${m.role}`}
+              key={index}
+              className={`draft-screen__msg draft-screen__msg--${message.role}`}
             >
-              <span className="draft-screen__msg-bubble">{m.text}</span>
+              <span className="draft-screen__msg-bubble">{message.text}</span>
             </div>
           ))}
-          {isLoading && messages.length > 0 && (
+
+          {isLoading && messages.length > 0 ? (
             <div className="draft-screen__msg draft-screen__msg--assistant">
               <span className="draft-screen__msg-bubble draft-screen__msg-bubble--thinking">
                 <span className="draft-screen__dot" />
@@ -128,25 +173,27 @@ export function DraftScreen({
                 <span className="draft-screen__dot" />
               </span>
             </div>
-          )}
+          ) : null}
+
           <div ref={chatEndRef} />
         </div>
 
         <div className="draft-screen__chat-input-row">
+          {errorMessage ? <p className="draft-screen__error">{errorMessage}</p> : null}
+
           <textarea
-            ref={inputRef}
             className="draft-screen__chat-input"
             value={input}
-            placeholder="Напишите пожелание к слайдам…"
+            placeholder="Напишите, что нужно усилить в черновике…"
             rows={3}
             disabled={isLoading}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
           />
           <button
             className="draft-screen__chat-send"
             disabled={!input.trim() || isLoading}
-            onClick={handleSend}
+            onClick={() => void handleSend()}
           >
             Отправить
           </button>
