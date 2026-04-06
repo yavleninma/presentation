@@ -5,15 +5,18 @@ export const PRODUCT_DEMO_PROMPT =
 
 export const EXAMPLE_PROMPTS = [PRODUCT_DEMO_PROMPT] as const;
 
-export const SCENARIO_CHIPS = [
+export const SCENARIO_CHIPS: ReadonlyArray<{
+  id: "product";
+  label: string;
+  prompt: string;
+  description?: string;
+}> = [
   {
     id: "product",
     label: "Показ продукта",
     prompt: PRODUCT_DEMO_PROMPT,
-    description:
-      "Тестовый поток: рассказать про сервис Внятно, его создание и развитие.",
   },
-] as const;
+];
 
 export const START_SCREEN_ENABLED_SCENARIO_ID: (typeof SCENARIO_CHIPS)[number]["id"] =
   "product";

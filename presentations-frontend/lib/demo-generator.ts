@@ -1,6 +1,7 @@
 import type {
   CanvasLayoutId,
   ColorThemeId,
+  DraftFitPassStrength,
   FitPassResult,
   HiddenTransformId,
   PresentationDraft,
@@ -161,6 +162,7 @@ export function buildPresentationDraft(
   options: {
     documentTitle?: string;
     slideSpeakerNotes?: PresentationDraft["slideSpeakerNotes"];
+    fitPassStrength?: DraftFitPassStrength;
   } = {}
 ): PresentationDraft {
   const normalizedWorkingDraft = normalizeWorkingDraft(workingDraft);
@@ -177,6 +179,7 @@ export function buildPresentationDraft(
     workingDraft: normalizedWorkingDraft,
     slides,
     slideSpeakerNotes: options.slideSpeakerNotes ?? {},
+    fitPassStrength: options.fitPassStrength,
     debug: {
       currentWorkingDraft: normalizedWorkingDraft,
       hiddenSlidePlan: normalizedWorkingDraft.slidePlan,
@@ -192,25 +195,25 @@ export function updateDraftAppearance(
   draft: PresentationDraft,
   appearance: { templateId?: TemplateId; colorThemeId?: ColorThemeId }
 ): PresentationDraft {
-  return buildPresentationDraft(
-    {
-      ...draft.workingDraft,
-      templateId: appearance.templateId ?? draft.workingDraft.templateId,
-      colorThemeId: appearance.colorThemeId ?? draft.workingDraft.colorThemeId,
-    },
-    {
-      documentTitle: draft.documentTitle,
-      slideSpeakerNotes: draft.slideSpeakerNotes,
-    }
-  );
+  const nextWorkingDraft = normalizeWorkingDraft({
+    ...draft.workingDraft,
+    templateId: appearance.templateId ?? draft.workingDraft.templateId,
+    colorThemeId: appearance.colorThemeId ?? draft.workingDraft.colorThemeId,
+  });
+
+  return runFitPassOnDraft({
+    ...draft,
+    workingDraft: nextWorkingDraft,
+  });
 }
 
 export function runFitPassOnDraft(draft: PresentationDraft): PresentationDraft {
+  const strength: DraftFitPassStrength = draft.fitPassStrength ?? "strict";
   const chosenTransformIds = {} as PresentationDraft["debug"]["chosenTransformIds"];
   const fitPassResultBySlide =
     {} as PresentationDraft["debug"]["fitPassResultBySlide"];
   const slides = draft.slides.map((slide, index) => {
-    const result = fitSlide(slide, draft.workingDraft);
+    const result = fitSlide(slide, draft.workingDraft, strength);
     chosenTransformIds[slide.id] = draft.workingDraft.slidePlan[index].lastTransformId;
     fitPassResultBySlide[slide.id] = result.fit;
     return result.slide;
@@ -255,6 +258,7 @@ export function regenerateSlide(
   return buildPresentationDraft(nextWorkingDraft, {
     documentTitle: draft.documentTitle,
     slideSpeakerNotes: draft.slideSpeakerNotes,
+    fitPassStrength: draft.fitPassStrength,
   });
 }
 
@@ -357,20 +361,66 @@ function normalizeWorkingDraft(workingDraft: WorkingDraft): WorkingDraft {
   };
 }
 
-function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
+const FIT_PASS_LIMITS: Record<
+  DraftFitPassStrength,
+  {
+    title: number;
+    subtitle: number;
+    blockTitle: number;
+    blockBody: number;
+    blockBodyPlaceholder: number;
+    railTitle: number;
+    actionLabel: number;
+    overflowTitleWidth: number;
+    overflowBlockTitleWidth: number;
+    overflowHeightChars: number;
+  }
+> = {
+  strict: {
+    title: 78,
+    subtitle: 84,
+    blockTitle: 34,
+    blockBody: 156,
+    blockBodyPlaceholder: 96,
+    railTitle: 44,
+    actionLabel: 32,
+    overflowTitleWidth: 72,
+    overflowBlockTitleWidth: 30,
+    overflowHeightChars: 440,
+  },
+  editor: {
+    title: 140,
+    subtitle: 220,
+    blockTitle: 320,
+    blockBody: 900,
+    blockBodyPlaceholder: 400,
+    railTitle: 96,
+    actionLabel: 96,
+    overflowTitleWidth: 132,
+    overflowBlockTitleWidth: 300,
+    overflowHeightChars: 4000,
+  },
+};
+
+function fitSlide(
+  slide: PresentationSlide,
+  workingDraft: WorkingDraft,
+  strength: DraftFitPassStrength = "strict",
+) {
+  const L = FIT_PASS_LIMITS[strength];
   let titleShortened = false;
   let textCompressed = false;
   let blockTrimmed = false;
   let actionShortened = false;
   const notes: string[] = [];
 
-  const title = clampText(slide.title, 78);
+  const title = clampText(slide.title, L.title);
   if (title !== slide.title) {
     titleShortened = true;
     notes.push("fit-pass сократил заголовок");
   }
 
-  const subtitle = slide.subtitle ? clampText(slide.subtitle, 84) : "";
+  const subtitle = slide.subtitle ? clampText(slide.subtitle, L.subtitle) : "";
   if (subtitle !== slide.subtitle) {
     textCompressed = true;
     notes.push("fit-pass сократил подзаголовок");
@@ -386,8 +436,11 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
   const blocks = slide.blocks.slice(0, maxBlocks).map((block) => {
     const next = {
       ...block,
-      title: clampText(block.title, 34),
-      body: clampText(block.body, block.placeholder ? 96 : 156),
+      title: clampText(block.title, L.blockTitle),
+      body: clampText(
+        block.body,
+        block.placeholder ? L.blockBodyPlaceholder : L.blockBody,
+      ),
     };
 
     if (next.title !== block.title || next.body !== block.body) {
@@ -403,7 +456,7 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
   }
 
   const drawerActions = slide.drawerActions.map((action) => {
-    const label = clampText(action.label, 32);
+    const label = clampText(action.label, L.actionLabel);
 
     if (label !== action.label) {
       actionShortened = true;
@@ -429,15 +482,17 @@ function fitSlide(slide: PresentationSlide, workingDraft: WorkingDraft) {
       ...slide,
       title,
       subtitle,
-      railTitle: clampText(slide.railTitle, 44),
+      railTitle: clampText(slide.railTitle, L.railTitle),
       railRhythm: blocks.map(blockTone).slice(0, 4),
       blocks,
       drawerActions,
     },
     fit: {
       slideId: slide.id,
-      overflowWidthRisk: title.length > 72 || blocks.some((block) => block.title.length > 30),
-      overflowHeightRisk: totalChars > 440,
+      overflowWidthRisk:
+        title.length > L.overflowTitleWidth ||
+        blocks.some((block) => block.title.length > L.overflowBlockTitleWidth),
+      overflowHeightRisk: totalChars > L.overflowHeightChars,
       titleShortened,
       textCompressed,
       blockTrimmed,

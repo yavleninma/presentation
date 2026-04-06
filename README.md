@@ -53,7 +53,7 @@
 
 ## Проверка
 
-Базовый локальный проход:
+Базовый локальный проход (включая ESLint, typecheck, unit-тесты и production build):
 
 ```bash
 npm run verify

@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DraftSession } from "@/lib/presentation-types";
+import { BrandMark } from "../brand-mark";
+import { BackButton } from "../ui/back-button";
+import { ComposeField } from "../ui/compose-field";
 
 interface ClarifyScreenProps {
   session: DraftSession;
@@ -49,13 +52,6 @@ export function ClarifyScreen({
     await onUseQuickReply(reply);
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void handleSend();
-    }
-  }
-
   return (
     <section className="entry-stage">
       <div className="chat-card">
@@ -67,25 +63,22 @@ export function ClarifyScreen({
             </p>
           </div>
 
-          <button type="button" className="ghost-button" onClick={onBack}>
-            Назад
-          </button>
+          <BackButton onClick={onBack} label="Назад" />
         </div>
 
         <div className="chat-card-sep" />
 
-        <div className="chat-messages">
+        <div className="chat-messages" aria-live="polite" aria-label="Переписка">
           {session.messages.map((message, index) => (
             <div
               key={`${message.role}-${index}`}
               className={`chat-msg${message.role === "user" ? " is-user" : ""}`}
             >
-              <span
-                className={`chat-avatar ${message.role === "user" ? "is-user" : "is-assistant"}`}
-                aria-hidden="true"
-              >
-                {message.role === "user" ? "Вы" : "•"}
-              </span>
+              {message.role === "user" ? (
+                <span className="chat-avatar is-user" aria-hidden="true">Я</span>
+              ) : (
+                <BrandMark className="brand-mark brand-mark--sm" />
+              )}
 
               <div className="chat-msg__column">
                 <span
@@ -99,12 +92,12 @@ export function ClarifyScreen({
 
           {isLoading ? (
             <div className="chat-msg">
-              <span className="chat-avatar is-assistant" aria-hidden="true">
-                •
-              </span>
+              <BrandMark className="brand-mark brand-mark--sm" />
               <div className="chat-msg__column">
-                <span className="chat-bubble is-assistant">
-                  <p>Собираю уточнение и проверяю, что ещё стоит добавить.</p>
+                <span className="chat-bubble is-assistant chat-bubble--thinking">
+                  <span className="chat-dot" aria-hidden="true" />
+                  <span className="chat-dot" aria-hidden="true" />
+                  <span className="chat-dot" aria-hidden="true" />
                 </span>
               </div>
             </div>
@@ -136,9 +129,10 @@ export function ClarifyScreen({
         <div className="chat-cta-row">
           <button
             type="button"
-            className="chat-cta"
+            className={session.readyToGenerate ? "chat-cta" : "ghost-button chat-cta--secondary"}
             onClick={onBuild}
             disabled={isLoading}
+            title={session.readyToGenerate ? undefined : "Ответьте на вопрос бота, чтобы черновик был точнее"}
           >
             Собрать черновик →
           </button>
@@ -148,26 +142,16 @@ export function ClarifyScreen({
 
         <div className="chat-card-sep-bottom" />
 
-        <div className="chat-compose-area">
-          <textarea
-            className="chat-compose-input"
-            value={input}
-            rows={2}
-            placeholder="Добавьте короткое уточнение, если хотите усилить черновик."
-            disabled={isLoading}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={handleKeyDown}
-          />
-
-          <button
-            type="button"
-            className="chat-compose-send"
-            disabled={isLoading || !input.trim()}
-            onClick={() => void handleSend()}
-          >
-            Отправить
-          </button>
-        </div>
+        <ComposeField
+          variant="chat"
+          value={input}
+          onChange={setInput}
+          onSubmit={() => void handleSend()}
+          placeholder="Добавьте короткое уточнение, если хотите усилить черновик."
+          disabled={isLoading}
+          isLoading={isLoading}
+          rows={2}
+        />
       </div>
     </section>
   );

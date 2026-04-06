@@ -43,6 +43,254 @@
 
 ## Записи
 
+### 048 Первая генерация слайдов
+
+**Что уложено**
+- Причина: `buildDraftFromSlideTexts` подменял блоки через `buildBlocksForLayout`, который знает только metrics/steps/personas/features/checklist; для `cover`, `stat-focus`, `quote`, `comparison` срабатывал общий fallback (три «карточки»), несовместимый с вёрсткой `SlideCanvas`. Смена шаблона вызывала `updateDraftAppearance` → полный `buildPresentationDraft` из `blockPlan`, поэтому визуал «чинился».
+- Исправление: в `draft-from-slide-texts.ts` функция `blocksFromSlideTextEntry` для перечисленных layout’ов сохраняет структуру блоков из плана и подставляет тексты из `slideTexts`; остальные layout’ы как раньше через `buildBlocksForLayout`.
+- `updateDraftAppearance` в `demo-generator.ts`: только обновление `templateId`/`colorThemeId` в `workingDraft` + `runFitPassOnDraft`, без пересборки слайдов с нуля (тексты модели не затираются при смене шаблона/цвета).
+- Дополнение (пропажа/укорочение текста): `fitSlide` для демо жёстко clamp’ил заголовки блоков до 34 и body до 156 символов — тексты модели превращались в «…». После смены шаблона раньше пересборка подставляла короткие демо-строки и выглядело «нормально». Сейчас: у `PresentationDraft` поле `fitPassStrength` (`strict` | `editor`), `buildDraftFromSlideTexts` выставляет `editor` и мягкие лимиты; `regenerateSlide` и `buildPresentationDraft` пробрасывают `fitPassStrength` с черновика.
+- Тесты: обложка + длинная строка на `features` без обрезки; `npm run verify` — зелёный.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Первый заход в редактор: и структура блоков под layout, и полнота текста с модели; смена шаблона не откатывает контент и не «чинит» за счёт подмены коротких строк.
+
+**Что ещё мутно** При `editor`-лимитах вёрстка может переполняться — смотреть по реальным слайдам; эвристики quote/comparison/stat-focus по буллетам можно уточнить.
+
+**Передача смены** `draft-from-slide-texts.ts` (`blocksFromSlideTextEntry`, `fitPassStrength: editor`), `demo-generator.ts` (`FIT_PASS_LIMITS`, `fitSlide`, `runFitPassOnDraft`, `updateDraftAppearance`, `regenerateSlide` + опции `buildPresentationDraft`), `presentation-types.ts` (`DraftFitPassStrength`, `fitPassStrength`).
+
+**Проблемы**
+- Нет.
+
+---
+
+### 047 Токенизация font-size globals
+
+**Что уложено**
+- В `presentations-frontend/app/globals.css` все `font-size`, совпадающие со шкалой `:root` (`--text-xs` … `--text-lg`), заменены на `var(--text-*)` без смены визуала; `--text-xl` в правилах не встречался (кроме определения переменной).
+- Остальные объявления `font-size` (clamp, дробные rem вне шкалы) оставлены как были и помечены комментарием `/* нестандартный размер */`.
+- `npm run verify` в `presentations-frontend` — зелёный.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Шкала типографики из записи 030 реально используется в глобальных стилях; проще искать отклонения от ступеней.
+
+**Что ещё мутно** Много нестандартных размеров на слайдах и в хроме — следующий шаг при желании: свести к шкале или расширить токены отдельной сменой.
+
+**Передача смены** Искать `font-size:` и `var(--text-` в `globals.css`; нестандартные — по комментарию в конце строки.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 046 Rail редактора — мини-превью
+
+**Что уложено**
+- Новый компонент `editor-slide-rail-thumb.tsx`: превью 120×68px (16:9), `data-template` + `data-color` как у canvas, верхняя полоска-акцент, номер слайда, одна строка `slide.title` (fallback на подпись rail как у старого thumbnail), `aria-label` по номеру и rail.
+- `editor-screen.tsx`: rail на `EditorSlideRailThumb` + `templateId`/`colorThemeId` из `workingDraft`. `slide-canvas.tsx` не менялся; экспорт `SlideThumbnail` оставлен.
+- `globals.css`: блок стилей превью (градиенты зеркалят `.slide-canvas` для strict/cards и briefing), активная рамка `var(--accent-primary)`, hover рамки, focus-visible; на ≤720px у `.editor-rail` добавлен `display: flex` для горизонтального скролла + `.rail-list` в ряд.
+- Smoke `.ux-audit/ux-runner.cjs`: счётчик миниатюр по `.editor-rail-thumb`.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** В rail видно цвет темы и заголовок слайда без чтения длинной подписи rail; активный слайд выделен синей рамкой.
+
+**Что ещё мутно** Превью не отражает 11 layout-типов (намеренно упрощение). Дублируются правила фона с `.slide-canvas` — при смене палитры canvas править оба места или вынести токены отдельной сменой.
+
+**Передача смены** Превью rail: `editor-slide-rail-thumb.tsx` + секция «Editor rail: мини-превью» в `globals.css`. Smoke ищет `.editor-rail-thumb`.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 045 Замечания ревью
+
+**Что уложено**
+- `/api/draft`: лимит размера тела (256 KiB), разбор JSON через `req.text()`, лимит запросов на инстанс (окно 60 с, 48 запросов/IP; на serverless не общий между репликами), безопасный ответ 500 без утечки внутреннего `Error.message`, структурный лог в stderr (`scope`, `event`, `code`/`internal`, `ts`).
+- Коды ошибок: `PAYLOAD_TOO_LARGE` (413), `RATE_LIMIT_EXCEEDED` (429).
+- ESLint: `eslint.config.mjs` на `eslint-config-next/core-web-vitals`, скрипт `lint`, `verify` = lint + typecheck + tests + build; правки под правила React 19 (`draft-screen` без setState в эффекте, `editor-screen` ref через `useLayoutEffect`).
+- Тесты: `tests/draft-route-guards.test.ts`, `tests/draft-session.test.ts`.
+- CI: deploy URL из `vercel deploy --format json` + `scripts/extract-vercel-deploy-url.mjs`.
+- a11y: старт — `role="alert"` у ошибки, `role="status"` + `aria-live="polite"` у текста загрузки.
+- Smoke: `.ux-audit/ux-runner.cjs` синхронизирован с копирайтом building-screen и `aria-label` кнопки настроек в editor.
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Ревью переведено в конкретные ограждения API, проверку стиля и более устойчивый парсинг URL деплоя.
+
+**Что ещё мутно** Жёсткий общий rate limit — только с внешним store (KV).
+
+**Передача смены** При росте нагрузки — Upstash/Vercel KV для лимитов; при смене формата JSON CLI — проверить `extract-vercel-deploy-url.mjs`.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 044 Подсказка под чипами старта
+
+**Что уложено**
+- Убрана строка подсказки «Тестовый поток: … Внятно …» на первом экране: удалено поле `description` у чипа «Показ продукта» в `presentation-options.ts`; тип чипов допускает опциональный `description` на будущее. Обработчики hover/focus в `start-screen` учитывают отсутствие текста.
+- `aria-describedby` у чипов только если есть видимая подсказка (`helperText`), чтобы не ссылаться на отсутствующий `#start-scenario-hint`.
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Под чипами больше не показывается внутренний тестовый копирайт.
+
+**Что ещё мутно** Промпт по клику на чип (`PRODUCT_DEMO_PROMPT`) по-прежнему про демо продукта — менять только по отдельной задаче.
+
+**Передача смены** При появлении новых чипов с подсказками снова заполнять `description`.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 043 Экран уточнений черновика
+
+**Что уложено**
+- Экран черновика (`draft-screen`): убран верхний блок с резюме и чипами слева; сетка 6 карточек сразу на всю колонку.
+- Смысловая сводка и чипы (аудитория, шаг, факты) перенесены в правую колонку в блок «Контекст презентации» под заголовком чата.
+- «Открыть редактор» перенесена в правую панель: одна строка с «Назад» слева и кнопкой справа (`draft-screen__chat-toolbar`).
+- Вёрстка без прокрутки всей страницы: сетка 2×3 с `minmax(0,1fr)`, у карточек прокрутка только у списка тезисов при переполнении; у колонки чата — `overflow-x: hidden`, у пузырей — `overflow-x: auto` для длинных строк; `overscroll-behavior: contain`.
+- Адаптив: при ≤1100px сетка 2×3 строки, при ≤640px одна колонка ×6 строк; удалены стили `draft-screen__build-bar` / привязка к старому `draft-screen__summary` в медиазапросах.
+- Smoke `ux-runner.cjs`: селекторы сводки и счётчика сообщений обновлены под новую разметку.
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Слева только слайды, справа чат + контекст + переход в редактор; меньше двойных скроллов.
+
+**Что ещё мутно** На очень низкой высоте окна 6 карточек остаются плотными; узкий чат — перенос тулбара по `flex-wrap`.
+
+**Передача смены** Прогнать `ux-runner` при необходимости; экран clarify (до черновика) не менялся.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 042 QA + фронтенд-ревью
+
+**Что уложено**
+- P0 a11y: `<ArrowLeft>` в кнопке «К черновику» получил `aria-hidden="true"` — все остальные иконки редактора уже имели; регрессия устранена.
+- P1: Draft chat send кнопка получила `type="button"` и `aria-label="Отправить сообщение"`.
+- P1 layout: `draft-screen__chat-messages` переведён с `flex: 1` (= `1 1 0%`) на `flex: 1 1 auto` + `min-height: 0` — стабильное поведение в flex-контейнере.
+- P1 UX: Пустой bullet text теперь показывает плейсхолдер «Тезис» через `.slide-text-card__empty`, вместо пустого клик-региона без обратной связи.
+- P1 a11y: Skeleton-карточки слайдов получили `aria-busy="true"` и `aria-label="Слайд NN загружается"`; контент скелетона помечен `aria-hidden="true"`.
+- P1 a11y: Bullet span получили `aria-label="Тезис N: текст"` — было только у title/subtitle.
+- CSS: Мёртвые классы `draft-screen__msg`, `draft-screen__msg--*`, `draft-screen__msg-bubble*`, `draft-screen__dot`, `@keyframes draft-dot-bounce` удалены (~50 строк) — были заменены унифицированными `chat-msg*` в предыдущей смене.
+- CSS: `.build-status` переведён с `display: grid` на `display: flex; flex-direction: column; align-items: center` — спиннер центрируется без `margin: auto`.
+- CSS: `editor-topbar-secondary` border-right `var(--border-soft)` → `var(--border-strong)` — разделитель вторичных/первичных действий стал заметен.
+- CSS: `.draft-screen__chat-empty` dashed border убран, заменён `background: var(--bg-card-soft)` — меньше визуального шума.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Регрессия aria-hidden закрыта. Skeleton карточки стали понятны для screen reader. Bullet поля теперь имеют плейсхолдер и правильный aria-label. CSS похудел на 50 строк мёртвого кода.
+
+**Что ещё мутно** P2 технический долг из аудита 039 (превью шаблонов в селекторах, `buildMissingFacts`) остаётся в очереди.
+
+**Передача смены** QA пройден, все найденные проблемы закрыты. TypeScript и linter чистые.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 041 UX-чистка интерфейса
+
+**Что уложено**
+- Системный фикс курсора: `cursor: text` → `cursor: pointer` на всех полях SlideTextCard (title, subtitle, bullet). Поля теперь визуально предсказуемы как кнопки.
+- Единая система `:focus-visible` для всего UI: 16 классов кнопок и интерактивных элементов получили кольцо `2px solid var(--accent-primary)`. Клавиатурная навигация стала рабочей.
+- Фикс hover-трансформов при disabled: все кнопки (`.ghost-button`, `.primary-button`, `.chat-cta`, `.chat-compose-send`, `.composer-send`) теперь используют `:hover:not(:disabled)`.
+- Добавлены недостающие `disabled`-состояния: `.chat-compose-send:disabled`, `.chat-suggestion-chip:disabled`, `.ghost-button:disabled`, `.composer-send:disabled`.
+- Устранён дубль `.build-status__lead` — удалена старая декларация на строке ~737, остался единственный стиль рядом со спиннером.
+- `prefers-reduced-motion`: анимации `.chat-dot`, `.build-status__spinner`, `.slide-text-card__skeleton-line` выключаются при предпочтении пользователя.
+- Визуальный разделитель между вторичными действиями и первичным CTA в топбаре редактора (border-right). На экранах < 720px убирается.
+- `draft-screen__chat-messages`: удалён лишний класс `chat-messages` (каскадная зависимость), добавлен `aria-live="polite"`.
+- `clarify-screen` chat-messages: добавлен `aria-live="polite"`.
+- Draft build-кнопка: добавлены `type="button"` и `aria-label`.
+- Пустое состояние в чат-панели черновика: когда сообщений нет, показывается инструкция-подсказка.
+- Overflow-защита для `draft-screen__summary-chip` (max-width + white-space:nowrap + text-overflow:ellipsis).
+- `ghost-button:disabled` добавлено рядом с `primary-button:disabled`.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Интерфейс стал консистентен по курсорам, состояниям hover/focus/disabled, анимациям и семантике доступности. Тема `:focus-visible` теперь покрывает весь поток.
+
+**Что ещё мутно** P2-задачи из аудита 039 (превью шаблонов в селекторах, `buildMissingFacts`) по-прежнему в техдолге.
+
+**Передача смены** CSS-слой состояний закрыт. Следующий шаг — E2E-тест или превью шаблонов.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 040 Самостоятельное ревью
+
+**Что уложено**
+- Самостоятельный обзор репозитория (root workspace, `presentations-frontend`, CI, smoke, API, тесты) без изменений кода.
+- В ответе пользователю: кто выигрывает, какая рабочая задача, приоритизированные улучшения (безопасность API, тесты, линтинг, разрезание тяжёлых модулей, CI, a11y, документация/продукт).
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Карта сильных сторон и зон следующего усиления без смешения с отладкой конкретного бага.
+
+**Что ещё мутно** Выбор приоритетов за продуктом/командой; отдельные смены на внедрение.
+
+**Передача смены** Взять 1–2 пункта из списка улучшений и закрыть отдельными чатами с проверкой `verify`/`smoke`.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 040 UI-примитивы BackButton ComposeField
+
+**Что уложено**
+- Создан `components/ui/back-button.tsx`: единая кнопка «Назад» с иконкой ArrowLeft. При наличии `label` — ghost-button (pill с текстом, clarify). Без `label` — `editor-back-button` (компактный квадрат, draft/editor).
+- Создан `components/ui/compose-field.tsx`: единое поле ввода + кнопка отправки, три варианта: `start` (composer-box--start-v3, ArrowUp), `chat` (chat-compose-area + «Отправить», clarify), `draft` (только input+button без враппера, draft). Содержит обработчик Enter/Shift+Enter. Поддерживает `textareaRef` для фокуса при возврате на старт.
+- В `globals.css` добавлен базовый класс `.compose-send` с общими свойствами кнопок отправки (background accent, white, border none, border-radius pill, cursor pointer, disabled/hover). Класс включён в transition-список и focus-visible-список.
+- Заменены все три реализации в `clarify-screen.tsx`, `draft-screen.tsx`, `editor-screen.tsx`, `start-screen.tsx`. Убраны дублирующиеся `handleKeyDown` из clarify и draft.
+- `eslint .` — 0 ошибок.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Логика клавиатурного Enter, вид кнопки «Назад» и структура поля ввода теперь в одном месте. Три экрана не дублируют одну и ту же вёрстку.
+
+**Что ещё мутно** CSS-классы `.chat-compose-send` и `.draft-screen__chat-send` сохранены как контекстные модификаторы поверх `.compose-send` — их можно объединить, если визуал впоследствии выровняют по токенам.
+
+**Передача смены** Новые кнопки «Назад» — через `BackButton`, новые поля ввода — через `ComposeField`. При добавлении экрана с аналогичными паттернами — тот же компонент.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 039 Аудит продукта
+
+**Что уложено**
+- Полный сквозной UX-аудит прототипа по всем слоям: UX, дизайн-система, копирайт, код, документация.
+- Устранено 5 P0-проблем: fake loading в Clarify заменён нейтральными точками; Building screen упрощён до честного спиннера + summary без симуляции прогресса; Editor получил `handleBackToDraft` — путь назад к черновику без сброса сессии; SlideTextCard стал клавиатурно-доступным (`tabIndex`, `role="button"`, Enter/Escape); чат-компонент унифицирован между Clarify и Draft (одни классы, одни аватары, одна плотность).
+- Устранено 7 P1-проблем: кнопка Sparkles получила текстовый лейбл «Настройки»; topbar редактора разделён на первичную (Показать) и вторичную (Шаблон, Цвет, Настройки) группы; Escape в SlideTextCard больше не сохраняет правку; дублирующие CSS-токены (`--radius-lg`, `--blue-cta`, `--text-muted`) приведены к алиасам; eyebrow «Что держим в фокусе» убран; добавлены `.chat-bubble--thinking`, `.chat-dot`, `.build-status__spinner`, `.editor-topbar-secondary`, `.editor-pill-btn--primary`.
+- Документы синхронизированы: COPY_RULES.md — таблица бюджетов обновлена (Уточнение, Сборка, Черновик вместо Понимание/План); DESIGN_DECISIONS.md — зафиксировано отсутствие Pattern Selection в прототипе и осознанное добавление лейбла к Sparkles.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Продукт стал честнее (нет симуляции AI и прогресса), целостнее (единый визуальный язык чата) и доступнее (клавиатура в SlideTextCard). Из редактора теперь есть путь назад без потери работы.
+
+**Что ещё мутно** P2-задачи (превью шаблонов в селекторах, убрать footer nav на десктопе, починить `buildMissingFacts` в prompt-analysis) отложены как технический долг.
+
+**Передача смены** P0 и P1 закрыты. P2 — следующая очередь.
+
+**Проблемы**
+- Нет.
+
+---
+
 ### 038 Мини-чат draft
 
 **Что уложено**
@@ -728,6 +976,38 @@ _Дополнение 2026-04-05:_ локальный слой дочищен д
 **Проблемы**
 - Нет.
 
+### 030 UX аудит — правки
+
+**Что уложено**
+- Building screen: 4 шага прогресса вместо голого спиннера (по SCREEN_ATLAS). Кнопка «Назад» возвращает на clarify.
+- Start screen: иконка ArrowUp вместо символа `↑`; placeholder сокращён до 7 слов.
+- Аватарки: бот → `BrandMark--sm` (тот же марк, что в хедере); пользователь `Вы` → `Я`.
+- Draft screen: топбар с brand mark + стрелка «Назад»; CTA «Открыть редактор» в фиксированном футере; toolbar удалён.
+- Clarify screen: «Собрать черновик» — primary только по `readyToGenerate`, ghost-кнопка до этого.
+- Editor drawer: «Настройки» → «Доработка».
+- CSS: токен `--accent-error`; удалены алиасы `--blue-cta`, `--text-muted`; мёртвые классы `.entry-subtitle`, `.chat-card-counter`, `.chat-compose-input--disabled` удалены; `BrandMarkSvg` удалён из `brand-mark.tsx`; hover у `example-chip` — только darkening, без синего.
+- Editable-поля в SlideTextCard: `cursor: text` + dashed outline при hover — явная affordance.
+- CSS type scale: 6 переменных (`--text-xs` … `--text-xl`) добавлены в `:root`.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее**
+- Экраны start/clarify/building/draft теперь в едином визуальном хроме: brand mark виден везде.
+- Building screen перестал выглядеть как зависший экран — шаги показывают прогресс.
+- Draft screen стал одним продуктом, а не двумя панелями без имени.
+
+**Что ещё мутно**
+- Slide rail в редакторе остаётся текстовым (без визуальных превью слайдов) — P2 из аудита, не тронут.
+- Shared components (Button, ComposeField) не вынесены — дублирование CSS продолжается — P0 из аудита, требует отдельной смены.
+- Точные совпадения со шкалой перенесены на `var(--text-*)` в записи 047; дробные rem и `clamp` остаются с пометкой `/* нестандартный размер */` в `globals.css`.
+
+**Передача смены**
+- Если трогать draft screen — опора: `draft-screen.tsx` + CSS секция `Draft screen`.
+- Если трогать building — опора: `building-screen.tsx` + CSS `.build-status__step`.
+
+**Проблемы**
+- Нет.
+
 ### 029 Ревизия качества
 
 **Что уложено**
@@ -754,3 +1034,24 @@ _Дополнение 2026-04-05:_ локальный слой дочищен д
 **Проблемы**
 - `npm ci` не проходил: lockfile отстал от актуальных workspace-зависимостей -> синхронизировано через `npm install`, после чего `verify` и `smoke` стали воспроизводимыми.
 - Windows-runner для smoke зависал после успешного прохода -> сервер переведён с `npm start` на прямой запуск `next` binary, добавлено корректное завершение дочернего процесса.
+
+### 030 Смоук перед показом
+
+**Что уложено**
+- Полный verify чистый: lint, typecheck, 29 unit-тестов, production build.
+- Ручной smoke-тест базового флоу в браузере: start → clarify → building → draft → editor → presenter → drawer. Всё проходит без багов.
+- Hydration-предупреждение в dev — артефакт Cursor-браузера (`data-cursor-ref`), пользователи не увидят.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее**
+- Подтверждено: весь маршрут start → draft → editor → presenter рабочий, можно показывать первым пользователям.
+
+**Что ещё мутно**
+- Нет новых проблем.
+
+**Передача смены**
+- Всё в main, build и smoke чистые. Можно деплоить.
+
+**Проблемы**
+- Build конфликтовал с запущенным dev-сервером (Next.js lock) → убит порт 3000, rebuild прошёл чисто.

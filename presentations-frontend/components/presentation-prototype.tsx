@@ -320,6 +320,12 @@ export function PresentationPrototype() {
     setScreen("clarify");
   }
 
+  function handleBackToDraft() {
+    setDraftError(null);
+    setDrawerState("closed");
+    setScreen("draft");
+  }
+
   function handleResetFlow() {
     setPrompt("");
     setPromptError(null);
@@ -396,7 +402,9 @@ export function PresentationPrototype() {
         />
       ) : null}
 
-      {screen === "building" && session ? <BuildingScreen session={session} /> : null}
+      {screen === "building" && session ? (
+        <BuildingScreen session={session} onBack={handleBackToClarify} />
+      ) : null}
 
       {screen === "draft" && session ? (
         <DraftScreen
@@ -422,6 +430,7 @@ export function PresentationPrototype() {
           onSelectColor={updateDraftColor}
           onRegenerateSlide={regenerateActiveSlide}
           onRenameDocument={updateDocumentTitle}
+          onBackToDraft={handleBackToDraft}
           onBackToStart={handleResetFlow}
           slideSpeakerNote={
             selectedSlideId ? (draft.slideSpeakerNotes[selectedSlideId] ?? "") : ""

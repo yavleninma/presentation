@@ -5,54 +5,64 @@ import type { DraftSession } from "@/lib/presentation-types";
 
 const BUILD_STEPS = [
   "Собираем тему и адресата",
+  "Выделяем факты и следующий шаг",
   "Раскладываем историю по слайдам",
-  "Готовим первый рабочий проход",
+  "Проверяем первый рабочий проход",
 ] as const;
 
-export function BuildingScreen({ session }: { session: DraftSession }) {
+interface BuildingScreenProps {
+  session: DraftSession;
+  onBack: () => void;
+}
+
+export function BuildingScreen({ session, onBack }: BuildingScreenProps) {
   const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setActiveStep((current) => (current + 1) % BUILD_STEPS.length);
-    }, 700);
-
-    return () => window.clearInterval(intervalId);
+    const timers = [
+      setTimeout(() => setActiveStep(1), 1200),
+      setTimeout(() => setActiveStep(2), 2800),
+      setTimeout(() => setActiveStep(3), 4800),
+    ];
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   return (
     <section className="entry-stage">
       <div className="chat-card build-status-card">
-        <div className="chat-card-header chat-card-header--stacked">
-          <h2 className="chat-card-title">Собираем черновик</h2>
-          <p className="chat-card-subtitle">{session.summary}</p>
+        <div className="chat-card-header">
+          <div>
+            <h2 className="chat-card-title">Собираем черновик</h2>
+            {session.summary ? (
+              <p className="chat-card-subtitle">{session.summary}</p>
+            ) : null}
+          </div>
+          <button type="button" className="ghost-button" onClick={onBack}>
+            Назад
+          </button>
         </div>
 
         <div className="chat-card-sep" />
 
-        <div className="build-status" aria-live="polite">
-          <p className="build-status__lead">
-            Собираем первый рабочий проход. Экран сменится сам, как только черновик будет готов.
-          </p>
-
-          <div className="build-status__steps" role="list" aria-label="Что делаем сейчас">
-            {BUILD_STEPS.map((step, index) => (
-              <div
-                key={step}
-                className={`build-status__step${index === activeStep ? " is-active" : ""}`}
-                role="listitem"
-              >
-                <span className="build-status__mark" aria-hidden="true">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="build-status__step-name">{step}</span>
-              </div>
-            ))}
+        <div className="build-status" aria-live="polite" aria-busy="true">
+          <div className="build-status__steps">
+            {BUILD_STEPS.map((stepLabel, i) => {
+              const isDone = i < activeStep;
+              const isActive = i === activeStep;
+              return (
+                <div
+                  key={stepLabel}
+                  className={`build-status__step${isActive ? " is-active" : isDone ? " is-done" : ""}`}
+                  aria-current={isActive ? "step" : undefined}
+                >
+                  <span className="build-status__mark" aria-hidden="true">
+                    {isDone ? "✓" : String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="build-status__step-name">{stepLabel}</span>
+                </div>
+              );
+            })}
           </div>
-
-          <p className="build-status__note">
-            Сначала собираем смысл и структуру, потом открываем готовый проход.
-          </p>
         </div>
       </div>
     </section>

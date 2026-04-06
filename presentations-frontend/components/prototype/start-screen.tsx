@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode, type RefObject } from "react";
 import { SCENARIO_CHIPS } from "@/lib/presentation-options";
+import { ComposeField } from "../ui/compose-field";
 
 export function StartScreen({
   prompt,
@@ -45,28 +46,28 @@ export function StartScreen({
               onSubmit();
             }}
           >
-            <div className="composer-box composer-box--start-v3">
-              <textarea
-                ref={textareaRef}
-                value={prompt}
-                onChange={(event) => onChangePrompt(event.target.value)}
-                rows={1}
-                placeholder="Опишите, что нужно показать, кому и какой следующий шаг важно назвать."
-                disabled={disabled}
-              />
-              <button
-                type="submit"
-                className="composer-send"
-                disabled={disabled}
-                aria-label={isSubmitting ? "Уточняем запрос" : "Отправить"}
-              >
-                {isSubmitting ? "..." : "↑"}
-              </button>
-            </div>
+            <ComposeField
+              variant="start"
+              value={prompt}
+              onChange={onChangePrompt}
+              onSubmit={onSubmit}
+              placeholder="Расскажите, что нужно показать и кому."
+              disabled={disabled}
+              isLoading={isSubmitting}
+              textareaRef={textareaRef}
+            />
 
-            {promptError ? <p className="inline-error">{promptError}</p> : null}
+            {promptError ? (
+              <p className="inline-error" role="alert">
+                {promptError}
+              </p>
+            ) : null}
             {!promptError && isSubmitting ? (
-              <p className="entry-hint entry-hint--status">
+              <p
+                className="entry-hint entry-hint--status"
+                role="status"
+                aria-live="polite"
+              >
                 Уточняем, что важно для первого черновика.
               </p>
             ) : null}
@@ -79,13 +80,15 @@ export function StartScreen({
                 type="button"
                 className="example-chip"
                 onClick={() => onUseScenario(chip.prompt)}
-                onMouseEnter={() => setActiveDescription(chip.description)}
+                onMouseEnter={() => setActiveDescription(chip.description ?? null)}
                 onMouseLeave={() => setActiveDescription(null)}
-                onFocus={() => setActiveDescription(chip.description)}
+                onFocus={() => setActiveDescription(chip.description ?? null)}
                 onBlur={() => setActiveDescription(null)}
                 disabled={disabled}
                 title={chip.description}
-                aria-describedby="start-scenario-hint"
+                aria-describedby={
+                  helperText ? "start-scenario-hint" : undefined
+                }
               >
                 {chip.label}
               </button>

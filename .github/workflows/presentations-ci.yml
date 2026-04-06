@@ -76,13 +76,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          output="$(npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN")"
-          echo "$output"
+          npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN" --format json > vercel-deploy.json
+          cat vercel-deploy.json
 
-          deployment_url="$(echo "$output" | grep -Eo 'https://[A-Za-z0-9.-]+\.vercel\.app' | tail -n 1)"
+          deployment_url="$(node scripts/extract-vercel-deploy-url.mjs < vercel-deploy.json)"
 
           if [ -z "$deployment_url" ]; then
-            echo "::error::Не удалось вытащить production deployment URL из вывода Vercel CLI."
+            echo "::error::Не удалось вытащить production deployment URL из JSON Vercel CLI."
             exit 1
           fi
 

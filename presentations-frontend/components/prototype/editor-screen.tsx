@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -9,7 +8,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { COLOR_OPTIONS, TEMPLATE_OPTIONS } from "../../lib/demo-generator";
 import type {
   ColorThemeId,
@@ -19,11 +18,9 @@ import type {
   TemplateId,
 } from "../../lib/presentation-types";
 import { BrandMark, BrandWordmark } from "../brand-mark";
-import {
-  SlideCanvas,
-  SlideThumbnail,
-  type SlideCanvasDebugPayload,
-} from "../slide-canvas";
+import { BackButton } from "../ui/back-button";
+import { SlideCanvas, type SlideCanvasDebugPayload } from "../slide-canvas";
+import { EditorSlideRailThumb } from "./editor-slide-rail-thumb";
 
 export function EditorScreen({
   draft,
@@ -36,6 +33,7 @@ export function EditorScreen({
   onSelectColor,
   onRegenerateSlide,
   onRenameDocument,
+  onBackToDraft,
   onBackToStart,
   slideSpeakerNote,
   onSlideSpeakerNoteChange,
@@ -51,6 +49,7 @@ export function EditorScreen({
   onSelectColor: (value: ColorThemeId) => void;
   onRegenerateSlide: (transformId: HiddenTransformId) => void;
   onRenameDocument: (value: string) => void;
+  onBackToDraft: () => void;
   onBackToStart: () => void;
   slideSpeakerNote: string;
   onSlideSpeakerNoteChange: (value: string) => void;
@@ -74,7 +73,10 @@ export function EditorScreen({
 
   // Keep latest nav values in a ref to avoid stale closures in keyboard handler
   const navRef = useRef({ activeIdx, slideList, slideTotal, onSelectSlide });
-  navRef.current = { activeIdx, slideList, slideTotal, onSelectSlide };
+
+  useLayoutEffect(() => {
+    navRef.current = { activeIdx, slideList, slideTotal, onSelectSlide };
+  }, [activeIdx, slideList, slideTotal, onSelectSlide]);
 
   useEffect(() => {
     function onFSChange() {
@@ -97,7 +99,6 @@ export function EditorScreen({
     computeScale();
     window.addEventListener("resize", computeScale);
     return () => window.removeEventListener("resize", computeScale);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPresenting]);
 
   useEffect(() => {
@@ -218,15 +219,7 @@ export function EditorScreen({
       >
         <div className="editor-topbar">
           <div className="brand-block editor-brand">
-            <button
-              type="button"
-              className="editor-back-button"
-              onClick={onBackToStart}
-              aria-label="Новый запрос"
-              title="Новый запрос"
-            >
-              <ArrowLeft size={16} />
-            </button>
+            <BackButton onClick={onBackToDraft} ariaLabel="К черновику" title="К черновику" />
             <BrandMark />
             <BrandWordmark className="brand-name" />
           </div>
@@ -241,92 +234,95 @@ export function EditorScreen({
           </label>
 
           <div className="editor-topbar-controls editor-topbar-pills">
-            <label className="editor-pill-select">
-              <span className="editor-pill-select__body">
-                <span className="editor-pill-select__prefix">Шаблон:</span>
-                <span className="editor-pill-select__value">{templateLabel}</span>
-              </span>
-              <ChevronDown
-                className="editor-pill-select__chevron"
-                size={16}
-                strokeWidth={2}
-                aria-hidden
-              />
-              <select
-                className="editor-pill-select__native"
-                value={draft.workingDraft.templateId}
-                onChange={(event) =>
-                  onSelectTemplate(event.target.value as TemplateId)
-                }
-                aria-label="Шаблон оформления"
-              >
-                {TEMPLATE_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="editor-topbar-secondary">
+              <label className="editor-pill-select">
+                <span className="editor-pill-select__body">
+                  <span className="editor-pill-select__prefix">Шаблон:</span>
+                  <span className="editor-pill-select__value">{templateLabel}</span>
+                </span>
+                <ChevronDown
+                  className="editor-pill-select__chevron"
+                  size={16}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+                <select
+                  className="editor-pill-select__native"
+                  value={draft.workingDraft.templateId}
+                  onChange={(event) =>
+                    onSelectTemplate(event.target.value as TemplateId)
+                  }
+                  aria-label="Шаблон оформления"
+                >
+                  {TEMPLATE_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label className="editor-pill-select">
-              <span
-                className="editor-pill-color-dot"
-                data-color={draft.workingDraft.colorThemeId}
-                aria-hidden
-              />
-              <span className="editor-pill-select__body">
-                <span className="editor-pill-select__prefix">Цвет:</span>
-                <span className="editor-pill-select__value">{colorLabel}</span>
-              </span>
-              <ChevronDown
-                className="editor-pill-select__chevron"
-                size={16}
-                strokeWidth={2}
-                aria-hidden
-              />
-              <select
-                className="editor-pill-select__native"
-                value={draft.workingDraft.colorThemeId}
-                onChange={(event) =>
-                  onSelectColor(event.target.value as ColorThemeId)
+              <label className="editor-pill-select">
+                <span
+                  className="editor-pill-color-dot"
+                  data-color={draft.workingDraft.colorThemeId}
+                  aria-hidden
+                />
+                <span className="editor-pill-select__body">
+                  <span className="editor-pill-select__prefix">Цвет:</span>
+                  <span className="editor-pill-select__value">{colorLabel}</span>
+                </span>
+                <ChevronDown
+                  className="editor-pill-select__chevron"
+                  size={16}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+                <select
+                  className="editor-pill-select__native"
+                  value={draft.workingDraft.colorThemeId}
+                  onChange={(event) =>
+                    onSelectColor(event.target.value as ColorThemeId)
+                  }
+                  aria-label="Цветовая схема"
+                >
+                  {COLOR_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                type="button"
+                className={`drawer-trigger drawer-trigger--pill${drawerState === "open" ? " is-active" : ""}`}
+                onClick={drawerState === "open" ? onCloseDrawer : onOpenDrawer}
+                aria-label={
+                  drawerState === "open"
+                    ? "Закрыть доработку слайда"
+                    : "Доработка слайда"
                 }
-                aria-label="Цветовая схема"
+                title={
+                  drawerState === "open"
+                    ? "Закрыть доработку слайда"
+                    : "Доработка слайда"
+                }
               >
-                {COLOR_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <Sparkles size={16} strokeWidth={2} aria-hidden />
+                <span>Доработка</span>
+              </button>
+            </div>
 
             <button
               type="button"
-              className="editor-pill-btn"
+              className="editor-pill-btn editor-pill-btn--primary"
               onClick={enterPresentation}
               aria-label="Показать презентацию"
               title="Показать"
             >
               <Maximize2 size={15} strokeWidth={2} aria-hidden />
               <span>Показать</span>
-            </button>
-
-            <button
-              type="button"
-              className={`drawer-trigger drawer-trigger--pill${drawerState === "open" ? " is-active" : ""}`}
-              onClick={drawerState === "open" ? onCloseDrawer : onOpenDrawer}
-              aria-label={
-                drawerState === "open"
-                  ? "Закрыть настройки слайда"
-                  : "Открыть настройки слайда"
-              }
-              title={
-                drawerState === "open"
-                  ? "Закрыть настройки слайда"
-                  : "Открыть настройки слайда"
-              }
-            >
-              <Sparkles size={16} strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -335,10 +331,12 @@ export function EditorScreen({
           <aside className="editor-rail" aria-label="Слайды презентации">
             <div className="rail-list">
               {draft.slides.map((slide) => (
-                <SlideThumbnail
+                <EditorSlideRailThumb
                   key={slide.id}
                   slide={slide}
                   active={slide.id === activeSlide.id}
+                  templateId={draft.workingDraft.templateId}
+                  colorThemeId={draft.workingDraft.colorThemeId}
                   onClick={() => onSelectSlide(slide.id)}
                 />
               ))}
@@ -393,7 +391,7 @@ export function EditorScreen({
           {drawerState === "open" && (
             <aside className="editor-drawer editor-drawer--v3">
               <div className="drawer-head">
-                <h2 className="drawer-head__title">Настройки слайда</h2>
+                <h2 className="drawer-head__title">Доработка слайда</h2>
                 <button
                   type="button"
                   className="icon-button icon-button--drawer"

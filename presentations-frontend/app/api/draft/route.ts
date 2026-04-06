@@ -9,6 +9,10 @@ import {
   normalizeDraftSession,
 } from "@/lib/draft-session";
 import { DraftApiError } from "@/lib/draft-api";
+import {
+  assertDraftRateLimit,
+  readDraftRouteJson,
+} from "@/lib/draft-route-guards";
 
 type DraftRequestBody =
   | {
@@ -51,9 +55,22 @@ function assertUserMessage(value: unknown, fallbackMessage: string) {
   return value.trim();
 }
 
+function logDraftRoute(event: string, data: Record<string, unknown>) {
+  console.error(
+    JSON.stringify({
+      scope: "api/draft",
+      event,
+      ...data,
+      ts: new Date().toISOString(),
+    }),
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = (await req.json()) as unknown;
+    assertDraftRateLimit(req);
+    const rawBody = await readDraftRouteJson(req);
+
     if (
       !isObject(rawBody) ||
       (rawBody.mode !== "clarify" &&
@@ -92,24 +109,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       await reviseDraftSession(
         normalizeDraftSession(body.session),
-        assertUserMessage(body.userMessage, "Нужно сообщение для правки черновика."),
+        assertUserMessage(
+          body.userMessage,
+          "Нужно сообщение для правки черновика.",
+        ),
       ),
     );
   } catch (error) {
-    const draftError =
-      error instanceof DraftApiError
-        ? error
-        : new DraftApiError(
-            "INTERNAL_ERROR",
-            error instanceof Error ? error.message : "Internal error",
-            500,
-          );
+    if (error instanceof DraftApiError) {
+      logDraftRoute("draft_api_error", {
+        code: error.code,
+        status: error.status,
+        message: error.message,
+      });
 
-    console.error("[api/draft]", draftError);
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status },
+      );
+    }
+
+    const internal =
+      error instanceof Error ? error.message : "Non-Error throw in /api/draft";
+    logDraftRoute("unhandled_error", { internal });
 
     return NextResponse.json(
-      { error: draftError.message, code: draftError.code },
-      { status: draftError.status },
+      {
+        error: "Временная ошибка сервера. Попробуйте позже.",
+        code: "INTERNAL_ERROR" as const,
+      },
+      { status: 500 },
     );
   }
 }

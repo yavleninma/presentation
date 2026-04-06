@@ -190,6 +190,9 @@ export interface DraftSession {
   summary: string;
 }
 
+/** strict — укладка под демо-генератор; editor — тексты из модели/чата без жёсткой обрезки. */
+export type DraftFitPassStrength = "strict" | "editor";
+
 export interface PresentationDraft {
   documentTitle: string;
   documentSubtitle: string;
@@ -197,4 +200,6 @@ export interface PresentationDraft {
   slides: PresentationSlide[];
   slideSpeakerNotes: Partial<Record<SlideId, string>>;
   debug: PresentationDebugState;
+  /** Если задано, runFitPassOnDraft использует соответствующие лимиты clamp. */
+  fitPassStrength?: DraftFitPassStrength;
 }

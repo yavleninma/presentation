@@ -26,6 +26,8 @@ const RAIL_TITLES_BY_ID: Record<SlideId, string> = {
 
 export type DraftApiErrorCode =
   | "INVALID_REQUEST"
+  | "PAYLOAD_TOO_LARGE"
+  | "RATE_LIMIT_EXCEEDED"
   | "GENERATE_TIMEOUT"
   | "REVISE_TIMEOUT"
   | "CHAT_TIMEOUT"

@@ -5,6 +5,7 @@ import {
 import type {
   CanvasLayoutId,
   PresentationDraft,
+  PresentationSlide,
   SlideBlock,
   SlideTextEntry,
   SlideToneId,
@@ -94,6 +95,85 @@ function buildBlocksForLayout(layout: CanvasLayoutId, entry: SlideTextEntry): Sl
   }));
 }
 
+/** Сохраняет структуру блоков из плана слайда (нужна для cover / stat-focus / quote / comparison). */
+function blocksFromSlideTextEntry(
+  slide: PresentationSlide,
+  entry: SlideTextEntry,
+): SlideBlock[] {
+  const layout = slide.canvasLayoutId;
+  const base = slide.blocks;
+  const b = entry.bullets;
+
+  if (layout === "cover" && base[0]) {
+    const meta = b.filter(Boolean).join(" · ");
+    return [{ ...base[0], body: meta || base[0].body }];
+  }
+
+  if (layout === "stat-focus") {
+    const main = base[0] ? { ...base[0] } : null;
+    const support = base[1] ? { ...base[1] } : null;
+    const line0 = b[0];
+    if (main && line0) {
+      const sep = line0.indexOf(" — ");
+      if (sep !== -1) {
+        main.metric = line0.slice(0, sep).trim();
+        main.title = line0.slice(sep + 3).trim();
+      } else {
+        main.title = line0;
+      }
+    }
+    if (support && b.length > 1) {
+      support.body = b.slice(1).join("\n").trim() || support.body;
+    }
+    return [main, support].filter(Boolean) as SlideBlock[];
+  }
+
+  if (layout === "quote") {
+    const quoteBlock = base[0] ? { ...base[0] } : null;
+    const supportBlock = base[1] ? { ...base[1] } : null;
+    if (quoteBlock && b[0]) {
+      quoteBlock.body = b[0];
+      if (b[1]) {
+        quoteBlock.tagline = b[1];
+      }
+    }
+    if (supportBlock) {
+      if (b.length >= 3) {
+        supportBlock.title = b[2] ?? supportBlock.title;
+        supportBlock.body =
+          b.slice(3).join("\n").trim() || supportBlock.body;
+      } else if (b[1]) {
+        supportBlock.body = b[1];
+      }
+    }
+    return [quoteBlock, supportBlock].filter(Boolean) as SlideBlock[];
+  }
+
+  if (layout === "comparison") {
+    const left = base[0] ? { ...base[0] } : null;
+    const right = base[1] ? { ...base[1] } : null;
+    if (left) {
+      if (b[0]) {
+        left.title = b[0];
+      }
+      if (b[1]) {
+        left.body = b[1];
+      }
+    }
+    if (right) {
+      if (b[2]) {
+        right.title = b[2];
+      }
+      if (b[3]) {
+        right.body = b[3];
+      }
+    }
+    return [left, right].filter(Boolean) as SlideBlock[];
+  }
+
+  return buildBlocksForLayout(layout, entry);
+}
+
 function buildRailRhythm(length: number) {
   return (["primary", "neutral", "neutral", "neutral"] as SlideToneId[]).slice(
     0,
@@ -116,7 +196,7 @@ export function buildDraftFromSlideTexts(
       return slide;
     }
 
-    const blocks = buildBlocksForLayout(slide.canvasLayoutId, entry);
+    const blocks = blocksFromSlideTextEntry(slide, entry);
 
     return {
       ...slide,
@@ -134,5 +214,6 @@ export function buildDraftFromSlideTexts(
       options.documentTitle ?? slideTexts[0]?.title ?? baseDraft.documentTitle,
     slides,
     slideSpeakerNotes: options.slideSpeakerNotes ?? baseDraft.slideSpeakerNotes,
+    fitPassStrength: "editor",
   });
 }
