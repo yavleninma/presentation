@@ -1041,17 +1041,21 @@ _Дополнение 2026-04-05:_ локальный слой дочищен д
 - Полный verify чистый: lint, typecheck, 29 unit-тестов, production build.
 - Ручной smoke-тест базового флоу в браузере: start → clarify → building → draft → editor → presenter → drawer. Всё проходит без багов.
 - Hydration-предупреждение в dev — артефакт Cursor-браузера (`data-cursor-ref`), пользователи не увидят.
+- CI smoke починен: `scripts/smoke-runner.cjs` в репозитории (раньше вызывался `.ux-audit/ux-runner.cjs`, которого нет на раннере), ожидания синхронизированы с UI (building, drawer «Доработка», назад «К уточнению»), артефакты smoke в `test-results/smoke/`.
+- `next-env.d.ts`: путь к типам маршрутов `.next/types/routes.d.ts` (Next 16).
 
 **Статус слоя** Внятно
 
 **Что стало внятнее**
 - Подтверждено: весь маршрут start → draft → editor → presenter рабочий, можно показывать первым пользователям.
+- GitHub Actions снова может дойти до job `deploy` и обновить production на Vercel.
 
 **Что ещё мутно**
-- Нет новых проблем.
+- Локальный `.ux-audit/ux-runner.cjs` у разработчика может расходиться с `scripts/smoke-runner.cjs`, если копировать правки вручную.
 
 **Передача смены**
-- Всё в main, build и smoke чистые. Можно деплоить.
+- Smoke для CI и локально: `npm run smoke` → `scripts/smoke-runner.cjs`. Деплой: workflow `Presentation Deploy`, alias `vnyatno.vercel.app`.
 
 **Проблемы**
 - Build конфликтовал с запущенным dev-сервером (Next.js lock) → убит порт 3000, rebuild прошёл чисто.
+- Push 030.1: job `smoke` в CI падал (`MODULE_NOT_FOUND` на `.ux-audit/ux-runner.cjs`) → деплой не запускался; исправлено переносом и обновлением селекторов (030.2).

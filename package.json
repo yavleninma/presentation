@@ -11,7 +11,7 @@
     "typecheck": "npm run typecheck --workspace presentations-frontend",
     "test:unit": "npm run test:unit --workspace presentations-frontend",
     "verify": "npm run verify --workspace presentations-frontend",
-    "smoke": "npm run build --workspace presentations-frontend && node .ux-audit/ux-runner.cjs"
+    "smoke": "npm run build --workspace presentations-frontend && node scripts/smoke-runner.cjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"
