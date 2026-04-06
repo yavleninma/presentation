@@ -1042,7 +1042,6 @@ _Дополнение 2026-04-05:_ локальный слой дочищен д
 - Ручной smoke-тест базового флоу в браузере: start → clarify → building → draft → editor → presenter → drawer. Всё проходит без багов.
 - Hydration-предупреждение в dev — артефакт Cursor-браузера (`data-cursor-ref`), пользователи не увидят.
 - CI smoke починен: `scripts/smoke-runner.cjs` в репозитории (раньше вызывался `.ux-audit/ux-runner.cjs`, которого нет на раннере), ожидания синхронизированы с UI (building, drawer «Доработка», назад «К уточнению»), артефакты smoke в `test-results/smoke/`.
-- `next-env.d.ts`: путь к типам маршрутов `.next/types/routes.d.ts` (Next 16).
 
 **Статус слоя** Внятно
 
