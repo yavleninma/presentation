@@ -18,7 +18,7 @@ import type {
   PresentationDraft,
   TemplateId,
 } from "../../lib/presentation-types";
-import { BrandMark } from "../brand-mark";
+import { BrandMark, BrandWordmark } from "../brand-mark";
 import {
   SlideCanvas,
   SlideThumbnail,
@@ -228,7 +228,7 @@ export function EditorScreen({
               <ArrowLeft size={16} />
             </button>
             <BrandMark />
-            <span className="brand-name">Внятно</span>
+            <BrandWordmark className="brand-name" />
           </div>
 
           <label className="editor-title-field">

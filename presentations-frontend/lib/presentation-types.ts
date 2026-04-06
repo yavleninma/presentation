@@ -1,16 +1,8 @@
 export type PrototypeScreen = "start" | "draft" | "editor";
 
-export type EntryPhase = "idle" | "chat" | "building";
-
-export type BuildStatusId = "draft" | "structure" | "readability";
-
 export type EditorDrawerState = "closed" | "open";
 
 export type PresentationIntent = "update" | "explain" | "decision";
-
-export type ClarificationRole = "user" | "assistant";
-
-export type ClarificationSlot = "audience" | "desiredOutcome" | "knownFacts";
 
 export type FactCoverageId = "enough" | "partial" | "thin";
 
@@ -87,48 +79,6 @@ export type SlideBlockIconId =
   | "check";
 
 export type SixSlotTuple<T> = [T, T, T, T, T, T];
-
-export interface ClarificationMessage {
-  id: string;
-  role: ClarificationRole;
-  text: string;
-  /** Время сообщения (ЧЧ:ММ), для согласования с макетом чата */
-  time?: string;
-}
-
-export interface SkeletonReadiness {
-  audience: string | null;
-  intent: PresentationIntent;
-  desiredOutcome: string | null;
-  knownFacts: string[];
-  missingFacts: string[];
-  confidence: number;
-}
-
-export interface ClarificationInsights {
-  topicLabel: string;
-  period: string;
-  audience: string | null;
-  presentationIntent: PresentationIntent;
-  desiredOutcome: string | null;
-  keyMessage: string | null;
-  factCoverage: FactCoverageId;
-  knownFacts: string[];
-  missingFacts: string[];
-  confidence: number;
-  skeletonReadiness: SkeletonReadiness;
-}
-
-export interface ClarificationSession {
-  transcript: ClarificationMessage[];
-  assistantTurns: number;
-  confidence: number;
-  readyToBuild: boolean;
-  pendingSlot: ClarificationSlot | null;
-  askedSlots: ClarificationSlot[];
-  insights: ClarificationInsights;
-  skeletonReadiness: SkeletonReadiness;
-}
 
 export interface SlideBlock {
   id: string;
@@ -229,7 +179,6 @@ export interface PresentationDraft {
   documentSubtitle: string;
   workingDraft: WorkingDraft;
   slides: PresentationSlide[];
-  /** Заметки к слайду по id; не входят в workingDraft, сохраняются при смене шаблона/цвета и пересборе слайда */
   slideSpeakerNotes: Partial<Record<SlideId, string>>;
   debug: PresentationDebugState;
 }

@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { DraftChatMessage, SlideTextEntry, SlideId } from "@/lib/presentation-types";
+import type { DraftChatMessage, SlideTextEntry } from "@/lib/presentation-types";
+import {
+  buildChatMessages,
+  DRAFT_API_MODEL,
+  DraftApiError,
+  type DraftOpenAIMessage,
+  parseDraftModelResponse,
+  validateSlides,
+} from "@/lib/draft-api";
 
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-5.4-mini";
-
-const SLIDE_IDS: SlideId[] = [
-  "slide-1",
-  "slide-2",
-  "slide-3",
-  "slide-4",
-  "slide-5",
-  "slide-6",
-];
+const OPENAI_TIMEOUT_MS = 30_000;
 
 const GENERATE_SYSTEM = `Ты эксперт по деловым презентациям. Твоя задача — сгенерировать содержимое для 6 слайдов по строго заданной структуре.
 
@@ -20,31 +19,27 @@ const GENERATE_SYSTEM = `Ты эксперт по деловым презент�
 1. Обложка (railTitle: "Обложка")
    — title: название темы или сервиса, до 7 слов
    — subtitle: одна строка — для кого или контекст
-   — bullets: 2–3 meta-строки (напр. "Апрель 2026", "команды и руководители")
+   — bullets: 2–3 meta-строки
 
 2. Проблема (railTitle: "Проблема")
    — title: заголовок про проблему, до 6 слов
    — subtitle: суть проблемы одной строкой
    — bullets: РОВНО 3 пункта в формате "ЧИСЛО — описание"
-     Примеры: "4–8 ч — на подготовку", "80% — уходит на форму", "x2 — переделок после"
-     Числа должны быть конкретными и реалистичными для темы
 
 3. Три шага (railTitle: "Три шага")
    — title: заголовок про процесс, до 6 слов
    — subtitle: одна строка — обещание результата
    — bullets: РОВНО 3 пункта в формате "01 Действие", "02 Действие", "03 Действие"
-     Примеры: "01 Расскажи задачу", "02 Ответь на 2–3 вопроса", "03 Получи черновик"
 
 4. Результат (railTitle: "Результат")
    — title: заголовок про итог, до 6 слов
    — subtitle: главный итог одной строкой
-   — bullets: 3–4 конкретных пункта — что получает пользователь
+   — bullets: 3–4 конкретных пункта
 
 5. Для кого (railTitle: "Для кого")
    — title: до 5 слов
    — subtitle: одна строка
    — bullets: РОВНО 3 пункта в формате "Роль — Конкретная задача"
-     Примеры: "Разработчик — Собрать ретро за 10 минут", "Тимлид — Показать статус команды"
 
 6. Следующий шаг (railTitle: "След. шаг")
    — title: до 6 слов
@@ -53,11 +48,12 @@ const GENERATE_SYSTEM = `Ты эксперт по деловым презент�
 
 Правила:
 - Всегда возвращай ровно 6 слайдов
+- Для каждого слайда обязательно верни id от slide-1 до slide-6
 - Тексты на русском, деловые, без воды
 - Не используй плейсхолдеры вроде [вставьте текст]
-- Числа в слайде 2 — конкретные, реалистичные для темы
+- Отвечай строго в JSON без markdown-оберток
 
-Отвечай строго в JSON без markdown-оберток:
+Формат:
 {
   "slides": [
     {
@@ -66,154 +62,288 @@ const GENERATE_SYSTEM = `Ты эксперт по деловым презент�
       "title": "...",
       "subtitle": "...",
       "bullets": ["...", "...", "..."]
-    },
-    ...
+    }
   ],
   "assistantMessage": "Черновик готов. Смотрите слайды — можно уточнять или менять через чат."
 }`;
 
-const CHAT_SYSTEM = `Ты помощник по деловой презентации. У пользователя есть черновик из 6 слайдов, и он может задавать вопросы или просить изменения.
+const CHAT_SYSTEM = `Ты помощник по деловой презентации. У пользователя есть черновик из 6 слайдов, и он может просить изменения или задавать вопросы.
 
 Правила:
-- Если пользователь просит что-то изменить в слайдах — верни обновлённый массив slides с изменениями
-- Если пользователь просто общается — верни slides без изменений
+- Если пользователь просит что-то изменить — верни обновленный массив slides
+- Если пользователь просто уточняет — можешь оставить slides без изменений
 - Не добавляй и не удаляй слайды, всегда возвращай ровно 6
+- Для каждого слайда обязательно верни id от slide-1 до slide-6
 - Тексты деловые, лаконичные, без плейсхолдеров
 - assistantMessage — краткий ответ пользователю на русском
+- Отвечай строго в JSON без markdown-оберток
 
-Отвечай строго в JSON без markdown-оберток:
+Формат:
 {
   "slides": [...],
   "assistantMessage": "..."
 }`;
 
-function parseJsonFromText(text: string): unknown {
-  const cleaned = text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
-  return JSON.parse(cleaned);
+type DraftRequestBody =
+  | {
+      mode: "generate";
+      prompt?: unknown;
+    }
+  | {
+      mode: "chat";
+      userMessage?: unknown;
+      history?: unknown;
+      slides?: unknown;
+    };
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function validateSlides(raw: unknown): SlideTextEntry[] {
-  if (!Array.isArray(raw)) throw new Error("slides is not array");
+function normalizeHistory(history: unknown): DraftChatMessage[] {
+  if (history === undefined) {
+    return [];
+  }
 
-  return SLIDE_IDS.map((id, i) => {
-    const item = (raw[i] ?? {}) as Record<string, unknown>;
+  if (!Array.isArray(history)) {
+    throw new DraftApiError(
+      "INVALID_REQUEST",
+      "История draft-чата должна быть массивом сообщений.",
+      400,
+    );
+  }
+
+  return history.map((entry) => {
+    if (!isObject(entry)) {
+      throw new DraftApiError(
+        "INVALID_REQUEST",
+        "История draft-чата содержит сообщение неверного формата.",
+        400,
+      );
+    }
+
+    if (entry.role !== "user" && entry.role !== "assistant") {
+      throw new DraftApiError(
+        "INVALID_REQUEST",
+        "История draft-чата содержит неизвестную роль.",
+        400,
+      );
+    }
+
+    if (typeof entry.text !== "string") {
+      throw new DraftApiError(
+        "INVALID_REQUEST",
+        "История draft-чата содержит сообщение без текста.",
+        400,
+      );
+    }
+
     return {
-      id,
-      railTitle: typeof item.railTitle === "string" ? item.railTitle : `Слайд ${i + 1}`,
-      title: typeof item.title === "string" ? item.title : "",
-      subtitle: typeof item.subtitle === "string" ? item.subtitle : "",
-      bullets: Array.isArray(item.bullets)
-        ? (item.bullets as unknown[]).filter((b) => typeof b === "string") as string[]
-        : [],
+      role: entry.role,
+      text: entry.text,
     };
   });
 }
 
-async function callOpenAI(messages: { role: string; content: string }[]): Promise<string> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY not set");
-
-  const res = await fetch(OPENAI_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      temperature: 0.7,
-      max_completion_tokens: 2000,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenAI error ${res.status}: ${err}`);
+function assertPrompt(value: unknown) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new DraftApiError(
+      "INVALID_REQUEST",
+      "Нужен рабочий запрос для генерации черновика.",
+      400,
+    );
   }
 
-  const data = (await res.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
+  return value.trim();
+}
 
-  return data.choices[0]?.message?.content ?? "";
+function assertChatRequest(body: Extract<DraftRequestBody, { mode: "chat" }>) {
+  if (body.slides === undefined) {
+    throw new DraftApiError(
+      "INVALID_REQUEST",
+      "Нет текущего черновика для правки.",
+      400,
+    );
+  }
+
+  let slides: SlideTextEntry[];
+  try {
+    slides = validateSlides(body.slides);
+  } catch {
+    throw new DraftApiError(
+      "INVALID_REQUEST",
+      "Нужен полный набор из 6 слайдов для draft-чата.",
+      400,
+    );
+  }
+
+  const userMessage =
+    typeof body.userMessage === "string" ? body.userMessage.trim() : "";
+  if (!userMessage) {
+    throw new DraftApiError(
+      "INVALID_REQUEST",
+      "Нужно сообщение для правки черновика.",
+      400,
+    );
+  }
+
+  return {
+    slides,
+    history: normalizeHistory(body.history),
+    userMessage,
+  };
+}
+
+async function callOpenAI({
+  messages,
+  operation,
+}: {
+  messages: DraftOpenAIMessage[];
+  operation: "generate" | "chat";
+}): Promise<string> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) {
+    throw new DraftApiError(
+      "INTERNAL_ERROR",
+      "OPENAI_API_KEY не настроен.",
+      500,
+    );
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(OPENAI_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: DRAFT_API_MODEL,
+        messages,
+        temperature: 0.7,
+        max_completion_tokens: 2000,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new DraftApiError(
+        "OPENAI_HTTP_ERROR",
+        operation === "generate"
+          ? `Модель не собрала черновик (OpenAI ${res.status}).`
+          : `Модель не обработала сообщение draft-чата (OpenAI ${res.status}).`,
+        502,
+      );
+    }
+
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      throw new DraftApiError(
+        "OPENAI_EMPTY_RESPONSE",
+        operation === "generate"
+          ? "Модель не вернула черновик презентации."
+          : "Модель не вернула ответ для draft-чата.",
+        502,
+      );
+    }
+
+    return content;
+  } catch (error) {
+    if (error instanceof DraftApiError) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new DraftApiError(
+        operation === "generate" ? "GENERATE_TIMEOUT" : "CHAT_TIMEOUT",
+        operation === "generate"
+          ? "Модель не успела собрать черновик. Попробуйте ещё раз."
+          : "Модель не успела обработать сообщение. Попробуйте ещё раз.",
+        504,
+      );
+    }
+
+    throw new DraftApiError(
+      "OPENAI_HTTP_ERROR",
+      operation === "generate"
+        ? "Не удалось получить ответ модели для черновика."
+        : "Не удалось получить ответ модели для draft-чата.",
+      502,
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as {
-      mode: "generate" | "chat";
-      prompt?: string;
-      userMessage?: string;
-      history?: DraftChatMessage[];
-      slides?: SlideTextEntry[];
-    };
+    const rawBody = (await req.json()) as unknown;
+    if (!isObject(rawBody) || (rawBody.mode !== "generate" && rawBody.mode !== "chat")) {
+      throw new DraftApiError(
+        "INVALID_REQUEST",
+        "Неизвестный режим /api/draft.",
+        400,
+      );
+    }
+
+    const body = rawBody as DraftRequestBody;
 
     if (body.mode === "generate") {
-      const prompt = body.prompt ?? "";
-      const content = await callOpenAI([
-        { role: "system", content: GENERATE_SYSTEM },
-        {
-          role: "user",
-          content: `Тема презентации: ${prompt || "Бизнес-обзор"}`,
-        },
-      ]);
+      const prompt = assertPrompt(body.prompt);
+      const content = await callOpenAI({
+        operation: "generate",
+        messages: [
+          { role: "system", content: GENERATE_SYSTEM },
+          {
+            role: "user",
+            content: `Тема презентации: ${prompt}`,
+          },
+        ],
+      });
 
-      const parsed = parseJsonFromText(content) as { slides: unknown; assistantMessage: unknown };
-      const slides = validateSlides(parsed.slides);
-      const assistantMessage =
-        typeof parsed.assistantMessage === "string"
-          ? parsed.assistantMessage
-          : "Черновик готов. Редактируйте слайды или уточняйте через чат.";
-
-      return NextResponse.json({ slides, assistantMessage });
+      return NextResponse.json(
+        parseDraftModelResponse(
+          content,
+          "Черновик готов. Смотрите слайды — можно уточнять или менять через чат.",
+        ),
+      );
     }
 
-    if (body.mode === "chat") {
-      const history = body.history ?? [];
-      const slides = body.slides ?? [];
-      const userMessage = body.userMessage ?? "";
+    const { slides, history, userMessage } = assertChatRequest(body);
+    const content = await callOpenAI({
+      operation: "chat",
+      messages: buildChatMessages({
+        systemPrompt: CHAT_SYSTEM,
+        slides,
+        history,
+        userMessage,
+      }),
+    });
 
-      const historyMessages = history.map((m) => ({
-        role: m.role === "user" ? "user" : "assistant",
-        content: m.text,
-      }));
+    return NextResponse.json(parseDraftModelResponse(content, "Готово."));
+  } catch (error) {
+    const draftError =
+      error instanceof DraftApiError
+        ? error
+        : new DraftApiError(
+            "INTERNAL_ERROR",
+            error instanceof Error ? error.message : "Internal error",
+            500,
+          );
 
-      const slidesJson = JSON.stringify(slides, null, 2);
+    console.error("[api/draft]", draftError);
 
-      const content = await callOpenAI([
-        { role: "system", content: CHAT_SYSTEM },
-        {
-          role: "user",
-          content: `Текущие слайды:\n${slidesJson}\n\nСообщение пользователя: ${userMessage}`,
-        },
-        ...historyMessages.slice(-6),
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ]);
-
-      const parsed = parseJsonFromText(content) as { slides: unknown; assistantMessage: unknown };
-      const updatedSlides = validateSlides(parsed.slides ?? slides);
-      const assistantMessage =
-        typeof parsed.assistantMessage === "string"
-          ? parsed.assistantMessage
-          : "Готово.";
-
-      return NextResponse.json({ slides: updatedSlides, assistantMessage });
-    }
-
-    return NextResponse.json({ error: "Unknown mode" }, { status: 400 });
-  } catch (err) {
-    console.error("[api/draft]", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
+      { error: draftError.message, code: draftError.code },
+      { status: draftError.status },
     );
   }
 }

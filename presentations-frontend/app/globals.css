@@ -161,6 +161,12 @@ select:disabled {
   letter-spacing: -0.03em;
 }
 
+/* Латинская t в вордмарке — опора (акцент как у CTA в v3) */
+.brand-wordmark__t {
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
 .ghost-button,
 .primary-button,
 .example-chip,

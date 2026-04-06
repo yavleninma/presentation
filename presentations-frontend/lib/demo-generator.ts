@@ -1,6 +1,5 @@
 import type {
   CanvasLayoutId,
-  ClarificationSession,
   ColorThemeId,
   FitPassResult,
   HiddenTransformId,
@@ -20,16 +19,28 @@ import type {
   WorkingDraftSlidePlanEntry,
 } from "@/lib/presentation-types";
 import {
-  buildMissingFacts,
+  COLOR_OPTIONS,
+  EXAMPLE_PROMPTS,
+  SCENARIO_CHIPS,
+  START_SCREEN_ENABLED_SCENARIO_ID,
+  TEMPLATE_OPTIONS,
+} from "@/lib/presentation-options";
+import {
   buildPromptSignals,
   clampText,
-  extractAudience,
-  extractDesiredOutcome,
   extractKeyMessage,
   extractPeriod,
   extractTopicLabel,
   normalizePrompt,
 } from "@/lib/prompt-analysis";
+export {
+  COLOR_OPTIONS,
+  EXAMPLE_PROMPTS,
+  SCENARIO_CHIPS,
+  START_SCREEN_ENABLED_SCENARIO_ID,
+  TEMPLATE_OPTIONS,
+} from "@/lib/presentation-options";
+export { buildDraftFromSlideTexts } from "@/lib/draft-from-slide-texts";
 
 const DEFAULT_TEMPLATE: TemplateId = "cards";
 const DEFAULT_COLOR_THEME: ColorThemeId = "indigo";
@@ -59,36 +70,6 @@ const TEMPLATE_ICON_PACKS: Record<TemplateId, TemplateIconPackId> = {
   briefing: "duotone-minimal",
 };
 
-export const EXAMPLE_PROMPTS = [
-  "Нужно собрать квартальный статус для руководителя: что уже сдвинули, где риск и какой следующий шаг важен сейчас.",
-  "Показываем итоги пилота поиска для продуктового руководителя: что уже работает, что пока не доказано и что нужно решить по следующему этапу.",
-  "Нужен запрос на ресурс по platform team: что успели сделать, где упёрлись и зачем нужен следующий слот на найм.",
-  "Нужно показать клиентам наш сервис Вняtно — помогает собрать рабочую презентацию из описания задачи за 90 секунд. Аудитория: команды и руководители, которые часто готовят презентации.",
-];
-
-export const SCENARIO_CHIPS = [
-  { id: "quarter", label: "Квартальный статус", prompt: EXAMPLE_PROMPTS[0] },
-  { id: "pilot", label: "Итоги пилота", prompt: EXAMPLE_PROMPTS[1] },
-  { id: "resource", label: "Запрос на ресурс", prompt: EXAMPLE_PROMPTS[2] },
-  { id: "pokaz", label: "Показ продукта", prompt: EXAMPLE_PROMPTS[3] },
-] as const;
-
-/** На старте кликабелен только этот чип; остальные видны, но заблокированы. */
-export const START_SCREEN_ENABLED_SCENARIO_ID: (typeof SCENARIO_CHIPS)[number]["id"] = "pokaz";
-
-export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
-  { id: "strict", label: "Строгий" },
-  { id: "cards", label: "Карточки" },
-  { id: "briefing", label: "Брифинг" },
-];
-
-export const COLOR_OPTIONS: Array<{ id: ColorThemeId; label: string }> = [
-  { id: "slate", label: "Графит" },
-  { id: "indigo", label: "Кобальт" },
-  { id: "teal", label: "Изумруд" },
-  { id: "sand", label: "Янтарь" },
-];
-
 type WorkingDraftSeed = Omit<WorkingDraft, "slidePlan" | "visibleSlideTitles">;
 
 type DraftSignals = {
@@ -111,63 +92,6 @@ type DraftSignals = {
 
 export function getTemplateIconPack(templateId: TemplateId) {
   return TEMPLATE_ICON_PACKS[templateId];
-}
-
-export function buildWorkingDraft(
-  rawPrompt: string,
-  session: ClarificationSession,
-  appearance: { templateId?: TemplateId; colorThemeId?: ColorThemeId } = {}
-): WorkingDraft {
-  const transcriptPrompt = normalizePrompt(
-    session.transcript
-      .filter((message) => message.role === "user")
-      .map((message) => message.text)
-      .join(" ")
-  );
-  const sourcePrompt = normalizePrompt(transcriptPrompt || rawPrompt);
-  const presentationIntent = session.insights.presentationIntent;
-  const promptSignals = buildPromptSignals(sourcePrompt, presentationIntent);
-  const audience =
-    session.insights.audience ??
-    promptSignals.audience ??
-    extractAudience(sourcePrompt) ??
-    "Руководитель направления";
-  const desiredOutcome =
-    session.insights.desiredOutcome ??
-    promptSignals.desiredOutcome ??
-    extractDesiredOutcome(sourcePrompt, presentationIntent) ??
-    buildFallbackOutcome(presentationIntent);
-  const knownFacts = uniqueLines([
-    ...session.insights.knownFacts,
-    ...promptSignals.knownFacts,
-  ]).slice(0, 3);
-  const missingFacts =
-    session.insights.missingFacts.length > 0
-      ? session.insights.missingFacts.slice(0, 3)
-      : promptSignals.missingFacts.length > 0
-        ? promptSignals.missingFacts.slice(0, 3)
-        : buildMissingFacts(sourcePrompt).slice(0, 3);
-
-  const seed: WorkingDraftSeed = {
-    sourcePrompt,
-    audience,
-    presentationIntent,
-    desiredOutcome,
-    knownFacts,
-    missingFacts,
-    confidence: session.insights.confidence,
-    templateId: appearance.templateId ?? DEFAULT_TEMPLATE,
-    colorThemeId: appearance.colorThemeId ?? DEFAULT_COLOR_THEME,
-  };
-  const slidePlan = tuple6(
-    SLOT_MAP.map(({ slotId, fn }) => buildSlidePlanEntry(seed, fn, slotId, null))
-  );
-
-  return normalizeWorkingDraft({
-    ...seed,
-    slidePlan,
-    visibleSlideTitles: tuple6(["", "", "", "", "", ""]),
-  });
 }
 
 export function buildPresentationDraft(
@@ -1657,193 +1581,4 @@ function topicInPhrase(topic: string) {
   }
 
   return topic.charAt(0).toLowerCase() + topic.slice(1);
-}
-
-const SLIDE_FN_BY_SLOT: SlideFunctionId[] = [
-  "open_topic",
-  "main_point",
-  "movement",
-  "evidence",
-  "tension",
-  "next_step",
-];
-
-const CANVAS_LAYOUT_BY_SLOT: CanvasLayoutId[] = [
-  "cover",
-  "metrics",
-  "steps",
-  "checklist",
-  "personas",
-  "features",
-];
-
-const BLOCK_ICONS = ["spark", "file", "trend", "shield", "flag", "arrow"] as const;
-
-function buildBlocksForLayout(
-  layout: CanvasLayoutId,
-  entry: SlideTextEntry
-): SlideBlock[] {
-  if (layout === "metrics") {
-    return entry.bullets.slice(0, 3).map((bullet, bi) => {
-      const sepIdx = bullet.indexOf(" — ");
-      const metric = sepIdx !== -1 ? bullet.slice(0, sepIdx).trim() : null;
-      const title = sepIdx !== -1 ? bullet.slice(sepIdx + 3).trim() : bullet;
-      return {
-        id: `${entry.id}-block-${bi}`,
-        type: (bi === 0 ? "focus" : "fact") as SlideBlock["type"],
-        icon: "trend" as SlideBlock["icon"],
-        title,
-        body: "",
-        ...(metric ? { metric } : {}),
-      };
-    });
-  }
-
-  if (layout === "steps") {
-    return entry.bullets.slice(0, 3).map((bullet, bi) => {
-      const match = bullet.match(/^(0[1-9]|\d{2})\s+(.+)$/);
-      const stepNumber = match ? match[1] : String(bi + 1).padStart(2, "0");
-      const title = match ? match[2] : bullet;
-      return {
-        id: `${entry.id}-block-${bi}`,
-        type: "movement" as SlideBlock["type"],
-        icon: "arrow" as SlideBlock["icon"],
-        title,
-        body: "",
-        stepNumber,
-      };
-    });
-  }
-
-  if (layout === "personas") {
-    return entry.bullets.slice(0, 3).map((bullet, bi) => {
-      const sepIdx = bullet.indexOf(" — ");
-      const title = sepIdx !== -1 ? bullet.slice(0, sepIdx).trim() : bullet;
-      const tagline = sepIdx !== -1 ? bullet.slice(sepIdx + 3).trim() : "";
-      return {
-        id: `${entry.id}-block-${bi}`,
-        type: (bi === 0 ? "focus" : "fact") as SlideBlock["type"],
-        icon: "people" as SlideBlock["icon"],
-        title,
-        body: tagline,
-        ...(tagline ? { tagline } : {}),
-      };
-    });
-  }
-
-  if (layout === "features") {
-    return entry.bullets.map((bullet, bi) => ({
-      id: `${entry.id}-block-${bi}`,
-      type: "decision" as SlideBlock["type"],
-      icon: "arrow" as SlideBlock["icon"],
-      title: bullet,
-      body: "",
-    }));
-  }
-
-  if (layout === "checklist") {
-    return entry.bullets.map((bullet, bi) => ({
-      id: `${entry.id}-block-${bi}`,
-      type: "fact" as SlideBlock["type"],
-      icon: "check" as SlideBlock["icon"],
-      title: bullet,
-      body: "",
-    }));
-  }
-
-  return entry.bullets.map((bullet, bi) => ({
-    id: `${entry.id}-block-${bi}`,
-    type: (bi === 0 ? "focus" : "fact") as SlideBlock["type"],
-    icon: BLOCK_ICONS[bi % BLOCK_ICONS.length],
-    title: bullet,
-    body: "",
-  }));
-}
-
-function slideTextEntryToSlide(entry: SlideTextEntry, index: number): PresentationSlide {
-  const slotId = (index + 1) as SlideSlotId;
-  const slideFunctionId = SLIDE_FN_BY_SLOT[index] ?? "main_point";
-  const canvasLayoutId = CANVAS_LAYOUT_BY_SLOT[index] ?? "hero";
-
-  const blocks = buildBlocksForLayout(canvasLayoutId, entry);
-
-  const drawerActions: SlideActionLabel[] = [
-    { id: `${slideFunctionId}-status_shift`, label: "Апдейт статуса", transformId: "status_shift" },
-    { id: `${slideFunctionId}-breakdown_explain`, label: "Объяснить подробнее", transformId: "breakdown_explain" },
-    { id: `${slideFunctionId}-decision_next`, label: "Добиться решения", transformId: "decision_next" },
-  ];
-
-  return {
-    id: entry.id,
-    slotId,
-    slideFunctionId,
-    canvasLayoutId,
-    index: String(slotId).padStart(2, "0"),
-    railTitle: `${slotId} — ${entry.railTitle}`,
-    railRhythm: (["primary", "neutral", "neutral", "neutral"] as SlideToneId[]).slice(0, blocks.length),
-    title: entry.title,
-    subtitle: entry.subtitle,
-    blocks,
-    drawerActions,
-    lastTransformId: null,
-  };
-}
-
-export function buildDraftFromSlideTexts(
-  slideTexts: SlideTextEntry[],
-  sourcePrompt: string,
-  appearance: { templateId?: TemplateId; colorThemeId?: ColorThemeId } = {}
-): PresentationDraft {
-  const templateId: TemplateId = appearance.templateId ?? DEFAULT_TEMPLATE;
-  const colorThemeId: ColorThemeId = appearance.colorThemeId ?? DEFAULT_COLOR_THEME;
-
-  const slides = slideTexts.slice(0, 6).map((entry, i) => slideTextEntryToSlide(entry, i));
-
-  const firstSlide = slideTexts[0];
-  const documentTitle = firstSlide?.title || extractTopicLabel(sourcePrompt) || "Рабочая презентация";
-
-  const dummyWorkingDraft: WorkingDraft = {
-    sourcePrompt,
-    audience: "Руководитель",
-    presentationIntent: "update",
-    desiredOutcome: "",
-    knownFacts: [],
-    missingFacts: [],
-    confidence: 0.8,
-    slidePlan: tuple6(
-      SLOT_MAP.map(({ slotId, fn }) => ({
-        slotId,
-        slideFunctionId: fn,
-        canvasLayoutId: CANVAS_LAYOUT_BY_SLOT[slotId - 1] ?? "hero",
-        coreMessage: slideTexts[slotId - 1]?.title ?? "",
-        blockPlan: (slideTexts[slotId - 1]?.bullets ?? []).map((b, bi) => ({
-          id: `slide-${slotId}-block-${bi}`,
-          type: bi === 0 ? "focus" : ("fact" as SlideBlock["type"]),
-          icon: "spark" as SlideBlock["icon"],
-          title: b,
-          body: "",
-        })),
-        placeholderPlan: [],
-        speakerAngle: undefined,
-        lastTransformId: null,
-      }))
-    ),
-    visibleSlideTitles: tuple6(slideTexts.map((s) => s.title).slice(0, 6) as [string, string, string, string, string, string]),
-    templateId,
-    colorThemeId,
-  };
-
-  return {
-    documentTitle,
-    documentSubtitle: sourcePrompt.slice(0, 80),
-    workingDraft: dummyWorkingDraft,
-    slides,
-    slideSpeakerNotes: {},
-    debug: {
-      currentWorkingDraft: dummyWorkingDraft,
-      hiddenSlidePlan: dummyWorkingDraft.slidePlan,
-      chosenTransformIds: {} as PresentationDraft["debug"]["chosenTransformIds"],
-      fitPassResultBySlide: {} as PresentationDraft["debug"]["fitPassResultBySlide"],
-    },
-  };
 }

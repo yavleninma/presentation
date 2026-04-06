@@ -9,6 +9,11 @@
     "start": "npm run start --workspace presentations-frontend",
     "build": "npm run build --workspace presentations-frontend",
     "typecheck": "npm run typecheck --workspace presentations-frontend",
-    "verify": "npm run verify --workspace presentations-frontend"
+    "test:unit": "npm run test:unit --workspace presentations-frontend",
+    "verify": "npm run verify --workspace presentations-frontend",
+    "smoke": "npm run build --workspace presentations-frontend && node .ux-audit/ux-runner.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
   }
 }

@@ -37,3 +37,17 @@ export function BrandMark({
     </span>
   );
 }
+
+/**
+ * Вордмарк: латинская `t` (точка опоры), визуально — `.brand-wordmark__t`.
+ * Для скринридеров имя целиком — «Внятно».
+ */
+export function BrandWordmark({ className }: { className?: string }) {
+  return (
+    <span className={className} role="img" aria-label="Внятно">
+      <span aria-hidden="true">
+        Вня<span className="brand-wordmark__t">t</span>но
+      </span>
+    </span>
+  );
+}

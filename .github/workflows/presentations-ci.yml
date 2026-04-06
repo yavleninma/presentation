@@ -29,8 +29,32 @@ jobs:
       - name: Verify production build
         run: npm run verify
 
-  deploy:
+  smoke:
     needs: verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Run mocked browser smoke
+        run: npm run smoke
+
+  deploy:
+    needs: smoke
     runs-on: ubuntu-latest
 
     steps:
