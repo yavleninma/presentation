@@ -852,7 +852,20 @@ async function main() {
     console.log("[smoke] wait server");
     await waitForServer(server);
     console.log("[smoke] launch browser");
-    browser = await chromium.launch({ headless: true });
+    // Prefer a locally available Chromium when the Playwright-bundled one is absent.
+    const FALLBACK_CHROMIUM_PATHS = [
+      "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+      "/usr/bin/chromium-browser",
+      "/usr/bin/chromium",
+      "/usr/bin/google-chrome",
+    ];
+    const fallbackExec = FALLBACK_CHROMIUM_PATHS.find((p) => {
+      try { require("fs").accessSync(p, require("fs").constants.X_OK); return true; } catch { return false; }
+    });
+    browser = await chromium.launch({
+      headless: true,
+      ...(fallbackExec ? { executablePath: fallbackExec } : {}),
+    });
 
     const desktop = await collectDesktop(browser);
     const mobile = await collectMobile(browser);
