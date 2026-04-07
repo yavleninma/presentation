@@ -25,6 +25,8 @@ export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
   { id: "strict", label: "Строгий" },
   { id: "cards", label: "Карточки" },
   { id: "briefing", label: "Брифинг" },
+  { id: "modern", label: "Модерн" },
+  { id: "corporate", label: "Корпоративный" },
 ];
 
 export const COLOR_OPTIONS: Array<{ id: ColorThemeId; label: string }> = [
@@ -32,4 +34,8 @@ export const COLOR_OPTIONS: Array<{ id: ColorThemeId; label: string }> = [
   { id: "indigo", label: "Кобальт" },
   { id: "teal", label: "Изумруд" },
   { id: "sand", label: "Янтарь" },
+  { id: "rose", label: "Роза" },
+  { id: "emerald", label: "Малахит" },
+  { id: "violet", label: "Фиалка" },
+  { id: "zinc", label: "Цинк" },
 ];

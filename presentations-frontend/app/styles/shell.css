@@ -1,0 +1,122 @@
+.app-shell {
+  min-height: 100vh;
+  padding: var(--space-6);
+}
+
+/* Ровная сцена #F7F9FC без градиентов body — только на старте v3 */
+.app-shell--start {
+  margin: calc(-1 * var(--space-6));
+  padding: var(--space-6);
+  min-height: 100vh;
+  background: var(--bg-app);
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: min(100%, 94rem);
+  margin: 0 auto var(--space-6);
+}
+
+.brand-block {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #F26161 0%, #2D4BEE 100%);
+  color: #fff;
+  font-family: var(--font-heading);
+  font-size: var(--text-md);
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(45, 75, 238, 0.18), 0 2px 6px rgba(242, 97, 97, 0.12);
+  flex: 0 0 auto;
+}
+
+/* Компактный вариант для чат-аватарок */
+.brand-mark--sm {
+  width: 2rem;
+  height: 2rem;
+  font-size: var(--text-sm);
+  box-shadow: 0 2px 8px rgba(45, 75, 238, 0.18);
+}
+
+.brand-name {
+  font-family: var(--font-heading);
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.ghost-button,
+.primary-button,
+.example-chip,
+.slide-thumbnail,
+.editor-rail-thumb,
+.regen-button,
+.drawer-trigger,
+.icon-button,
+.composer-send,
+.chat-cta,
+.chat-compose-send,
+.compose-send,
+.chat-suggestion-chip {
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.ghost-button,
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-soft);
+  font-weight: 600;
+}
+
+.ghost-button {
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--text-secondary);
+}
+
+.primary-button {
+  background: var(--accent-primary);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 10px 24px rgba(45, 75, 238, 0.22);
+}
+
+.primary-button--wide,
+.primary-button-wide,
+.primary-button-build {
+  min-height: 3.15rem;
+  padding: 0 var(--space-6);
+  font-size: var(--text-md);
+}
+
+.ghost-button:hover:not(:disabled),
+.primary-button:hover:not(:disabled),
+.example-chip:hover:not(:disabled),
+.slide-thumbnail:hover,
+.editor-rail-thumb:hover,
+.regen-button:hover:not(:disabled),
+.drawer-trigger:hover:not(:disabled),
+.icon-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}

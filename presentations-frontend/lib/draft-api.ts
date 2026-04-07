@@ -6,24 +6,6 @@ import type {
 
 export const DRAFT_API_MODEL = "gpt-5.4-mini";
 
-export const SLIDE_IDS: SlideId[] = [
-  "slide-1",
-  "slide-2",
-  "slide-3",
-  "slide-4",
-  "slide-5",
-  "slide-6",
-];
-
-const RAIL_TITLES_BY_ID: Record<SlideId, string> = {
-  "slide-1": "Обложка",
-  "slide-2": "Проблема",
-  "slide-3": "Три шага",
-  "slide-4": "Результат",
-  "slide-5": "Для кого",
-  "slide-6": "След. шаг",
-};
-
 export type DraftApiErrorCode =
   | "INVALID_REQUEST"
   | "PAYLOAD_TOO_LARGE"
@@ -56,21 +38,6 @@ export class DraftApiError extends Error {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizeRailTitle(value: string) {
-  const trimmed = value.trim();
-  const numbered = trimmed.match(/^\d+\s*[—-]\s*(.+)$/);
-  return (numbered?.[1] ?? trimmed).trim().toLowerCase();
-}
-
-function resolveRailTitleId(rawRailTitle: string) {
-  const normalized = normalizeRailTitle(rawRailTitle);
-  return (
-    SLIDE_IDS.find(
-      (slideId) => normalizeRailTitle(RAIL_TITLES_BY_ID[slideId]) === normalized,
-    ) ?? null
-  );
 }
 
 function normalizeBullets(value: unknown) {
@@ -131,45 +98,6 @@ function extractJsonCandidate(text: string) {
   return withoutFences.slice(firstIndex, lastIndex + 1);
 }
 
-function resolveSlideId(rawItem: Record<string, unknown>) {
-  const rawId = typeof rawItem.id === "string" ? rawItem.id.trim() : "";
-  const rawRailTitle =
-    typeof rawItem.railTitle === "string" ? rawItem.railTitle.trim() : "";
-
-  const slideIdFromId = rawId
-    ? (SLIDE_IDS.includes(rawId as SlideId) ? (rawId as SlideId) : null)
-    : null;
-  const slideIdFromRailTitle = rawRailTitle
-    ? resolveRailTitleId(rawRailTitle)
-    : null;
-
-  if (rawId && !slideIdFromId) {
-    throw new DraftApiError(
-      "MODEL_INVALID_SLIDES",
-      `Модель вернула неизвестный id слайда: ${rawId}.`,
-      502,
-    );
-  }
-
-  if (!slideIdFromId && rawRailTitle && !slideIdFromRailTitle) {
-    throw new DraftApiError(
-      "MODEL_INVALID_SLIDES",
-      `Модель вернула нераспознаваемый railTitle: ${rawRailTitle}.`,
-      502,
-    );
-  }
-
-  if (slideIdFromId && slideIdFromRailTitle && slideIdFromId !== slideIdFromRailTitle) {
-    throw new DraftApiError(
-      "MODEL_INVALID_SLIDES",
-      `id ${slideIdFromId} конфликтует с railTitle ${rawRailTitle}.`,
-      502,
-    );
-  }
-
-  return slideIdFromId ?? slideIdFromRailTitle ?? null;
-}
-
 export function parseDraftModelJson(text: string): unknown {
   const candidate = extractJsonCandidate(text);
 
@@ -193,9 +121,27 @@ export function validateSlides(raw: unknown): SlideTextEntry[] {
     );
   }
 
-  const ordered = new Map<SlideId, SlideTextEntry>();
+  if (raw.length < 4) {
+    throw new DraftApiError(
+      "MODEL_INVALID_SLIDES",
+      `Модель вернула слишком мало слайдов: ${raw.length}. Нужно минимум 4.`,
+      502,
+    );
+  }
 
-  for (const rawItem of raw) {
+  if (raw.length > 25) {
+    throw new DraftApiError(
+      "MODEL_INVALID_SLIDES",
+      `Модель вернула слишком много слайдов: ${raw.length}. Максимум 25.`,
+      502,
+    );
+  }
+
+  const seen = new Set<string>();
+  const result: SlideTextEntry[] = [];
+
+  for (let i = 0; i < raw.length; i++) {
+    const rawItem = raw[i];
     if (!isObject(rawItem)) {
       throw new DraftApiError(
         "MODEL_INVALID_SLIDES",
@@ -204,45 +150,44 @@ export function validateSlides(raw: unknown): SlideTextEntry[] {
       );
     }
 
-    const slideId = resolveSlideId(rawItem);
-    if (!slideId) {
-      throw new DraftApiError(
-        "MODEL_INVALID_SLIDES",
-        "Модель вернула слайд без распознаваемого id или railTitle.",
-        502,
-      );
-    }
+    const rawId = typeof rawItem.id === "string" ? rawItem.id.trim() : "";
+    const slideId: SlideId = rawId || `slide-${i + 1}`;
 
-    if (ordered.has(slideId)) {
+    if (seen.has(slideId)) {
       throw new DraftApiError(
         "MODEL_INVALID_SLIDES",
         `Модель вернула дубликат для ${slideId}.`,
         502,
       );
     }
+    seen.add(slideId);
 
-    ordered.set(slideId, {
+    const rawRailTitle = typeof rawItem.railTitle === "string" ? rawItem.railTitle.trim() : "";
+    const rawLayoutType = typeof rawItem.layoutType === "string" ? rawItem.layoutType.trim() : "";
+
+    const title = typeof rawItem.title === "string" ? rawItem.title.trim() : "";
+    if (!title && !rawRailTitle) {
+      throw new DraftApiError(
+        "MODEL_INVALID_SLIDES",
+        `Слайд ${slideId} не имеет ни title, ни railTitle.`,
+        502,
+      );
+    }
+
+    const rawImageQuery = typeof rawItem.imageQuery === "string" ? rawItem.imageQuery.trim() : "";
+
+    result.push({
       id: slideId,
-      railTitle:
-        typeof rawItem.railTitle === "string" && rawItem.railTitle.trim()
-          ? rawItem.railTitle.trim()
-          : RAIL_TITLES_BY_ID[slideId],
-      title: typeof rawItem.title === "string" ? rawItem.title.trim() : "",
+      railTitle: rawRailTitle || `Слайд ${i + 1}`,
+      layoutType: rawLayoutType || undefined,
+      title,
       subtitle: typeof rawItem.subtitle === "string" ? rawItem.subtitle.trim() : "",
       bullets: normalizeBullets(rawItem.bullets),
+      ...(rawImageQuery ? { imageQuery: rawImageQuery } : {}),
     });
   }
 
-  const missing = SLIDE_IDS.filter((slideId) => !ordered.has(slideId));
-  if (missing.length > 0) {
-    throw new DraftApiError(
-      "MODEL_INVALID_SLIDES",
-      `Модель вернула неполный набор слайдов: не хватает ${missing.join(", ")}.`,
-      502,
-    );
-  }
-
-  return SLIDE_IDS.map((slideId) => ordered.get(slideId)!);
+  return result;
 }
 
 export function parseDraftModelResponse(

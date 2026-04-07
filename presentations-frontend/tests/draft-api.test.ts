@@ -9,54 +9,17 @@ import {
 } from "@/lib/draft-api";
 import type { DraftChatMessage, SlideTextEntry } from "@/lib/presentation-types";
 
-const SLIDES: SlideTextEntry[] = [
-  {
-    id: "slide-1",
-    railTitle: "Обложка",
-    title: "Квартальный статус",
-    subtitle: "Q1 2026",
-    bullets: ["Backend platform"],
-  },
-  {
-    id: "slide-2",
-    railTitle: "Проблема",
-    title: "Что тормозит",
-    subtitle: "Главный узкий участок",
-    bullets: ["28% — MTTR", "18 — сервисов", "1 — blocker"],
-  },
-  {
-    id: "slide-3",
-    railTitle: "Три шага",
-    title: "Как идём",
-    subtitle: "Без лишнего шума",
-    bullets: ["01 Снять риск", "02 Дожать миграцию", "03 Зафиксировать итог"],
-  },
-  {
-    id: "slide-4",
-    railTitle: "Результат",
-    title: "Что уже сдвинули",
-    subtitle: "Есть измеримый прогресс",
-    bullets: ["MTTR ниже", "Миграция идёт", "Команда держит темп"],
-  },
-  {
-    id: "slide-5",
-    railTitle: "Для кого",
-    title: "Кому это важно",
-    subtitle: "Три роли",
-    bullets: [
-      "Тимлид — видеть статус",
-      "Директор — принять решение",
-      "Команда — понять следующий шаг",
-    ],
-  },
-  {
-    id: "slide-6",
-    railTitle: "След. шаг",
-    title: "Что решаем дальше",
-    subtitle: "Один рабочий выбор",
-    bullets: ["Закрыть найм QA", "Дожать хвост миграции", "Убрать один риск"],
-  },
-];
+function makeSlides(count: number): SlideTextEntry[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `slide-${i + 1}`,
+    railTitle: `Слайд ${i + 1}`,
+    title: `Заголовок ${i + 1}`,
+    subtitle: `Подзаголовок ${i + 1}`,
+    bullets: [`Пункт ${i + 1}`],
+  }));
+}
+
+const SLIDES = makeSlides(8);
 
 function expectDraftError(
   fn: () => unknown,
@@ -96,62 +59,36 @@ test("parseDraftModelResponse падает на ответе не-объекте
   );
 });
 
-test("validateSlides собирает порядок по id, а не по позиции", () => {
-  const reordered = [SLIDES[1], SLIDES[0], ...SLIDES.slice(2)];
-  const validated = validateSlides(reordered);
-
+test("validateSlides принимает массив 4-25 слайдов", () => {
+  const validated = validateSlides(makeSlides(8));
+  assert.equal(validated.length, 8);
   assert.equal(validated[0].id, "slide-1");
-  assert.equal(validated[0].title, "Квартальный статус");
-  assert.equal(validated[1].id, "slide-2");
-  assert.equal(validated[1].title, "Что тормозит");
+  assert.equal(validated[7].id, "slide-8");
 });
 
-test("validateSlides собирает порядок по railTitle, если id отсутствует", () => {
-  const withoutIds = SLIDES.map(({ id: _id, ...slide }) => slide);
-  const validated = validateSlides(withoutIds);
-
+test("validateSlides присваивает id по порядку если id пустой", () => {
+  const noIds = makeSlides(6).map(({ id: _id, ...rest }) => rest);
+  const validated = validateSlides(noIds);
   assert.equal(validated[0].id, "slide-1");
   assert.equal(validated[5].id, "slide-6");
 });
 
-test("validateSlides падает на неполном наборе слайдов", () => {
+test("validateSlides падает на слишком коротком массиве", () => {
   expectDraftError(
-    () => validateSlides(SLIDES.slice(0, 5)),
+    () => validateSlides(makeSlides(3)),
     "MODEL_INVALID_SLIDES",
-    /не хватает slide-6/i,
+    /слишком мало/i,
   );
 });
 
-test("validateSlides падает на дубликате слота", () => {
-  const duplicate = [
-    ...SLIDES.slice(0, 5),
-    {
-      ...SLIDES[5],
-      id: "slide-5" as const,
-      railTitle: "Для кого",
-    },
-  ];
+test("validateSlides падает на дубликате id", () => {
+  const slides = makeSlides(6);
+  slides[5] = { ...slides[5], id: "slide-1" };
 
   expectDraftError(
-    () => validateSlides(duplicate),
+    () => validateSlides(slides),
     "MODEL_INVALID_SLIDES",
     /дубликат/i,
-  );
-});
-
-test("validateSlides падает на конфликте id и railTitle", () => {
-  const conflict = [
-    {
-      ...SLIDES[0],
-      railTitle: "Проблема",
-    },
-    ...SLIDES.slice(1),
-  ];
-
-  expectDraftError(
-    () => validateSlides(conflict),
-    "MODEL_INVALID_SLIDES",
-    /конфликт/i,
   );
 });
 

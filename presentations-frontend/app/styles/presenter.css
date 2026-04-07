@@ -1,0 +1,108 @@
+/* ── Presenter overlay ── */
+.presenter-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: #07070e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Wrapper takes the scaled pixel dimensions — lets flex centre it */
+.presenter-scale-host {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Inner div is natural slide size, scaled via transform */
+.presenter-slide-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Override width constraint so slide fills its natural SLIDE_W */
+.presenter-slide-inner .slide-canvas {
+  width: 100%;
+  max-width: none;
+}
+
+.presenter-nav-btn {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.presenter-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.presenter-nav-btn:disabled {
+  opacity: 0.22;
+  cursor: default;
+}
+
+.presenter-nav-btn--prev {
+  left: var(--space-6);
+}
+
+.presenter-nav-btn--next {
+  right: var(--space-6);
+}
+
+.presenter-footer {
+  position: fixed;
+  bottom: var(--space-7);
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.presenter-counter {
+  font-size: 0.875rem; /* нестандартный размер */
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.presenter-exit-btn {
+  position: fixed;
+  top: var(--space-5);
+  right: var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.presenter-exit-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}

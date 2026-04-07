@@ -2,23 +2,19 @@ import type {
   CanvasLayoutId,
   ColorThemeId,
   DraftFitPassStrength,
-  FitPassResult,
   HiddenTransformId,
   PresentationDraft,
   PresentationSlide,
-  SixSlotTuple,
   SlideActionLabel,
   SlideBlock,
   SlideFunctionId,
   SlideId,
-  SlideSlotId,
-  SlideTextEntry,
-  SlideToneId,
   TemplateIconPackId,
   TemplateId,
   WorkingDraft,
   WorkingDraftSlidePlanEntry,
 } from "@/lib/presentation-types";
+import { blockTone, runFitPassOnDraft } from "@/lib/fit-pass";
 import {
   COLOR_OPTIONS,
   EXAMPLE_PROMPTS,
@@ -45,29 +41,12 @@ export {
 const DEFAULT_TEMPLATE: TemplateId = "cards";
 const DEFAULT_COLOR_THEME: ColorThemeId = "indigo";
 
-const SLOT_MAP: Array<{ id: SlideId; slotId: SlideSlotId; fn: SlideFunctionId }> = [
-  { id: "slide-1", slotId: 1, fn: "open_topic" },
-  { id: "slide-2", slotId: 2, fn: "main_point" },
-  { id: "slide-3", slotId: 3, fn: "movement" },
-  { id: "slide-4", slotId: 4, fn: "evidence" },
-  { id: "slide-5", slotId: 5, fn: "tension" },
-  { id: "slide-6", slotId: 6, fn: "next_step" },
-];
-
-/** Подписи rail как в макете v3 (Figma Screens / Brand Kit). */
-const FIGMA_RAIL_LABEL_BY_SLOT: Record<SlideSlotId, string> = {
-  1: "Обложка",
-  2: "Проблема",
-  3: "Три шага",
-  4: "Результат",
-  5: "Для кого",
-  6: "След. шаг",
-};
-
-const TEMPLATE_ICON_PACKS: Record<TemplateId, TemplateIconPackId> = {
+const TEMPLATE_ICON_PACKS: Partial<Record<TemplateId, TemplateIconPackId>> = {
   strict: "outline",
   cards: "solid-minimal",
   briefing: "duotone-minimal",
+  modern: "solid-minimal",
+  corporate: "outline",
 };
 
 type WorkingDraftSeed = Omit<WorkingDraft, "slidePlan" | "visibleSlideTitles">;
@@ -90,8 +69,40 @@ type DraftSignals = {
   presentationIntent: WorkingDraftSeed["presentationIntent"];
 };
 
-export function getTemplateIconPack(templateId: TemplateId) {
-  return TEMPLATE_ICON_PACKS[templateId];
+export function getTemplateIconPack(templateId: TemplateId): TemplateIconPackId {
+  return TEMPLATE_ICON_PACKS[templateId] ?? "outline";
+}
+
+export function estimateSlideCount(sourcePrompt: string, facts: string[]): number {
+  const promptLength = sourcePrompt.length;
+  const factCount = facts.length;
+
+  if (promptLength < 100 && factCount <= 1) return 6;
+  if (promptLength < 300 && factCount <= 3) return 8;
+  if (promptLength < 600) return 10;
+  if (promptLength < 1200) return 14;
+  return 18;
+}
+
+export function buildDefaultSlidePlan(count: number): SlideFunctionId[] {
+  const plan: SlideFunctionId[] = ["cover"];
+
+  const middle = count - 2;
+  const priority: SlideFunctionId[] = [
+    "key_point", "steps", "evidence", "tension", "next_step",
+    "detail", "comparison", "audience", "data",
+    "detail", "data", "section",
+  ];
+
+  let added = 0;
+  for (const fn of priority) {
+    if (added >= middle) break;
+    plan.push(fn);
+    added++;
+  }
+
+  plan.push("closing");
+  return plan;
 }
 
 export function buildWorkingDraftFromPrompt(
@@ -137,23 +148,20 @@ export function buildWorkingDraftFromPrompt(
     colorThemeId: overrides.colorThemeId ?? DEFAULT_COLOR_THEME,
   };
 
-  const slidePlan = tuple6(
-    SLOT_MAP.map(({ fn, slotId }) =>
-      buildSlidePlanEntry(baseSeed, fn, slotId, null)
-    )
+  const slideCount = estimateSlideCount(
+    sourcePrompt,
+    baseSeed.knownFacts,
+  );
+  const functionPlan = buildDefaultSlidePlan(slideCount);
+
+  const slidePlan = functionPlan.map((fn) =>
+    buildSlidePlanEntry(baseSeed, fn, null)
   );
 
   return normalizeWorkingDraft({
     ...baseSeed,
     slidePlan,
-    visibleSlideTitles: tuple6([
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]),
+    visibleSlideTitles: functionPlan.map(() => ""),
   });
 }
 
@@ -169,7 +177,8 @@ export function buildPresentationDraft(
   const slides = normalizedWorkingDraft.slidePlan.map((entry, index) =>
     buildPresentationSlide(
       entry,
-      normalizedWorkingDraft.visibleSlideTitles[index],
+      index,
+      normalizedWorkingDraft.visibleSlideTitles[index] ?? "",
       normalizedWorkingDraft
     )
   );
@@ -207,29 +216,7 @@ export function updateDraftAppearance(
   });
 }
 
-export function runFitPassOnDraft(draft: PresentationDraft): PresentationDraft {
-  const strength: DraftFitPassStrength = draft.fitPassStrength ?? "strict";
-  const chosenTransformIds = {} as PresentationDraft["debug"]["chosenTransformIds"];
-  const fitPassResultBySlide =
-    {} as PresentationDraft["debug"]["fitPassResultBySlide"];
-  const slides = draft.slides.map((slide, index) => {
-    const result = fitSlide(slide, draft.workingDraft, strength);
-    chosenTransformIds[slide.id] = draft.workingDraft.slidePlan[index].lastTransformId;
-    fitPassResultBySlide[slide.id] = result.fit;
-    return result.slide;
-  });
-
-  return {
-    ...draft,
-    slides,
-    debug: {
-      currentWorkingDraft: draft.workingDraft,
-      hiddenSlidePlan: draft.workingDraft.slidePlan,
-      chosenTransformIds,
-      fitPassResultBySlide,
-    },
-  };
-}
+export { runFitPassOnDraft } from "@/lib/fit-pass";
 
 export function regenerateSlide(
   draft: PresentationDraft,
@@ -246,10 +233,9 @@ export function regenerateSlide(
   const nextEntry = buildSlidePlanEntry(
     draft.workingDraft,
     currentEntry.slideFunctionId,
-    currentEntry.slotId,
     transformId
   );
-  const nextSlidePlan = tuple6(replaceAt(draft.workingDraft.slidePlan, slotIndex, nextEntry));
+  const nextSlidePlan = replaceAt(draft.workingDraft.slidePlan, slotIndex, nextEntry);
   const nextWorkingDraft = normalizeWorkingDraft({
     ...draft.workingDraft,
     slidePlan: nextSlidePlan,
@@ -264,32 +250,59 @@ export function regenerateSlide(
 
 function slideFunctionToLayout(slideFunctionId: SlideFunctionId): CanvasLayoutId {
   switch (slideFunctionId) {
-    case "open_topic": return "cover";
-    case "main_point": return "metrics";
-    case "movement": return "steps";
+    case "cover": return "cover";
+    case "section": return "section-divider";
+    case "key_point": return "metrics";
+    case "steps": return "steps";
     case "evidence": return "checklist";
+    case "comparison": return "comparison";
+    case "audience": return "personas";
     case "tension": return "personas";
+    case "features": return "features";
     case "next_step": return "features";
+    case "closing": return "closing";
+    case "detail": return "checklist";
+    case "data": return "metrics";
   }
 }
 
 function chooseBestLayout(slideFunctionId: SlideFunctionId, signals: DraftSignals): CanvasLayoutId {
-  if (slideFunctionId === "main_point") {
+  if (slideFunctionId === "key_point" || slideFunctionId === "data") {
     const factLines = signals.facts.filter((f) => f.length > 0);
     const metricValues = extractMetricValues(factLines);
     if (metricValues.length === 1) return "stat-focus";
+    if (metricValues.length >= 3) return "chart-bar";
     return "metrics";
   }
 
   if (slideFunctionId === "evidence") {
     if (detectComparison(signals)) return "comparison";
+    if (signals.facts.length >= 4) return "list-slide";
     return "checklist";
+  }
+
+  if (slideFunctionId === "detail") {
+    if (signals.facts.length >= 3) return "cards-row";
+    return "text-block";
   }
 
   if (slideFunctionId === "tension") {
     const audienceParts = splitAudience(signals.audience);
     if (audienceParts.length >= 2) return "personas";
     return "quote";
+  }
+
+  if (slideFunctionId === "audience") {
+    return "personas";
+  }
+
+  if (slideFunctionId === "comparison") {
+    return "comparison";
+  }
+
+  if (slideFunctionId === "steps") {
+    if (signals.facts.length >= 4) return "timeline";
+    return "steps";
   }
 
   return slideFunctionToLayout(slideFunctionId);
@@ -308,7 +321,6 @@ function detectComparison(signals: DraftSignals): boolean {
 function buildSlidePlanEntry(
   workingDraft: WorkingDraftSeed | WorkingDraft,
   slideFunctionId: SlideFunctionId,
-  slotId: SlideSlotId,
   lastTransformId: HiddenTransformId | null
 ): WorkingDraftSlidePlanEntry {
   const signals = deriveDraftSignals(workingDraft);
@@ -318,7 +330,6 @@ function buildSlidePlanEntry(
   const blocks = buildBlocks(signals, slideFunctionId, transformId, coreMessage, canvasLayoutId);
 
   return {
-    slotId,
     slideFunctionId,
     canvasLayoutId,
     coreMessage,
@@ -329,21 +340,38 @@ function buildSlidePlanEntry(
   };
 }
 
+const DEFAULT_RAIL_LABELS: Partial<Record<SlideFunctionId, string>> = {
+  cover: "Обложка",
+  key_point: "Главное",
+  steps: "Шаги",
+  evidence: "Доказательства",
+  tension: "Ограничения",
+  next_step: "След. шаг",
+  closing: "Завершение",
+  comparison: "Сравнение",
+  audience: "Аудитория",
+  detail: "Детали",
+  data: "Данные",
+  section: "Раздел",
+  features: "Возможности",
+};
+
 function buildPresentationSlide(
   entry: WorkingDraftSlidePlanEntry,
+  index: number,
   title: string,
   workingDraft: WorkingDraft
 ): PresentationSlide {
-  const slideId = SLOT_MAP[entry.slotId - 1].id;
+  const slideId = `slide-${index + 1}`;
   const signals = deriveDraftSignals(workingDraft);
-  const railTitle = `${entry.slotId} — ${FIGMA_RAIL_LABEL_BY_SLOT[entry.slotId]}`;
+  const label = DEFAULT_RAIL_LABELS[entry.slideFunctionId] ?? "Слайд";
+  const railTitle = `${index + 1} — ${label}`;
 
   return {
     id: slideId,
-    slotId: entry.slotId,
+    index,
     slideFunctionId: entry.slideFunctionId,
     canvasLayoutId: entry.canvasLayoutId,
-    index: String(entry.slotId).padStart(2, "0"),
     railTitle: clampText(railTitle, 44),
     railRhythm: entry.blockPlan.map(blockTone).slice(0, 4),
     title,
@@ -361,174 +389,25 @@ function normalizeWorkingDraft(workingDraft: WorkingDraft): WorkingDraft {
   };
 }
 
-const FIT_PASS_LIMITS: Record<
-  DraftFitPassStrength,
-  {
-    title: number;
-    subtitle: number;
-    blockTitle: number;
-    blockBody: number;
-    blockBodyPlaceholder: number;
-    railTitle: number;
-    actionLabel: number;
-    overflowTitleWidth: number;
-    overflowBlockTitleWidth: number;
-    overflowHeightChars: number;
-  }
-> = {
-  strict: {
-    title: 78,
-    subtitle: 84,
-    blockTitle: 34,
-    blockBody: 156,
-    blockBodyPlaceholder: 96,
-    railTitle: 44,
-    actionLabel: 32,
-    overflowTitleWidth: 72,
-    overflowBlockTitleWidth: 30,
-    overflowHeightChars: 440,
-  },
-  editor: {
-    title: 140,
-    subtitle: 220,
-    blockTitle: 320,
-    blockBody: 900,
-    blockBodyPlaceholder: 400,
-    railTitle: 96,
-    actionLabel: 96,
-    overflowTitleWidth: 132,
-    overflowBlockTitleWidth: 300,
-    overflowHeightChars: 4000,
-  },
-};
-
-function fitSlide(
-  slide: PresentationSlide,
-  workingDraft: WorkingDraft,
-  strength: DraftFitPassStrength = "strict",
-) {
-  const L = FIT_PASS_LIMITS[strength];
-  let titleShortened = false;
-  let textCompressed = false;
-  let blockTrimmed = false;
-  let actionShortened = false;
-  const notes: string[] = [];
-
-  const title = clampText(slide.title, L.title);
-  if (title !== slide.title) {
-    titleShortened = true;
-    notes.push("fit-pass сократил заголовок");
-  }
-
-  const subtitle = slide.subtitle ? clampText(slide.subtitle, L.subtitle) : "";
-  if (subtitle !== slide.subtitle) {
-    textCompressed = true;
-    notes.push("fit-pass сократил подзаголовок");
-  }
-
-  const maxBlocks =
-    slide.canvasLayoutId === "checklist" ? 4 :
-    slide.canvasLayoutId === "cover" ? 1 :
-    slide.canvasLayoutId === "stat-focus" ? 2 :
-    slide.canvasLayoutId === "quote" ? 2 :
-    slide.canvasLayoutId === "comparison" ? 2 :
-    3;
-  const blocks = slide.blocks.slice(0, maxBlocks).map((block) => {
-    const next = {
-      ...block,
-      title: clampText(block.title, L.blockTitle),
-      body: clampText(
-        block.body,
-        block.placeholder ? L.blockBodyPlaceholder : L.blockBody,
-      ),
-    };
-
-    if (next.title !== block.title || next.body !== block.body) {
-      textCompressed = true;
-    }
-
-    return next;
-  });
-
-  if (blocks.length !== slide.blocks.length) {
-    blockTrimmed = true;
-    notes.push("fit-pass убрал лишний блок");
-  }
-
-  const drawerActions = slide.drawerActions.map((action) => {
-    const label = clampText(action.label, L.actionLabel);
-
-    if (label !== action.label) {
-      actionShortened = true;
-    }
-
-    return {
-      ...action,
-      label,
-    };
-  });
-
-  if (actionShortened) {
-    notes.push("fit-pass сократил действие");
-  }
-
-  const totalChars =
-    title.length +
-    subtitle.length +
-    blocks.reduce((sum, block) => sum + block.title.length + block.body.length, 0);
-
-  return {
-    slide: {
-      ...slide,
-      title,
-      subtitle,
-      railTitle: clampText(slide.railTitle, L.railTitle),
-      railRhythm: blocks.map(blockTone).slice(0, 4),
-      blocks,
-      drawerActions,
-    },
-    fit: {
-      slideId: slide.id,
-      overflowWidthRisk:
-        title.length > L.overflowTitleWidth ||
-        blocks.some((block) => block.title.length > L.overflowBlockTitleWidth),
-      overflowHeightRisk: totalChars > L.overflowHeightChars,
-      titleShortened,
-      textCompressed,
-      blockTrimmed,
-      secondaryMoved: false,
-      placeholderVisible: blocks.some((block) => block.placeholder)
-        ? blocks.some((block) => block.placeholder && block.body.trim().length > 0)
-        : true,
-      iconConsistent: blocks.every((block) => Boolean(block.icon)),
-      contrastSafe: ["slate", "indigo", "teal", "sand"].includes(workingDraft.colorThemeId),
-      rhythmSafe: blocks.length <= 3,
-      repaired: titleShortened || textCompressed || blockTrimmed || actionShortened,
-      notes,
-    } satisfies FitPassResult,
-  };
-}
 
 function buildVisibleTitles(
   workingDraft: WorkingDraftSeed | WorkingDraft,
   slidePlan: readonly WorkingDraftSlidePlanEntry[]
-): SixSlotTuple<string> {
+): string[] {
   const seen = new Set<string>();
   const signals = deriveDraftSignals(workingDraft);
 
-  return tuple6(
-    slidePlan.map((entry) => {
-      const candidates = buildVisibleTitleCandidates(signals, entry);
-      const chosen =
-        candidates.find((candidate) => {
-          const key = normalizeTitleKey(candidate);
-          return key.length > 0 && !seen.has(key);
-        }) ?? buildFallbackTitle(signals, entry.slideFunctionId);
+  return slidePlan.map((entry) => {
+    const candidates = buildVisibleTitleCandidates(signals, entry);
+    const chosen =
+      candidates.find((candidate) => {
+        const key = normalizeTitleKey(candidate);
+        return key.length > 0 && !seen.has(key);
+      }) ?? buildFallbackTitle(signals, entry.slideFunctionId);
 
-      seen.add(normalizeTitleKey(chosen));
-      return chosen;
-    })
-  );
+    seen.add(normalizeTitleKey(chosen));
+    return chosen;
+  });
 }
 
 function buildVisibleTitleCandidates(
@@ -544,8 +423,9 @@ function buildVisibleTitleCandidates(
   );
   const progressFact = firstNonRiskFact(signals.secondaryFact, signals.primaryFact);
   const supportFact = firstNonRiskFact(signals.primaryFact, signals.secondaryFact);
+  const fn = entry.slideFunctionId;
 
-  if (entry.slideFunctionId === "open_topic") {
+  if (fn === "cover" || fn === "section") {
     if (signals.keyMessage && /mvp|инструмент/i.test(signals.keyMessage)) {
       pushTitleCandidate(candidates, `Где ${signals.topicLower} уже похож на продукт`);
       pushTitleCandidate(candidates, `Что уже собрано в ${signals.topic}`);
@@ -565,14 +445,14 @@ function buildVisibleTitleCandidates(
     pushTitleCandidate(candidates, `Какой разговор нужен по ${signals.topicLower}`);
   }
 
-  if (entry.slideFunctionId === "main_point") {
+  if (fn === "key_point" || fn === "data") {
     pushTitleCandidate(candidates, titleFromSignal(signals.keyMessage));
     pushTitleCandidate(candidates, titleFromSignal(signals.primaryFact));
     pushTitleCandidate(candidates, `Главное по ${signals.topicLower}`);
     pushTitleCandidate(candidates, `Что уже видно по ${signals.topicLower}`);
   }
 
-  if (entry.slideFunctionId === "movement") {
+  if (fn === "steps") {
     if (progressFact && progressFact !== signals.primaryFact) {
       pushTitleCandidate(candidates, titleFromSignal(progressFact));
     }
@@ -585,7 +465,7 @@ function buildVisibleTitleCandidates(
     pushTitleCandidate(candidates, `Как сдвинулся ${signals.topic}`);
   }
 
-  if (entry.slideFunctionId === "evidence") {
+  if (fn === "evidence" || fn === "detail") {
     const extraSupportFact = laterNonRiskFact(signals.primaryFact, signals.secondaryFact, signals.facts[2]);
 
     if (extraSupportFact) {
@@ -599,7 +479,7 @@ function buildVisibleTitleCandidates(
     pushTitleCandidate(candidates, `Какая опора уже есть`);
   }
 
-  if (entry.slideFunctionId === "tension") {
+  if (fn === "tension") {
     pushTitleCandidate(candidates, titleFromSignal(signals.riskLine));
     pushTitleCandidate(candidates, titleFromSignal(signals.primaryGap));
 
@@ -618,7 +498,17 @@ function buildVisibleTitleCandidates(
     pushTitleCandidate(candidates, `Где ${signals.topicLower} буксует`);
   }
 
-  if (entry.slideFunctionId === "next_step") {
+  if (fn === "audience") {
+    pushTitleCandidate(candidates, `Кому нужен ${signals.topicLower}`);
+    pushTitleCandidate(candidates, `Для кого это важно`);
+  }
+
+  if (fn === "comparison") {
+    pushTitleCandidate(candidates, `Было и стало по ${signals.topicLower}`);
+    pushTitleCandidate(candidates, `Что изменилось`);
+  }
+
+  if (fn === "next_step" || fn === "closing" || fn === "features") {
     pushTitleCandidate(candidates, titleFromSignal(signals.desiredOutcome));
 
     if (actionObject && ["ресурс", "бюджет", "найм"].includes(actionObject)) {
@@ -633,7 +523,7 @@ function buildVisibleTitleCandidates(
 }
 
 function buildCoreMessage(signals: DraftSignals, slideFunctionId: SlideFunctionId) {
-  if (slideFunctionId === "open_topic") {
+  if (slideFunctionId === "cover" || slideFunctionId === "section") {
     if (signals.riskLine) {
       return signals.riskLine;
     }
@@ -645,20 +535,34 @@ function buildCoreMessage(signals: DraftSignals, slideFunctionId: SlideFunctionI
     return `По ${signals.topic} пора договориться о следующем шаге.`;
   }
 
-  if (slideFunctionId === "main_point") {
+  if (slideFunctionId === "key_point" || slideFunctionId === "data") {
     return signals.keyMessage ?? signals.primaryFact ?? `По ${signals.topic} уже есть рабочий вывод.`;
   }
 
-  if (slideFunctionId === "movement") {
+  if (slideFunctionId === "steps") {
     return signals.secondaryFact ?? signals.primaryFact ?? `По ${signals.topic} уже есть сдвиг.`;
   }
 
-  if (slideFunctionId === "evidence") {
+  if (slideFunctionId === "evidence" || slideFunctionId === "detail") {
     return signals.primaryFact ?? `По ${signals.topic} уже есть одна опора.`;
   }
 
   if (slideFunctionId === "tension") {
     return signals.riskLine ?? signals.primaryGap ?? `Без одной опоры ${signals.topicLower} снова упрётся в паузу.`;
+  }
+
+  if (slideFunctionId === "audience") {
+    return `Кому нужен ${signals.topicLower} и зачем.`;
+  }
+
+  if (slideFunctionId === "comparison") {
+    return signals.primaryGap
+      ? `${signals.primaryGap} → ${signals.desiredOutcome || "целевое состояние"}`
+      : `Что изменилось по ${signals.topicLower}.`;
+  }
+
+  if (slideFunctionId === "closing") {
+    return signals.desiredOutcome || `По ${signals.topic} нужен один следующий шаг.`;
   }
 
   return signals.desiredOutcome || `По ${signals.topic} нужен один следующий шаг.`;
@@ -682,20 +586,20 @@ function buildBlocks(
   );
   const nextReason = buildActionReason(signals);
 
-  if (slideFunctionId === "open_topic") {
+  if (slideFunctionId === "cover" || slideFunctionId === "section") {
     return buildCoverBlocks(signals, coreMessage);
   }
 
-  if (slideFunctionId === "main_point") {
+  if (slideFunctionId === "key_point" || slideFunctionId === "data") {
     if (canvasLayoutId === "stat-focus") return buildStatFocusBlocks(signals, pressureLine);
     return buildMetricBlocks(signals, facts, pressureLine);
   }
 
-  if (slideFunctionId === "movement") {
+  if (slideFunctionId === "steps") {
     return buildStepBlocks(signals, progressLines, facts, gaps, transformId);
   }
 
-  if (slideFunctionId === "evidence") {
+  if (slideFunctionId === "evidence" || slideFunctionId === "detail") {
     if (canvasLayoutId === "comparison") return buildComparisonBlocks(signals, facts, gaps);
     return buildChecklistBlocks(signals, facts, gaps);
   }
@@ -703,6 +607,14 @@ function buildBlocks(
   if (slideFunctionId === "tension") {
     if (canvasLayoutId === "quote") return buildQuoteBlocks(signals, pressureLine, gaps);
     return buildPersonaBlocks(signals, pressureLine, gaps);
+  }
+
+  if (slideFunctionId === "audience") {
+    return buildPersonaBlocks(signals, pressureLine, gaps);
+  }
+
+  if (slideFunctionId === "comparison") {
+    return buildComparisonBlocks(signals, facts, gaps);
   }
 
   return buildFeatureBlocks(signals, facts, gaps, nextReason);
@@ -1038,21 +950,23 @@ function buildSubtitle(
   entry: WorkingDraftSlidePlanEntry,
   title: string
 ) {
-  if (entry.slideFunctionId === "open_topic") {
+  const fn = entry.slideFunctionId;
+
+  if (fn === "cover" || fn === "section") {
     return [signals.specificPeriod ? signals.period : "", signals.audience]
       .filter(Boolean)
       .join(" · ");
   }
 
-  if (entry.slideFunctionId === "tension" && signals.primaryGap && !isPlaceholderToken(signals.primaryGap)) {
+  if (fn === "tension" && signals.primaryGap && !isPlaceholderToken(signals.primaryGap)) {
     return clampText(cleanBody(signals.primaryGap), 84);
   }
 
-  if (entry.slideFunctionId === "movement" && signals.specificPeriod) {
+  if (fn === "steps" && signals.specificPeriod) {
     return signals.period;
   }
 
-  if (entry.slideFunctionId === "next_step" && isUsefulTitle(signals.desiredOutcome)) {
+  if ((fn === "next_step" || fn === "closing") && isUsefulTitle(signals.desiredOutcome)) {
     return normalizeTitleKey(title) !== normalizeTitleKey(signals.desiredOutcome)
       ? clampText(cleanBody(signals.desiredOutcome), 84)
       : "";
@@ -1092,24 +1006,32 @@ function buildFallbackOutcome(intent: WorkingDraftSeed["presentationIntent"]) {
 }
 
 function buildSpeakerAngle(slideFunctionId: SlideFunctionId) {
-  if (slideFunctionId === "open_topic") {
+  if (slideFunctionId === "cover" || slideFunctionId === "section") {
     return "Открыть тему без длинного захода.";
   }
 
-  if (slideFunctionId === "main_point") {
+  if (slideFunctionId === "key_point" || slideFunctionId === "data") {
     return "Зафиксировать один главный вывод.";
   }
 
-  if (slideFunctionId === "movement") {
+  if (slideFunctionId === "steps") {
     return "Показать движение, а не перечень действий.";
   }
 
-  if (slideFunctionId === "evidence") {
+  if (slideFunctionId === "evidence" || slideFunctionId === "detail") {
     return "Дать опору и не добирать лишнего.";
   }
 
   if (slideFunctionId === "tension") {
     return "Отдельно назвать ограничение и его цену.";
+  }
+
+  if (slideFunctionId === "audience") {
+    return "Показать, для кого это важно и почему.";
+  }
+
+  if (slideFunctionId === "comparison") {
+    return "Показать разницу между было и стало.";
   }
 
   return "Свести разговор к следующему шагу.";
@@ -1168,21 +1090,6 @@ function block(
   };
 }
 
-function blockTone(block: SlideBlock): SlideToneId {
-  if (block.type === "movement") {
-    return "success";
-  }
-
-  if (block.type === "constraint") {
-    return "warning";
-  }
-
-  if (block.type === "focus" || block.type === "decision") {
-    return "primary";
-  }
-
-  return "neutral";
-}
 
 function cleanLine(value: string, keepNewLines = false): string {
   if (!value) {
@@ -1298,10 +1205,6 @@ function replaceAt<T>(items: readonly T[], index: number, value: T): T[] {
   return items.map((item, itemIndex) => (itemIndex === index ? value : item));
 }
 
-function tuple6<T>(items: readonly T[]): SixSlotTuple<T> {
-  return items as SixSlotTuple<T>;
-}
-
 function deriveDraftSignals(workingDraft: WorkingDraftSeed | WorkingDraft): DraftSignals {
   const promptSignals = buildPromptSignals(
     workingDraft.sourcePrompt,
@@ -1357,24 +1260,32 @@ function deriveDraftSignals(workingDraft: WorkingDraftSeed | WorkingDraft): Draf
 }
 
 function buildFallbackTitle(signals: DraftSignals, slideFunctionId: SlideFunctionId) {
-  if (slideFunctionId === "open_topic") {
+  if (slideFunctionId === "cover" || slideFunctionId === "section") {
     return clampText(`Что важно по ${signals.topicLower}`, 68);
   }
 
-  if (slideFunctionId === "main_point") {
+  if (slideFunctionId === "key_point" || slideFunctionId === "data") {
     return clampText(`Главное по ${signals.topicLower}`, 68);
   }
 
-  if (slideFunctionId === "movement") {
+  if (slideFunctionId === "steps") {
     return clampText(`Что уже сдвинули по ${signals.topicLower}`, 68);
   }
 
-  if (slideFunctionId === "evidence") {
+  if (slideFunctionId === "evidence" || slideFunctionId === "detail") {
     return clampText(`Что уже подтверждено по ${signals.topicLower}`, 68);
   }
 
   if (slideFunctionId === "tension") {
     return clampText(`Где ${signals.topicLower} буксует`, 68);
+  }
+
+  if (slideFunctionId === "audience") {
+    return clampText(`Для кого важен ${signals.topicLower}`, 68);
+  }
+
+  if (slideFunctionId === "comparison") {
+    return clampText(`Что изменилось по ${signals.topicLower}`, 68);
   }
 
   return clampText(`Какой шаг нужен по ${signals.topicLower}`, 68);
@@ -1557,24 +1468,32 @@ function buildStatusActionLabel(
   actionObject: string,
   signals: DraftSignals
 ) {
-  if (slideFunctionId === "open_topic") {
+  if (slideFunctionId === "cover" || slideFunctionId === "section") {
     return signals.riskLine ? "Заострить проблему" : "Собрать заход короче";
   }
 
-  if (slideFunctionId === "main_point") {
+  if (slideFunctionId === "key_point" || slideFunctionId === "data") {
     return "Усилить главный вывод";
   }
 
-  if (slideFunctionId === "movement") {
+  if (slideFunctionId === "steps") {
     return "Собрать прогресс короче";
   }
 
-  if (slideFunctionId === "evidence") {
+  if (slideFunctionId === "evidence" || slideFunctionId === "detail") {
     return "Оставить одну опору";
   }
 
   if (slideFunctionId === "tension") {
     return actionObject === "срок" ? "Упереть в срок" : "Заострить риск";
+  }
+
+  if (slideFunctionId === "audience") {
+    return "Показать главную роль";
+  }
+
+  if (slideFunctionId === "comparison") {
+    return "Заострить разницу";
   }
 
   if (actionObject === "найм" || actionObject === "ресурс" || actionObject === "бюджет") {
@@ -1585,24 +1504,32 @@ function buildStatusActionLabel(
 }
 
 function buildExplainActionLabel(slideFunctionId: SlideFunctionId) {
-  if (slideFunctionId === "open_topic") {
+  if (slideFunctionId === "cover" || slideFunctionId === "section") {
     return "Показать фон";
   }
 
-  if (slideFunctionId === "main_point") {
+  if (slideFunctionId === "key_point" || slideFunctionId === "data") {
     return "Показать, на чём держится";
   }
 
-  if (slideFunctionId === "movement") {
+  if (slideFunctionId === "steps") {
     return "Разобрать движение";
   }
 
-  if (slideFunctionId === "evidence") {
+  if (slideFunctionId === "evidence" || slideFunctionId === "detail") {
     return "Разложить по опорам";
   }
 
   if (slideFunctionId === "tension") {
     return "Показать, что держит";
+  }
+
+  if (slideFunctionId === "audience") {
+    return "Показать задачи каждой роли";
+  }
+
+  if (slideFunctionId === "comparison") {
+    return "Показать контекст изменений";
   }
 
   return "Показать, что добрать";

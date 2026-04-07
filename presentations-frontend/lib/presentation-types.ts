@@ -11,23 +11,22 @@ export type PresentationIntent = "update" | "explain" | "decision";
 
 export type FactCoverageId = "enough" | "partial" | "thin";
 
-export type SlideSlotId = 1 | 2 | 3 | 4 | 5 | 6;
-
-export type SlideId =
-  | "slide-1"
-  | "slide-2"
-  | "slide-3"
-  | "slide-4"
-  | "slide-5"
-  | "slide-6";
+export type SlideId = string;
 
 export type SlideFunctionId =
-  | "open_topic"
-  | "main_point"
-  | "movement"
+  | "cover"
+  | "section"
+  | "key_point"
+  | "steps"
   | "evidence"
+  | "comparison"
+  | "audience"
+  | "features"
   | "tension"
-  | "next_step";
+  | "next_step"
+  | "detail"
+  | "data"
+  | "closing";
 
 export type HiddenTransformId =
   | "status_shift"
@@ -46,11 +45,21 @@ export type CanvasLayoutId =
   | "features"
   | "stat-focus"
   | "quote"
-  | "comparison";
+  | "comparison"
+  | "section-divider"
+  | "text-block"
+  | "cards-row"
+  | "list-slide"
+  | "timeline"
+  | "chart-bar"
+  | "chart-progress"
+  | "table-simple"
+  | "image-text"
+  | "closing";
 
-export type TemplateId = "strict" | "cards" | "briefing";
+export type TemplateId = "strict" | "cards" | "briefing" | "modern" | "corporate";
 
-export type ColorThemeId = "slate" | "indigo" | "teal" | "sand";
+export type ColorThemeId = "slate" | "indigo" | "teal" | "sand" | "rose" | "emerald" | "violet" | "zinc";
 
 export type TemplateIconPackId =
   | "outline"
@@ -83,8 +92,6 @@ export type SlideBlockIconId =
   | "rocket"
   | "check";
 
-export type SixSlotTuple<T> = [T, T, T, T, T, T];
-
 export interface SlideBlock {
   id: string;
   type: SlideBlockType;
@@ -98,7 +105,6 @@ export interface SlideBlock {
 }
 
 export interface WorkingDraftSlidePlanEntry {
-  slotId: SlideSlotId;
   slideFunctionId: SlideFunctionId;
   canvasLayoutId: CanvasLayoutId;
   coreMessage: string;
@@ -116,8 +122,8 @@ export interface WorkingDraft {
   knownFacts: string[];
   missingFacts: string[];
   confidence: number;
-  slidePlan: SixSlotTuple<WorkingDraftSlidePlanEntry>;
-  visibleSlideTitles: SixSlotTuple<string>;
+  slidePlan: WorkingDraftSlidePlanEntry[];
+  visibleSlideTitles: string[];
   templateId: TemplateId;
   colorThemeId: ColorThemeId;
 }
@@ -130,10 +136,9 @@ export interface SlideActionLabel {
 
 export interface PresentationSlide {
   id: SlideId;
-  slotId: SlideSlotId;
+  index: number;
   slideFunctionId: SlideFunctionId;
   canvasLayoutId: CanvasLayoutId;
-  index: string;
   railTitle: string;
   railRhythm: SlideToneId[];
   title: string;
@@ -141,6 +146,8 @@ export interface PresentationSlide {
   blocks: SlideBlock[];
   drawerActions: SlideActionLabel[];
   lastTransformId: HiddenTransformId | null;
+  backgroundImage?: string;
+  imageCredit?: string;
 }
 
 export interface FitPassResult {
@@ -161,7 +168,7 @@ export interface FitPassResult {
 
 export interface PresentationDebugState {
   currentWorkingDraft: WorkingDraft;
-  hiddenSlidePlan: SixSlotTuple<WorkingDraftSlidePlanEntry>;
+  hiddenSlidePlan: WorkingDraftSlidePlanEntry[];
   chosenTransformIds: Record<SlideId, HiddenTransformId | null>;
   fitPassResultBySlide: Record<SlideId, FitPassResult>;
 }
@@ -169,15 +176,25 @@ export interface PresentationDebugState {
 export interface SlideTextEntry {
   id: SlideId;
   railTitle: string;
+  layoutType?: string;
   title: string;
   subtitle: string;
   bullets: string[];
+  imageQuery?: string;
 }
 
 export interface DraftChatMessage {
   role: "user" | "assistant";
   text: string;
   kind?: "content" | "error";
+}
+
+export interface ClarifyAnswers {
+  audience?: string;
+  length?: "short" | "medium" | "long";
+  style?: string;
+  data?: string;
+  outcome?: string;
 }
 
 export interface DraftSession {
@@ -188,6 +205,9 @@ export interface DraftSession {
   readyToGenerate: boolean;
   missingFacts: string[];
   summary: string;
+  uploadedContent?: string;
+  uploadedFileName?: string;
+  clarifyAnswers?: ClarifyAnswers;
 }
 
 /** strict — укладка под демо-генератор; editor — тексты из модели/чата без жёсткой обрезки. */
@@ -200,6 +220,5 @@ export interface PresentationDraft {
   slides: PresentationSlide[];
   slideSpeakerNotes: Partial<Record<SlideId, string>>;
   debug: PresentationDebugState;
-  /** Если задано, runFitPassOnDraft использует соответствующие лимиты clamp. */
   fitPassStrength?: DraftFitPassStrength;
 }

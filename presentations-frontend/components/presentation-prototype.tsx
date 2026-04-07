@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { readDraftApiErrorMessage } from "../lib/draft-api";
 import { buildDraftFromSlideTexts } from "../lib/draft-from-slide-texts";
 import { syncSessionWithSlideTexts } from "../lib/draft-session";
@@ -15,8 +15,10 @@ import type {
   TemplateId,
 } from "../lib/presentation-types";
 import { regenerateSlide, updateDraftAppearance } from "../lib/demo-generator";
+import { addSlide, moveSlide, removeSlide } from "../lib/slide-management";
+import { deleteDraft, loadDrafts, saveDraft, type SavedDraft } from "../lib/local-storage";
 import { BrandMark, BrandWordmark } from "./brand-mark";
-import { BuildingScreen } from "./prototype/building-screen";
+import { BuildingScreen, type BuildingStep } from "./prototype/building-screen";
 import { ClarifyScreen } from "./prototype/clarify-screen";
 import { DraftScreen } from "./prototype/draft-screen";
 import { EditorScreen } from "./prototype/editor-screen";
@@ -36,19 +38,53 @@ export function PresentationPrototype() {
   const [selectedSlideId, setSelectedSlideId] =
     useState<PresentationDraft["slides"][number]["id"] | null>(null);
   const [drawerState, setDrawerState] = useState<EditorDrawerState>("closed");
+  const [savedDrafts, setSavedDrafts] = useState<SavedDraft[]>([]);
+  const [uploadedContent, setUploadedContent] = useState<string | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [buildingStep, setBuildingStep] = useState<BuildingStep>("analyzing");
   const [, startTransition] = useTransition();
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debugLayerEnabled = process.env.NEXT_PUBLIC_VNYATNO_DEBUG === "1";
+
+  useEffect(() => {
+    setSavedDrafts(loadDrafts());
+  }, []);
 
   useEffect(() => {
     if (screen === "start") {
       promptInputRef.current?.focus();
+      setSavedDrafts(loadDrafts());
     }
   }, [screen]);
+
+  const debouncedSave = useCallback((d: PresentationDraft) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveDraft(d);
+      setSavedDrafts(loadDrafts());
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    if (draft && screen === "editor") {
+      debouncedSave(draft);
+    }
+  }, [draft, screen, debouncedSave]);
 
   function handlePromptChange(value: string) {
     setPrompt(value);
     setPromptError(null);
+  }
+
+  function handleFileExtracted(text: string, fileName: string) {
+    setUploadedContent(text);
+    setUploadedFileName(fileName);
+  }
+
+  function handleFileClear() {
+    setUploadedContent(null);
+    setUploadedFileName(null);
   }
 
   function handleUseScenario(value: string) {
@@ -83,7 +119,12 @@ export function PresentationPrototype() {
         );
       }
 
-      setSession(payload as DraftSession);
+      const rawSession = payload as DraftSession;
+      setSession({
+        ...rawSession,
+        ...(uploadedContent ? { uploadedContent } : {}),
+        ...(uploadedFileName ? { uploadedFileName } : {}),
+      });
       setScreen("clarify");
     } catch (error) {
       setPromptError(
@@ -148,10 +189,16 @@ export function PresentationPrototype() {
       return;
     }
 
-    const currentSession = session;
+    const currentSession: DraftSession = session;
     setClarifyError(null);
+    setSession(currentSession);
+    setBuildingStep("analyzing");
     setScreen("building");
     setPendingMode("generate");
+
+    // Прогресс по таймеру — отражает реальные этапы двухэтапной генерации
+    const t1 = setTimeout(() => setBuildingStep("planning"), 800);
+    const t2 = setTimeout(() => setBuildingStep("filling"), 3500);
 
     try {
       const res = await fetch("/api/draft", {
@@ -170,6 +217,7 @@ export function PresentationPrototype() {
         );
       }
 
+      setBuildingStep("done");
       setSession(payload as DraftSession);
       setDraftError(null);
       setScreen("draft");
@@ -182,6 +230,8 @@ export function PresentationPrototype() {
       );
       setScreen("clarify");
     } finally {
+      clearTimeout(t1);
+      clearTimeout(t2);
       setPendingMode(null);
     }
   }
@@ -336,7 +386,47 @@ export function PresentationPrototype() {
     setPendingMode(null);
     setSelectedSlideId(null);
     setDrawerState("closed");
+    setUploadedContent(null);
+    setUploadedFileName(null);
     setScreen("start");
+  }
+
+  function handleRestoreDraft(saved: SavedDraft) {
+    setDraft(saved.draft);
+    setSelectedSlideId(saved.draft.slides[0]?.id ?? null);
+    setDrawerState("closed");
+    setDraftError(null);
+    startTransition(() => {
+      setScreen("editor");
+    });
+  }
+
+  function handleDeleteSavedDraft(id: string) {
+    deleteDraft(id);
+    setSavedDrafts(loadDrafts());
+  }
+
+  function handleAddSlide(afterIndex: number) {
+    if (!draft) return;
+    const next = addSlide(draft, afterIndex);
+    setDraft(next);
+    const added = next.slides[afterIndex + 1];
+    if (added) setSelectedSlideId(added.id);
+  }
+
+  function handleRemoveSlide(slideId: string) {
+    if (!draft || draft.slides.length <= 1) return;
+    const next = removeSlide(draft, slideId);
+    setDraft(next);
+    if (selectedSlideId === slideId) {
+      setSelectedSlideId(next.slides[0]?.id ?? null);
+    }
+  }
+
+  function handleMoveSlide(fromIndex: number, toIndex: number) {
+    if (!draft) return;
+    const next = moveSlide(draft, fromIndex, toIndex);
+    setDraft(next);
   }
 
   function regenerateActiveSlide(transformId: HiddenTransformId) {
@@ -384,26 +474,35 @@ export function PresentationPrototype() {
           textareaRef={promptInputRef}
           disabled={pendingMode === "clarify"}
           isSubmitting={pendingMode === "clarify"}
+          savedDrafts={savedDrafts}
+          uploadedFileName={uploadedFileName}
           onChangePrompt={handlePromptChange}
           onUseScenario={handleUseScenario}
           onSubmit={beginClarify}
+          onRestoreDraft={handleRestoreDraft}
+          onDeleteDraft={handleDeleteSavedDraft}
+          onFileExtracted={handleFileExtracted}
+          onFileClear={handleFileClear}
         />
       ) : null}
 
       {screen === "clarify" && session ? (
         <ClarifyScreen
           session={session}
-          isLoading={pendingMode === "clarify"}
+          isLoading={pendingMode !== null}
           errorMessage={clarifyError}
-          onSendMessage={handleClarifySend}
-          onUseQuickReply={handleClarifySend}
-          onBuild={handleGenerateFromClarify}
+          onSend={handleClarifySend}
+          onBuild={() => void handleGenerateFromClarify()}
           onBack={handleBackToPrompt}
         />
       ) : null}
 
       {screen === "building" && session ? (
-        <BuildingScreen session={session} onBack={handleBackToClarify} />
+        <BuildingScreen
+          session={session}
+          buildingStep={buildingStep}
+          onBack={handleBackToClarify}
+        />
       ) : null}
 
       {screen === "draft" && session ? (
@@ -429,6 +528,9 @@ export function PresentationPrototype() {
           onSelectTemplate={updateDraftTemplate}
           onSelectColor={updateDraftColor}
           onRegenerateSlide={regenerateActiveSlide}
+          onAddSlide={handleAddSlide}
+          onRemoveSlide={handleRemoveSlide}
+          onMoveSlide={handleMoveSlide}
           onRenameDocument={updateDocumentTitle}
           onBackToDraft={handleBackToDraft}
           onBackToStart={handleResetFlow}

@@ -11,50 +11,128 @@ import type { DraftChatMessage, DraftSession } from "@/lib/presentation-types";
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_TIMEOUT_MS = 30_000;
 
-const GENERATE_SYSTEM = `Ты собираешь рабочую презентацию из уже прояснённой задачи.
+const PLAN_SYSTEM = `Ты планируешь структуру рабочей презентации.
 
-Нужно вернуть ровно 6 слайдов и короткий ответ пользователю.
+На основе материала определи:
+1. Оптимальное количество слайдов (от 6 до 20)
+2. Тип каждого слайда и его ключевую мысль
 
-Структура слайдов обязательна:
+Если задано предпочтение по длине (slideCountPreference):
+- "short" → 6–8 слайдов
+- "medium" → 10–14 слайдов
+- "long" → 15–20 слайдов
 
-1. Обложка (railTitle: "Обложка")
-   - title: короткое название темы
-   - subtitle: для кого или в каком контексте это показываем
-   - bullets: 2-3 опорные строки
-
-2. Проблема (railTitle: "Проблема")
-   - title: главный узкий участок
-   - subtitle: почему это важно сейчас
-   - bullets: ровно 3 пункта в формате "ЧИСЛО — смысл"
-
-3. Три шага (railTitle: "Три шага")
-   - title: как идём
-   - subtitle: что даёт этот ход
-   - bullets: ровно 3 пункта в формате "01 ...", "02 ...", "03 ..."
-
-4. Результат (railTitle: "Результат")
-   - title: что уже стало лучше
-   - subtitle: один главный вывод
-   - bullets: 3-4 конкретных пункта
-
-5. Для кого (railTitle: "Для кого")
-   - title: кому это нужно
-   - subtitle: одна строка про роль или задачу
-   - bullets: ровно 3 пункта в формате "Роль — задача"
-
-6. След. шаг (railTitle: "След. шаг")
-   - title: какой следующий шаг
-   - subtitle: что нужно сделать после этой презентации
-   - bullets: 3 конкретных действия
+Доступные типы слайдов:
+- cover: обложка
+- section-divider: разделитель раздела
+- metrics: ключевые числа (2-3 метрики)
+- stat-focus: одно крупное число
+- steps: шаги процесса (2-4 шага)
+- checklist: список фактов (3-5 пунктов)
+- comparison: сравнение двух вариантов
+- personas: для кого / роли
+- features: возможности / действия
+- text-block: развёрнутый параграф
+- cards-row: 3-5 карточек в ряд
+- list-slide: нумерованный список
+- timeline: хронология / roadmap
+- chart-bar: столбчатая диаграмма
+- chart-progress: прогресс-бары
+- table-simple: таблица с данными
+- image-text: картинка + текст
+- quote: цитата / ключевое утверждение
+- closing: завершение
 
 Правила:
-- отвечай на русском
-- без воды, без плейсхолдеров, без markdown
-- верни строго JSON-объект
-- id слайдов: slide-1 ... slide-6
-- используй те же смысловые опоры, что уже собраны в сессии
+- Первый слайд всегда cover
+- Последний слайд всегда closing
+- Без воды и повторений
 
-Формат:
+Верни строго JSON без markdown-обёртки:
+{
+  "totalSlides": число,
+  "plan": [
+    { "slideNum": 1, "type": "cover", "keyMessage": "..." },
+    { "slideNum": 2, "type": "metrics", "keyMessage": "..." }
+  ]
+}`;
+
+const GENERATE_SYSTEM = `Ты наполняешь слайды рабочей презентации по готовому плану.
+
+Стиль текста:
+- Деловой русский без канцелярита
+- Короткие предложения (не длиннее 15 слов)
+- Конкретные числа вместо «значительно выросло»
+- Глаголы действия вместо отглагольных существительных (плохо: «осуществление внедрения», хорошо: «внедрили»)
+- Один тезис — один слайд
+- Заголовки — это выводы, не темы (плохо: «Показатели за Q1», хорошо: «Выручка выросла на 23% за Q1»)
+
+Пример хорошего слайда типа "metrics":
+{
+  "id": "slide-3",
+  "layoutType": "metrics",
+  "railTitle": "Ключевые метрики",
+  "title": "Три показателя, которые изменили картину",
+  "subtitle": "Данные за Q1 2026",
+  "bullets": [
+    "89% — точность классификации обращений (было 64%)",
+    "3.2 сек — среднее время ответа бота (было 12 сек)",
+    "41% — доля обращений, закрытых без оператора"
+  ]
+}
+
+Пример хорошего слайда типа "steps":
+{
+  "id": "slide-4",
+  "layoutType": "steps",
+  "railTitle": "Три шага",
+  "title": "Как запустить за три недели",
+  "subtitle": "",
+  "bullets": [
+    "01 Собрать данные из CRM — 3 дня",
+    "02 Настроить модель классификации — 5 дней",
+    "03 Провести пилот с командой поддержки — 7 дней"
+  ]
+}
+
+Пример хорошего слайда типа "checklist":
+{
+  "id": "slide-5",
+  "layoutType": "checklist",
+  "railTitle": "Что сделано",
+  "title": "За квартал выполнили пять ключевых задач",
+  "subtitle": "",
+  "bullets": [
+    "Перевели 3 процесса на автоматизацию",
+    "Сократили время обработки заявки с 4 ч до 40 мин",
+    "Обучили 12 сотрудников работе с системой",
+    "Интегрировали с корпоративным порталом",
+    "Закрыли все критичные замечания из ревью"
+  ]
+}
+
+Структура обязательна:
+- Первый слайд — обложка (layoutType: "cover")
+- Последний слайд — завершение (layoutType: "closing")
+
+Для каждого слайда из плана верни:
+- id: "slide-1", "slide-2", ... (по порядку)
+- layoutType: тип из плана
+- railTitle: короткая подпись (2-3 слова)
+- title: заголовок-вывод слайда
+- subtitle: подзаголовок (опционально)
+- bullets: массив строк (содержимое по правилам типа)
+- imageQuery: (только для "cover" и "image-text") поисковый запрос на английском
+
+Правила bullets по типам:
+- metrics: "ЧИСЛО — описание (контекст)"
+- steps: "01 Действие — уточнение"
+- timeline: "Период — что произошло"
+- chart-bar: "Значение — Название"
+- chart-progress: "XX% — Метрика"
+- table-simple: первая строка — заголовки через |, далее строки через |
+
+Без плейсхолдеров вроде "[нужна цифра]". Верни строго JSON без markdown-обёртки:
 {
   "slides": [...],
   "assistantMessage": "..."
@@ -63,8 +141,8 @@ const GENERATE_SYSTEM = `Ты собираешь рабочую презента
 const REVISE_SYSTEM = `Ты правишь уже собранный рабочий черновик презентации.
 
 Правила:
-- сохрани ровно 6 слайдов
-- не меняй id слайдов: slide-1 ... slide-6
+- сохрани текущее количество слайдов (можно добавить или убрать по запросу пользователя)
+- не меняй id слайдов без необходимости
 - если просят усилить смысл, меняй именно тексты слайдов, а не объясняй отдельно
 - assistantMessage должен коротко сказать, что изменено
 - отвечай строго JSON-объектом без markdown
@@ -112,15 +190,28 @@ function buildSessionContext(
 ) {
   const { includeHistory = true } = options;
 
+  const knownFacts = [...(session.workingDraft.knownFacts ?? [])];
+  if (session.clarifyAnswers?.data) {
+    knownFacts.push(session.clarifyAnswers.data);
+  }
+
   return JSON.stringify(
     {
       sourcePrompt: session.workingDraft.sourcePrompt,
-      audience: session.workingDraft.audience,
-      desiredOutcome: session.workingDraft.desiredOutcome,
-      knownFacts: session.workingDraft.knownFacts,
+      audience: session.clarifyAnswers?.audience ?? session.workingDraft.audience,
+      desiredOutcome: session.clarifyAnswers?.outcome ?? session.workingDraft.desiredOutcome,
+      style: session.clarifyAnswers?.style,
+      slideCountPreference: session.clarifyAnswers?.length,
+      knownFacts,
       missingFacts: session.missingFacts,
       summary: session.summary,
       readyToGenerate: session.readyToGenerate,
+      ...(session.uploadedContent
+        ? {
+            uploadedFileName: session.uploadedFileName,
+            uploadedContent: session.uploadedContent.slice(0, 8000),
+          }
+        : {}),
       ...(includeHistory
         ? { history: filterMessagesForModel(session.messages).slice(-6) }
         : {}),
@@ -130,12 +221,25 @@ function buildSessionContext(
   );
 }
 
-function buildGenerateMessages(session: DraftSession): DraftOpenAIMessage[] {
+function buildPlanMessages(session: DraftSession): DraftOpenAIMessage[] {
+  return [
+    { role: "system", content: PLAN_SYSTEM },
+    {
+      role: "user",
+      content: `Контекст сессии:\n${buildSessionContext(session, { includeHistory: false })}`,
+    },
+  ];
+}
+
+function buildGenerateMessages(
+  session: DraftSession,
+  plan: string,
+): DraftOpenAIMessage[] {
   return [
     { role: "system", content: GENERATE_SYSTEM },
     {
       role: "user",
-      content: `Контекст сессии:\n${buildSessionContext(session)}`,
+      content: `Готовый план:\n${plan}\n\nКонтекст сессии:\n${buildSessionContext(session)}`,
     },
   ];
 }
@@ -184,12 +288,18 @@ function buildReviseMessages(
   ];
 }
 
+async function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 async function callOpenAI({
   messages,
   operation,
+  maxTokens,
 }: {
   messages: DraftOpenAIMessage[];
-  operation: "generate" | "revise";
+  operation: "plan" | "generate" | "revise";
+  maxTokens?: number;
 }) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
@@ -198,6 +308,12 @@ async function callOpenAI({
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
+
+  const tokenLimits: Record<typeof operation, number> = {
+    plan: 1500,
+    generate: 6000,
+    revise: 4000,
+  };
 
   try {
     const res = await fetch(OPENAI_API_URL, {
@@ -211,7 +327,7 @@ async function callOpenAI({
         model: DRAFT_API_MODEL,
         messages,
         temperature: 0.7,
-        max_completion_tokens: 2000,
+        max_completion_tokens: maxTokens ?? tokenLimits[operation],
       }),
     });
 
@@ -220,7 +336,9 @@ async function callOpenAI({
         "OPENAI_HTTP_ERROR",
         operation === "generate"
           ? `Модель не собрала черновик (OpenAI ${res.status}).`
-          : `Модель не обработала правку черновика (OpenAI ${res.status}).`,
+          : operation === "plan"
+            ? `Модель не составила план (OpenAI ${res.status}).`
+            : `Модель не обработала правку черновика (OpenAI ${res.status}).`,
         502,
       );
     }
@@ -235,7 +353,9 @@ async function callOpenAI({
         "OPENAI_EMPTY_RESPONSE",
         operation === "generate"
           ? "Модель не вернула черновик презентации."
-          : "Модель не вернула ответ для правки черновика.",
+          : operation === "plan"
+            ? "Модель не вернула план."
+            : "Модель не вернула ответ для правки черновика.",
         502,
       );
     }
@@ -248,8 +368,12 @@ async function callOpenAI({
 
     if (error instanceof Error && error.name === "AbortError") {
       throw new DraftApiError(
-        operation === "generate" ? "GENERATE_TIMEOUT" : "REVISE_TIMEOUT",
         operation === "generate"
+          ? "GENERATE_TIMEOUT"
+          : operation === "plan"
+            ? "GENERATE_TIMEOUT"
+            : "REVISE_TIMEOUT",
+        operation === "generate" || operation === "plan"
           ? "Модель не успела собрать черновик. Попробуйте ещё раз."
           : "Модель не успела обработать правку. Попробуйте ещё раз.",
         504,
@@ -258,7 +382,7 @@ async function callOpenAI({
 
     throw new DraftApiError(
       "OPENAI_HTTP_ERROR",
-      operation === "generate"
+      operation === "generate" || operation === "plan"
         ? "Не удалось получить ответ модели для черновика."
         : "Не удалось получить ответ модели для правки черновика.",
       502,
@@ -268,13 +392,59 @@ async function callOpenAI({
   }
 }
 
+function parsePlanResponse(content: string): string {
+  // Извлекаем JSON из ответа (модель может добавить markdown-обёртку)
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return content; // вернём как есть — используется в generate-промпте как строка
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as unknown;
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return content;
+  }
+}
+
+async function callOpenAIWithRetry(
+  params: Parameters<typeof callOpenAI>[0],
+  maxRetries = 2,
+) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await callOpenAI(params);
+    } catch (err) {
+      if (attempt === maxRetries) throw err;
+      if (
+        err instanceof DraftApiError &&
+        [502, 504].includes(err.status)
+      ) {
+        await sleep(1000 * (attempt + 1));
+        continue;
+      }
+      throw err;
+    }
+  }
+  // unreachable, but TypeScript needs this
+  throw new DraftApiError("INTERNAL_ERROR", "Unexpected retry exit.", 500);
+}
+
 export async function generateDraftSession(session: DraftSession) {
-  const content = await callOpenAI({
+  // Шаг 1: планирование
+  const planContent = await callOpenAIWithRetry({
+    operation: "plan",
+    messages: buildPlanMessages(session),
+  });
+  const plan = parsePlanResponse(planContent);
+
+  // Шаг 2: наполнение по плану
+  const generateContent = await callOpenAIWithRetry({
     operation: "generate",
-    messages: buildGenerateMessages(session),
+    messages: buildGenerateMessages(session, plan),
   });
   const parsed = parseDraftModelResponse(
-    content,
+    generateContent,
     "Черновик готов. Смотрите слайды — можно уточнять или менять через чат.",
   );
 
@@ -285,7 +455,7 @@ export async function reviseDraftSession(
   session: DraftSession,
   userMessage: string,
 ) {
-  const content = await callOpenAI({
+  const content = await callOpenAIWithRetry({
     operation: "revise",
     messages: buildReviseMessages(session, userMessage),
   });

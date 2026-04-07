@@ -43,6 +43,159 @@
 
 ## Записи
 
+### 054 Коммит в main
+
+**Что уложено**
+- След открыт: пользователь попросил закоммитить все изменения и запушить в `main`.
+- В корневой `.gitignore` добавлена папка `refs/` (локальные PPTX-референсы не в репозиторий).
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Зафиксированы номер и короткое имя чата.
+
+**Что ещё мутно** После пуша обновить запись итогом коммита.
+
+**Передача смены** —
+
+**Проблемы**
+
+- Нет.
+
+---
+
+### 053 Запуск dev
+
+**Что уложено**
+- Запущен `npm run dev` в `presentations-frontend` (Next.js 16.2.2, Turbopack).
+- В `next.config.ts` добавлена загрузка env из корня репозитория (`loadEnvConfig(..)` + `loadEnvConfig(presentations-frontend)`), чтобы `OPENAI_API_KEY` из `../.env.local` попадал в `/api/draft` без дублирования файла.
+- В `.env.example` указан `OPENAI_API_KEY` и пояснение про корень репо.
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Локальный адрес: http://localhost:3000; черновик через API после перезапуска dev должен собираться при ключе только в корневом `.env.local`.
+
+**Что ещё мутно** —
+
+**Передача смены** Dev перезапущен после `.env.local` в `presentations-frontend/`; проверить сценарий «Показ продукта» → уточнение → сборка.
+
+**Проблемы**
+
+- Ручной прогон в браузере: без ключа в env `/api/draft` (generate) отдавал 500 и алерт «OPENAI_API_KEY не настроен» — причина: Next читал только `presentations-frontend/.env*`, ключ лежал в корне репо.
+
+---
+
+### 052 Неделя 3 — Вход + качество
+
+**Что уложено**
+- Расширена модель `DraftSession`: добавлены `uploadedContent`, `uploadedFileName`, `clarifyAnswers` (новый тип `ClarifyAnswers`).
+- `normalizeDraftSession` расширен: валидирует `modern`/`corporate` templateId и `rose`/`emerald`/`violet`/`zinc` colorThemeId (побочный фикс Недели 2).
+- `buildSessionContext` передаёт upload-контент (до 8000 символов), clarify-ответы и уточнённый стиль/аудиторию в промпт.
+- Серверный API `/api/upload` (POST): mammoth → DOCX, pdf-parse → PDF, JSZip → PPTX, обрезка до 12000 символов.
+- UI на start-screen: компонент `FileUploadZone` (drag-and-drop + input[type=file]), счётчик символов textarea, расширение `max-height` до 20rem.
+- Clarify-экран полностью переписан с чат-интерфейса на 5-шаговую форму (audience, length, style, data, outcome), результат попадает в `session.clarifyAnswers`.
+- `draft-adapter.ts` переписан: двухэтапная генерация (1. `PLAN_SYSTEM` → структура, 2. `GENERATE_SYSTEM` → наполнение), few-shot примеры, стилевые правила в системных промптах.
+- `building-screen.tsx` обновлён: 4 реальных шага (Анализирую → Планирую → Наполняю → Готово) вместо таймерной имитации; прогресс передаётся через `buildingStep` пропс.
+- `npm run verify` чист: lint ✓, typecheck ✓, 29/29 тестов ✓, build ✓.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее**
+- Пользователь может загрузить DOCX/PDF/PPTX — текст попадает в контекст AI.
+- Clarify стал структурированной формой вместо непредсказуемого чата.
+- AI теперь сначала планирует структуру, потом наполняет слайды — качество контента лучше.
+- Промпты содержат стилевые правила и few-shot примеры.
+
+**Что ещё мутно**
+- Building-screen прогресс привязан к таймерам (не к реальным этапам сервера) — для MVP достаточно.
+- pdf-parse может плохо парсить сканированные PDF — ограничение зафиксировано в плане.
+
+**Передача смены** Следующий чат — Неделя 4: экспорт и полировка.
+
+**Проблемы**
+- pdf-parse v2 имеет другой export, чем v1 (нет `.default`). Решение: динамический импорт с runtime-проверкой типа (`typeof pdfModule === "function"`).
+- pdf-parse@2.4.5 требует Node >=20.16.0, стоит 20.15.1 — предупреждение при npm install, в runtime не влияет.
+
+---
+
+### 051 Неделя 2 — Типы слайдов
+
+**Что уложено**
+- 10 новых layout-ов в SlideCanvas: section-divider, text-block, cards-row, list-slide, timeline, chart-bar, chart-progress, table-simple, image-text, closing.
+- CSS для всех 10 layout-ов + template-specific overrides (strict, cards, briefing, modern, corporate).
+- 4 новые цветовые темы: rose, emerald, violet, zinc — с полным набором: canvas, briefing dark, pill dots, segmented dots, rail thumbnails.
+- 2 новых шаблона: modern (крупная типографика, без теней), corporate (строгие линии, чёткая сетка).
+- Unsplash API: /api/images route, imageQuery в промпте генерации, backgroundImage/imageCredit в PresentationSlide, overlay CSS.
+- next.config.ts с remotePatterns для images.unsplash.com.
+- Генератор обновлён: slideFunctionToLayout (section→section-divider, closing→closing), chooseBestLayout (chart-bar, list-slide, cards-row, text-block, timeline).
+- draft-from-slide-texts.ts: LAYOUT_TYPE_TO_CANVAS/FUNCTION + buildBlocksForLayout для всех 10 новых типов.
+- fit-pass.ts: maxBlocks для каждого нового layout, contrastSafe для новых цветов.
+- TypeCheck: 0 ошибок. ESLint: 0 ошибок. Build: успешен.
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее** Все задачи из WEEK-2-SLIDE-TYPES.md выполнены. Каталог layout-ов вырос с 9 до 19, палитра с 4 до 8 цветов, шаблоны с 3 до 5.
+
+**Что ещё мутно** Unsplash работает только при наличии UNSPLASH_ACCESS_KEY в .env.local (без ключа возвращает null, UI не ломается). Визуальная верификация каждого layout × template × color в браузере ещё не проводилась.
+
+**CSS-рефакторинг** globals.css (~5000 строк) разбит на 12 модулей в `app/styles/`:
+tokens · shell · start · chat · editor · slide-canvas-templates · slide-layouts · thumbnails · responsive · draft-screen · presenter · a11y.
+globals.css стал индексным файлом из 12 `@import`-ов. Build + lint чисто.
+
+**Передача смены** Запустить dev-сервер и визуально проверить новые layout-ы в редакторе. Попробовать генерацию через AI с новыми типами. Добавить UNSPLASH_ACCESS_KEY если нужны живые фото.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 050 MVP Неделя 1 — Архитектура
+
+**Что уложено** Все 6 задач WEEK-1-ARCHITECTURE.md выполнены:
+- 1.1: Убраны SixSlotTuple, SlideSlotId, фиксированный SlideId. Типы переведены на массивы и string.
+- 1.2: demo-generator.ts переработан — estimateSlideCount, buildDefaultSlidePlan, динамические массивы, addSlide/removeSlide/moveSlide.
+- 1.3: AI-промпты обновлены (6–20 слайдов, layoutType), валидация 4–25, max_completion_tokens=4000, draft-from-slide-texts адаптирован.
+- 1.4: В редакторе — кнопки ↑↓ перестановки, × удаления, + добавления слайда в rail.
+- 1.5: localStorage автосохранение (debounce 1с, до 5 черновиков). На стартовом экране — список «Недавние черновики» с восстановлением и удалением.
+- 1.6: Сетка draft screen переведена на auto-fill + overflow-y: auto, работает с любым количеством слайдов.
+
+Тесты: 29/29, lint + typecheck + build чистые.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Приложение больше не привязано к 6 слайдам. AI выбирает количество (6–20), пользователь может добавлять/удалять/переставлять. Черновик сохраняется в localStorage.
+
+**Что ещё мутно** Drag-and-drop для перестановки — на MVP кнопок достаточно. Undo для удаления — нет, план предусматривал без него.
+
+**Передача смены** Можно переходить к неделе 2 (WEEK-2-SLIDE-TYPES.md).
+
+**Проблемы**
+- TypeScript-ошибки каскадом после смены типов (ожидаемо) — починены файл за файлом через verify.
+
+---
+
+### 049 Защита переполнения
+
+**Что уложено**
+- Разобрана защита от переполнения на двух уровнях: весь слайд и отдельные блоки.
+- Опора по коду: `presentation-types.ts` (`FitPassResult`, `DraftFitPassStrength`, `PresentationDraft.fitPassStrength`), `demo-generator.ts` (`buildPresentationDraft`, `runFitPassOnDraft`, `updateDraftAppearance`, `regenerateSlide`, `FIT_PASS_LIMITS`, `fitSlide`), `draft-from-slide-texts.ts` (`buildDraftFromSlideTexts`, `blocksFromSlideTextEntry`), `slide-canvas.tsx` (рендер и debug-слой), `globals.css` (контейнеры, `overflow`, `min-width: 0`, `minmax(0, 1fr)`), `draft-flow.test.ts`.
+- Главный вывод: в проекте нет DOM-измерения переполнения слайда или блока через `scrollHeight/clientHeight/getBoundingClientRect`. Защита предрендерная и эвристическая: контент заранее ужимается, число блоков ограничивается, а CSS помогает безопасно уложить уже подготовленный текст.
+- На уровне слайда центральный механизм — `fitSlide`: clamp заголовка, подзаголовка, `railTitle`, заголовков и тел блоков, labels действий; ограничение числа блоков по layout; расчёт флагов риска `overflowWidthRisk` и `overflowHeightRisk`; запись результата в `draft.debug.fitPassResultBySlide`.
+- На уровне блока защита идёт тем же fit-pass: у блока нет собственного «авто-ремонта» по DOM. Для блоков действуют лимиты `blockTitle`, `blockBody`, `blockBodyPlaceholder`, плюс `maxBlocks` по layout. В CSS дополнительно включены `min-width: 0`, сетки `minmax(0, 1fr)`, переносы слов и локальные `overflow`/скролл только у редакторских и чатовых контейнеров.
+- Для входа в редактор используется мягкий режим `editor`: `buildDraftFromSlideTexts` повторно прогоняет `runFitPassOnDraft` с `fitPassStrength: "editor"`, поэтому живые тексты из модели режутся заметно слабее, чем демо-черновик в `strict`.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее** Стало ясно, что защита переполнения в проекте — это не «измерить канву и потом ужать DOM», а единый fit-pass над данными с двумя профилями жёсткости (`strict` и `editor`) плюс контейнерные CSS-ограничения для редактора и чата.
+
+**Что ещё мутно** Если позже понадобится защита по реальной высоте/ширине пикселей, это будет уже следующий слой: отдельный DOM-fit pass или layout-measure phase. В текущем проекте такого механизма нет.
+
+**Передача смены** Для повторения механики смотреть: `demo-generator.ts` (лимиты и fit-pass), `draft-from-slide-texts.ts` (editor-вход), `presentation-prototype.tsx` (точки вызова build/regenerate/update appearance), `slide-canvas.tsx` (только рендер + debug), `globals.css` (контейнерные страховки от локального overflow), `draft-flow.test.ts` (проверка `editor`-режима).
+
+**Проблемы**
+- Нет.
+
+---
+
 ### 048 Первая генерация слайдов
 
 **Что уложено**
@@ -1058,3 +1211,98 @@ _Дополнение 2026-04-05:_ локальный слой дочищен д
 **Проблемы**
 - Build конфликтовал с запущенным dev-сервером (Next.js lock) → убит порт 3000, rebuild прошёл чисто.
 - Push 030.1: job `smoke` в CI падал (`MODULE_NOT_FOUND` на `.ux-audit/ux-runner.cjs`) → деплой не запускался; исправлено переносом и обновлением селекторов (030.2).
+
+### 031 CSS-модули из globals
+
+**Что уложено**
+- Монолитный `globals.css` (~5000 строк) разрезан на 12 CSS-модулей в `app/styles/`: tokens, shell, start, chat, editor, slide-canvas-templates, slide-layouts, thumbnails, responsive, draft-screen, presenter, a11y.
+- Содержимое перенесено один-к-одному, без правок и переформатирования.
+
+**Статус слоя** Внятно
+
+---
+
+### 032 Неделя 4: PDF-экспорт + полировка
+
+**Что уложено**
+- **4.5a ErrorBoundary**: создан `components/ui/error-boundary.tsx`, `SlideCanvas` обёрнут во всех трёх местах (editor-main, presenter overlay, PdfRenderHost). Ошибка рендера слайда больше не крашит приложение.
+- **4.5b Retry + стабильность**: `callOpenAI` в `draft-adapter.ts` обёрнут в `callOpenAIWithRetry` — при 502/504 до 2 повторов с задержкой 1s/2s. Fallback для невалидного `layoutType` уже был в `resolveCanvasLayout` — проверено и задокументировано.
+- **4.1 PDF-экспорт**: установлены `html2canvas-pro` + `jspdf`. Создан `lib/pdf-export.ts` (`exportPdf`, `downloadBlob`). В `editor-screen.tsx` — скрытый `PdfRenderHost` с render всех слайдов для html2canvas, кнопка «PDF» в топбаре с прогрессом.
+- **4.2 Полировка дизайна**: в `slide-layouts.css` добавлены глобальные guard-правила: `overflow-wrap: anywhere; word-break: break-word; hyphens: auto` на все текстовые элементы слайдов; `min-height: 0` на body-зоны; cap `font-weight: 400` для body-текста. Плейсхолдеры уже были стилизованы через `border-style: dashed; opacity: 0.65` — без изменений. Тени/бордеры по шаблонам уже были корректны.
+- **4.3 Адаптивность**: расширен `responsive.css` — брейкпоинт 961-1200px (rail горизонтально сверху), 721-960px (rail скрыт). В `editor-screen.tsx` добавлены touch swipe-обработчики для presenter mode (свайп влево/вправо переключает слайды).
+- **4.5c Тесты**: добавлен `tests/pdf-export.test.ts` (2 теста — загрузка модуля и сигнатура функции). Скрипт `test:unit` обновлён, 31 тест — все проходят. Lint и typecheck чистые.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее**
+- PDF-экспорт работает через клиентский html2canvas+jsPDF без зависимости от серверной инфраструктуры.
+- Ошибки рендера слайдов изолированы через ErrorBoundary — приложение не крашит.
+- Retry при 502/504 снижает вероятность потери генерации из-за временного сбоя OpenAI.
+- Русскоязычные длинные слова больше не переполняют карточки.
+- Presenter mode работает на тач-устройствах.
+
+**Что ещё мутно**
+- PDF через html2canvas имеет ограничения: фоновые изображения с CORS могут не рендериться без дополнительной настройки. Для production-качества нужен серверный Puppeteer.
+- Responsive-правки для 961-1200px и 721-960px не тестированы визуально — требуют проверки на реальных брейкпоинтах.
+
+**Передача смены**
+- PDF: `lib/pdf-export.ts` + `PdfRenderHost` в `editor-screen.tsx`. Точка входа — кнопка «PDF» в топбаре редактора.
+- ErrorBoundary: `components/ui/error-boundary.tsx`.
+- Retry: `callOpenAIWithRetry` в `lib/draft-adapter.ts`.
+- Тесты: `npm run test:unit` покрывает 31 кейс.
+
+---
+
+### 054 Анализ конкурентов
+
+**Что уложено**
+- Собран мастер-промпт для большого анализа конкурентов.
+- Подготовлена короткая версия промпта и список полей для подстановки перед запуском.
+- Короткая версия будет пересобрана под текущий проект: AI-сервис рабочих презентаций `Внятно`, а не как универсальный шаблон без контекста продукта.
+
+**Статус слоя** Внятно
+
+**Что стало внятнее**
+- Зафиксированы номер смены и короткое имя чата.
+- Понятна цель слоя: получить промпт, который собирает сравнение конкурентов по сильным и слабым сторонам, рискам, дифференциаторам и выводам без лишнего шума.
+- Пользователь может сразу запустить исследование, просто подставив рынок, географию и список компаний.
+- Уточнён следующий шаг: дать короткий промпт уже с контекстом текущего продукта и его рабочей задачи.
+
+**Что ещё мутно**
+- Без списка компаний и географии исследование всё ещё останется частично общим; это лучше перед запуском дописать прямо в промпт.
+
+**Передача смены**
+- Если следующий шаг — уже реальный анализ, взять этот промпт и подставить: рынок, ЦА, географию, 5-10 конкурентов и критерии сравнения.
+
+**Проблемы**
+- Нет.
+
+---
+
+### 055 Clarify через чат
+
+**Что уложено**
+- Убран экран-wizard «Уточним главное» (5 фиксированных шагов).
+- Экран `clarify` переделан в чат-карточку: лента сообщений, quick reply chips, ComposeField, CTA «Собрать черновик».
+- Подключён `handleClarifySend` в оркестраторе (был написан, но не прокинут в UI).
+- Wizard-стили (`.clarify-progress`, `.clarify-step`, `.clarify-chip` и др.) удалены из `chat.css`.
+- Серверная часть не менялась — `createClarifySession` и `appendClarifyToSession` работали правильно.
+
+**Статус слоя** Идти можно
+
+**Что стало внятнее**
+- Экран уточнения теперь соответствует `SCREEN_ATLAS.md` — чат-карточка с перепиской, а не форма.
+- Убрана искусственная цепочка из 5 шагов, которая создавала барьер входа.
+- `session.quickReplies` из сервера теперь показываются как кликабельные chips — пользователь может добрать контекст без набора текста.
+- `session.readyToGenerate` управляет акцентом CTA — кнопка «Собрать черновик» становится заметнее когда информации достаточно.
+- `handleClarifySend` был написан в оркестраторе с первого дня, но не подключён к UI — теперь подключён.
+
+**Что ещё мутно**
+- Не проверено на реальных данных от API: нужно убедиться, что `quickReplies` приходят непустыми при типичных запросах.
+
+**Передача смены**
+- Запустить приложение и пройти сценарий: промпт → уточнение через чат → «Собрать черновик».
+- Файлы затронуты: `components/prototype/clarify-screen.tsx`, `components/presentation-prototype.tsx`, `app/styles/chat.css`.
+
+**Проблемы**
+- Нет.

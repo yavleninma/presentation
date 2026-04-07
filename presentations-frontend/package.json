@@ -8,16 +8,22 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test:unit": "node --import tsx --test tests/draft-api.test.ts tests/draft-flow.test.ts tests/draft-route-guards.test.ts tests/draft-session.test.ts",
+    "test:unit": "node --import tsx --test tests/draft-api.test.ts tests/draft-flow.test.ts tests/draft-route-guards.test.ts tests/draft-session.test.ts tests/pdf-export.test.ts",
     "verify": "npm run lint && npm run typecheck && npm run test:unit && npm run build"
   },
   "dependencies": {
+    "html2canvas-pro": "^2.0.2",
+    "jspdf": "^4.2.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.7.0",
+    "mammoth": "^1.12.0",
     "next": "16.2.2",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@types/jszip": "^3.4.1",
     "@types/node": "^20.17.57",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",

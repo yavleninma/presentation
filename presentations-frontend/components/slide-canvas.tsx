@@ -17,6 +17,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import Image from "next/image";
 import type { CSSProperties } from "react";
 import type {
   CanvasLayoutId,
@@ -30,7 +31,7 @@ import type {
   TemplateId,
 } from "../lib/presentation-types";
 
-const TEMPLATE_ICON_PACKS: Record<TemplateId, TemplateIconPackId> = {
+const TEMPLATE_ICON_PACKS: Partial<Record<TemplateId, TemplateIconPackId>> = {
   strict: "outline",
   cards: "solid-minimal",
   briefing: "duotone-minimal",
@@ -73,19 +74,25 @@ export function SlideCanvas({
   debugLayerEnabled?: boolean;
   debugPayload?: SlideCanvasDebugPayload | null;
 }) {
-  const iconPack = TEMPLATE_ICON_PACKS[templateId];
+  const iconPack = TEMPLATE_ICON_PACKS[templateId] ?? "outline";
   const showDebugLayer =
     debugLayerEnabled && process.env.NODE_ENV !== "production";
 
+  const bgStyle: CSSProperties | undefined = slide.backgroundImage
+    ? { backgroundImage: `url(${slide.backgroundImage})`, backgroundSize: "cover", backgroundPosition: "center" }
+    : undefined;
+
   return (
     <article
-      className="slide-canvas"
+      className={`slide-canvas${slide.backgroundImage ? " has-bg-image" : ""}`}
       data-template={templateId}
       data-color={colorThemeId}
       data-icon-pack={iconPack}
       data-layout={slide.canvasLayoutId}
       data-debug-layer={showDebugLayer ? "on" : "off"}
+      style={bgStyle}
     >
+      {slide.backgroundImage ? <div className="slide-canvas__bg-overlay" /> : null}
       {renderSlideHeader(slide)}
       {renderSlideBody(slide, templateId, iconPack)}
 
@@ -370,6 +377,201 @@ function renderSlideBody(
     );
   }
 
+  if (layout === "section-divider") {
+    return (
+      <section className="slide-canvas__body is-section-divider">
+        <span className="slide-section__num" aria-hidden="true">{slide.index + 1}</span>
+        <h2 className="slide-section__title">{slide.blocks[0]?.title || slide.title}</h2>
+        {slide.blocks[0]?.body ? (
+          <p className="slide-section__sub">{slide.blocks[0].body}</p>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (layout === "text-block") {
+    return (
+      <section className="slide-canvas__body is-text-block">
+        <div className="slide-text-block">
+          {slide.blocks.slice(0, 3).map((b) => (
+            <p key={b.id} className="slide-text-block__body">{b.body || b.title}</p>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (layout === "cards-row") {
+    return (
+      <section className="slide-canvas__body is-cards-row">
+        {slide.blocks.slice(0, 5).map((b) => {
+          const BlockIcon = BLOCK_ICON_MAP[b.icon] ?? Zap;
+          return (
+            <article key={b.id} className="slide-card-h">
+              <span className="slide-card-h__icon" aria-hidden="true">
+                <BlockIcon strokeWidth={iconStrokeWidth} />
+              </span>
+              <h3 className="slide-card-h__title">{b.title}</h3>
+              {b.body ? <p className="slide-card-h__body">{b.body}</p> : null}
+            </article>
+          );
+        })}
+      </section>
+    );
+  }
+
+  if (layout === "list-slide") {
+    const isTwoCol = slide.blocks.length > 5;
+    return (
+      <section className={`slide-canvas__body is-list-slide${isTwoCol ? " is-two-col" : ""}`}>
+        <ol className="slide-list">
+          {slide.blocks.slice(0, 8).map((b, i) => (
+            <li key={b.id} className="slide-list__item">
+              <span className="slide-list__marker">{i + 1}</span>
+              <div>
+                <span className="slide-list__text">{b.title}</span>
+                {b.body ? <span className="slide-list__sub">{b.body}</span> : null}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
+  }
+
+  if (layout === "timeline") {
+    return (
+      <section className="slide-canvas__body is-timeline">
+        <div className="slide-timeline__track" aria-hidden="true" />
+        {slide.blocks.slice(0, 6).map((b) => (
+          <article
+            key={b.id}
+            className={`slide-timeline__point${b.type === "focus" ? " is-active" : ""}`}
+          >
+            <span className="slide-timeline__dot" aria-hidden="true" />
+            {b.tagline ? <span className="slide-timeline__date">{b.tagline}</span> : null}
+            <h3 className="slide-timeline__title">{b.title}</h3>
+            {b.body ? <p className="slide-timeline__body">{b.body}</p> : null}
+          </article>
+        ))}
+      </section>
+    );
+  }
+
+  if (layout === "chart-bar") {
+    const maxVal = Math.max(
+      ...slide.blocks.slice(0, 8).map((x) => parseFloat(x.metric || "0")),
+      1,
+    );
+    return (
+      <section className="slide-canvas__body is-chart-bar">
+        <div className="slide-chart-bar">
+          {slide.blocks.slice(0, 8).map((b) => {
+            const val = parseFloat(b.metric || "0");
+            const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
+            return (
+              <div key={b.id} className="slide-chart-bar__col">
+                <span className="slide-chart-bar__value">{b.metric}</span>
+                <div
+                  className="slide-chart-bar__fill"
+                  style={{ height: `${pct}%` }}
+                />
+                <span className="slide-chart-bar__label">{b.title}</span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
+  if (layout === "chart-progress") {
+    return (
+      <section className="slide-canvas__body is-chart-progress">
+        {slide.blocks.slice(0, 6).map((b) => {
+          const pct = parseInt(b.metric || "0", 10);
+          return (
+            <div key={b.id} className="slide-progress__row">
+              <span className="slide-progress__label">{b.title}</span>
+              <div className="slide-progress__track">
+                <div
+                  className="slide-progress__fill"
+                  style={{ width: `${Math.min(pct, 100)}%` }}
+                />
+              </div>
+              <span className="slide-progress__value">{b.metric || "0%"}</span>
+            </div>
+          );
+        })}
+      </section>
+    );
+  }
+
+  if (layout === "table-simple") {
+    const parseRow = (text?: string) =>
+      (text || "").split("|").map((c) => c.trim()).filter(Boolean);
+    const headerCells = parseRow(slide.blocks[0]?.body);
+    const bodyRows = slide.blocks.slice(1);
+    return (
+      <section className="slide-canvas__body is-table-simple">
+        <table className="slide-table">
+          {headerCells.length > 0 ? (
+            <thead>
+              <tr>
+                {headerCells.map((cell, i) => (
+                  <th key={i}>{cell}</th>
+                ))}
+              </tr>
+            </thead>
+          ) : null}
+          <tbody>
+            {bodyRows.map((b) => (
+              <tr key={b.id}>
+                {parseRow(b.body).map((cell, i) => (
+                  <td key={i}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    );
+  }
+
+  if (layout === "image-text") {
+    return (
+      <section className="slide-canvas__body is-image-text">
+        <div className="slide-image-text__media">
+          {slide.blocks[0]?.metric ? (
+            <Image src={slide.blocks[0].metric} alt="" fill className="slide-image-text__img" />
+          ) : (
+            <div className="slide-image-text__placeholder" />
+          )}
+        </div>
+        <div className="slide-image-text__content">
+          {slide.blocks.slice(1).map((b) => (
+            <div key={b.id}>
+              <h3>{b.title}</h3>
+              {b.body ? <p>{b.body}</p> : null}
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (layout === "closing") {
+    return (
+      <section className="slide-canvas__body is-closing">
+        <div className="slide-closing">
+          {slide.blocks[0]?.body ? (
+            <p className="slide-closing__contact">{slide.blocks[0].body}</p>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={`slide-canvas__body is-${layout}`}>
       {slide.blocks.slice(0, 3).map((b) => {
@@ -419,13 +621,12 @@ function getSectionLabel(layout: CanvasLayoutId): string | null {
 }
 
 function railDisplayIndex(slide: PresentationSlide): string {
-  const n = parseInt(slide.index, 10);
-  return Number.isFinite(n) ? String(n) : slide.index;
+  return String(slide.index + 1);
 }
 
 function railListLabel(slide: PresentationSlide): string {
   const raw = slide.railTitle.trim();
-  const n = String(parseInt(slide.index, 10) || 0);
+  const n = String(slide.index + 1);
   const re = new RegExp(`^0*${n}\\s*[—-]\\s*(.+)$`);
   const m = raw.match(re);
   if (m) {
@@ -534,12 +735,12 @@ function formatSlidePlanTitle(payload: SlideCanvasDebugPayload) {
     return "Нет данных";
   }
 
-  return `#${first.slotId} · ${first.slideFunctionId}`;
+  return `#1 · ${first.slideFunctionId}`;
 }
 
 function formatSlidePlanLines(payload: SlideCanvasDebugPayload) {
-  return payload.hiddenSlidePlan.slice(0, 3).flatMap((entry) => [
-    `#${entry.slotId} · ${entry.slideFunctionId}`,
+  return payload.hiddenSlidePlan.slice(0, 3).flatMap((entry, i) => [
+    `#${i + 1} · ${entry.slideFunctionId}`,
     entry.coreMessage,
   ]);
 }

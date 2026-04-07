@@ -7,6 +7,7 @@ import {
 } from "@/lib/prompt-analysis";
 import { PRODUCT_DEMO_PROMPT } from "@/lib/presentation-options";
 import type {
+  ClarifyAnswers,
   ColorThemeId,
   DraftChatMessage,
   DraftSession,
@@ -29,6 +30,9 @@ type SessionBuildOptions = {
   knownFacts?: string[];
   missingFacts?: string[];
   confidence?: number;
+  uploadedContent?: string;
+  uploadedFileName?: string;
+  clarifyAnswers?: ClarifyAnswers;
 };
 
 type MissingFactKey =
@@ -351,6 +355,9 @@ export function buildDraftSession({
   knownFacts: workingFacts,
   missingFacts: workingMissingFacts,
   confidence,
+  uploadedContent,
+  uploadedFileName,
+  clarifyAnswers,
 }: SessionBuildOptions): DraftSession {
   const normalizedPrompt = normalizePrompt(sourcePrompt);
   const signals = buildPromptSignals(normalizedPrompt);
@@ -393,6 +400,9 @@ export function buildDraftSession({
     readyToGenerate,
     missingFacts,
     summary: buildSummary(normalizedPrompt),
+    ...(uploadedContent !== undefined ? { uploadedContent } : {}),
+    ...(uploadedFileName !== undefined ? { uploadedFileName } : {}),
+    ...(clarifyAnswers !== undefined ? { clarifyAnswers } : {}),
   };
 }
 
@@ -400,10 +410,15 @@ function deriveKnownFactsFromSlides(
   slideTexts: SlideTextEntry[],
   fallbackFacts: string[],
 ) {
+  const bullets: string[] = [];
+  if (slideTexts[0]) bullets.push(...slideTexts[0].bullets);
+  const mid = Math.min(3, slideTexts.length - 1);
+  if (mid > 0 && slideTexts[mid]) bullets.push(...slideTexts[mid].bullets);
+  const last = slideTexts.at(-1);
+  if (last && slideTexts.length > 1) bullets.push(...last.bullets.slice(0, 1));
+
   return uniqueLines([
-    ...(slideTexts[0]?.bullets ?? []),
-    ...(slideTexts[3]?.bullets ?? []),
-    ...(slideTexts[5]?.bullets.slice(0, 1) ?? []),
+    ...bullets,
     ...fallbackFacts,
   ]).slice(0, 3);
 }
@@ -412,7 +427,7 @@ function deriveDesiredOutcomeFromSlides(
   slideTexts: SlideTextEntry[],
   fallbackOutcome: string,
 ) {
-  const lastSlide = slideTexts[5];
+  const lastSlide = slideTexts.at(-1);
 
   return normalizePrompt(
     lastSlide?.bullets[0] ?? lastSlide?.subtitle ?? lastSlide?.title ?? fallbackOutcome,
@@ -423,8 +438,13 @@ function deriveAudienceFromSlides(
   slideTexts: SlideTextEntry[],
   fallbackAudience: string,
 ) {
+  const personaSlide = slideTexts.find(s =>
+    s.layoutType === "personas" ||
+    /для кого|аудитория|роли/i.test(s.railTitle)
+  );
+
   const roleLabels = uniqueLines(
-    (slideTexts[4]?.bullets ?? []).map((bullet) => {
+    (personaSlide?.bullets ?? []).map((bullet) => {
       const [role] = bullet.split(/[-—]/);
       return role ?? "";
     }),
@@ -433,7 +453,7 @@ function deriveAudienceFromSlides(
   return normalizePrompt(
     roleLabels.length > 0
       ? roleLabels.join(", ")
-      : slideTexts[0]?.subtitle ?? slideTexts[4]?.subtitle ?? fallbackAudience,
+      : slideTexts[0]?.subtitle ?? personaSlide?.subtitle ?? fallbackAudience,
   );
 }
 
@@ -552,6 +572,9 @@ export function appendClarifyToSession(
     colorThemeId: session.workingDraft.colorThemeId,
     audience: session.workingDraft.audience,
     presentationIntent: session.workingDraft.presentationIntent,
+    uploadedContent: session.uploadedContent,
+    uploadedFileName: session.uploadedFileName,
+    clarifyAnswers: session.clarifyAnswers,
   });
 
   return {
@@ -580,6 +603,9 @@ export function withSessionSlides(
       colorThemeId: session.workingDraft.colorThemeId,
       audience: session.workingDraft.audience,
       presentationIntent: session.workingDraft.presentationIntent,
+      uploadedContent: session.uploadedContent,
+      uploadedFileName: session.uploadedFileName,
+      clarifyAnswers: session.clarifyAnswers,
     }),
   );
 }
@@ -605,6 +631,9 @@ export function withSessionRevision(
       colorThemeId: session.workingDraft.colorThemeId,
       audience: session.workingDraft.audience,
       presentationIntent: session.workingDraft.presentationIntent,
+      uploadedContent: session.uploadedContent,
+      uploadedFileName: session.uploadedFileName,
+      clarifyAnswers: session.clarifyAnswers,
     }),
   );
 }
@@ -638,14 +667,20 @@ export function normalizeDraftSession(raw: unknown): DraftSession {
   const templateId =
     raw.workingDraft.templateId === "strict" ||
     raw.workingDraft.templateId === "cards" ||
-    raw.workingDraft.templateId === "briefing"
+    raw.workingDraft.templateId === "briefing" ||
+    raw.workingDraft.templateId === "modern" ||
+    raw.workingDraft.templateId === "corporate"
       ? raw.workingDraft.templateId
       : undefined;
   const colorThemeId =
     raw.workingDraft.colorThemeId === "slate" ||
     raw.workingDraft.colorThemeId === "indigo" ||
     raw.workingDraft.colorThemeId === "teal" ||
-    raw.workingDraft.colorThemeId === "sand"
+    raw.workingDraft.colorThemeId === "sand" ||
+    raw.workingDraft.colorThemeId === "rose" ||
+    raw.workingDraft.colorThemeId === "emerald" ||
+    raw.workingDraft.colorThemeId === "violet" ||
+    raw.workingDraft.colorThemeId === "zinc"
       ? raw.workingDraft.colorThemeId
       : undefined;
   const audience =
@@ -676,6 +711,42 @@ export function normalizeDraftSession(raw: unknown): DraftSession {
       ? Math.max(0, Math.min(1, raw.workingDraft.confidence))
       : undefined;
 
+  const uploadedContent =
+    typeof raw.uploadedContent === "string" && raw.uploadedContent.trim().length > 0
+      ? raw.uploadedContent
+      : undefined;
+  const uploadedFileName =
+    typeof raw.uploadedFileName === "string" && raw.uploadedFileName.trim().length > 0
+      ? raw.uploadedFileName
+      : undefined;
+
+  const clarifyAnswers: ClarifyAnswers | undefined = isObject(raw.clarifyAnswers)
+    ? {
+        audience:
+          typeof raw.clarifyAnswers.audience === "string"
+            ? raw.clarifyAnswers.audience
+            : undefined,
+        length:
+          raw.clarifyAnswers.length === "short" ||
+          raw.clarifyAnswers.length === "medium" ||
+          raw.clarifyAnswers.length === "long"
+            ? raw.clarifyAnswers.length
+            : undefined,
+        style:
+          typeof raw.clarifyAnswers.style === "string"
+            ? raw.clarifyAnswers.style
+            : undefined,
+        data:
+          typeof raw.clarifyAnswers.data === "string"
+            ? raw.clarifyAnswers.data
+            : undefined,
+        outcome:
+          typeof raw.clarifyAnswers.outcome === "string"
+            ? raw.clarifyAnswers.outcome
+            : undefined,
+      }
+    : undefined;
+
   return syncSessionWithSlideTexts(
     buildDraftSession({
       sourcePrompt,
@@ -689,6 +760,9 @@ export function normalizeDraftSession(raw: unknown): DraftSession {
       knownFacts,
       missingFacts,
       confidence,
+      uploadedContent,
+      uploadedFileName,
+      clarifyAnswers,
     }),
   );
 }

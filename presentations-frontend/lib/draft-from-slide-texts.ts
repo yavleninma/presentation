@@ -10,9 +10,55 @@ import type {
   SlideTextEntry,
   SlideToneId,
   WorkingDraft,
+  WorkingDraftSlidePlanEntry,
+  SlideFunctionId,
 } from "@/lib/presentation-types";
 
 const BLOCK_ICONS = ["spark", "file", "trend", "shield", "flag", "arrow"] as const;
+
+const LAYOUT_TYPE_TO_CANVAS: Record<string, CanvasLayoutId> = {
+  cover: "cover",
+  metrics: "metrics",
+  steps: "steps",
+  checklist: "checklist",
+  comparison: "comparison",
+  personas: "personas",
+  features: "features",
+  "stat-focus": "stat-focus",
+  quote: "quote",
+  "section-divider": "section-divider",
+  "text-block": "text-block",
+  "cards-row": "cards-row",
+  "list-slide": "list-slide",
+  timeline: "timeline",
+  "chart-bar": "chart-bar",
+  "chart-progress": "chart-progress",
+  "table-simple": "table-simple",
+  "image-text": "image-text",
+  closing: "closing",
+};
+
+const LAYOUT_TYPE_TO_FUNCTION: Record<string, SlideFunctionId> = {
+  cover: "cover",
+  metrics: "key_point",
+  steps: "steps",
+  checklist: "evidence",
+  comparison: "comparison",
+  personas: "audience",
+  features: "next_step",
+  "stat-focus": "key_point",
+  quote: "tension",
+  "section-divider": "section",
+  "text-block": "detail",
+  "cards-row": "detail",
+  "list-slide": "evidence",
+  timeline: "steps",
+  "chart-bar": "data",
+  "chart-progress": "data",
+  "table-simple": "data",
+  "image-text": "detail",
+  closing: "closing",
+};
 
 function buildBlocksForLayout(layout: CanvasLayoutId, entry: SlideTextEntry): SlideBlock[] {
   if (layout === "metrics") {
@@ -86,6 +132,108 @@ function buildBlocksForLayout(layout: CanvasLayoutId, entry: SlideTextEntry): Sl
     }));
   }
 
+  if (layout === "section-divider") {
+    return [{
+      id: `${entry.id}-block-0`,
+      type: "focus" as SlideBlock["type"],
+      icon: "spark" as SlideBlock["icon"],
+      title: entry.bullets[0] ?? entry.title,
+      body: entry.bullets.slice(1).join("\n").trim(),
+    }];
+  }
+
+  if (layout === "text-block") {
+    return entry.bullets.slice(0, 3).map((bullet, bi) => ({
+      id: `${entry.id}-block-${bi}`,
+      type: "fact" as SlideBlock["type"],
+      icon: "file" as SlideBlock["icon"],
+      title: "",
+      body: bullet,
+    }));
+  }
+
+  if (layout === "cards-row") {
+    return entry.bullets.slice(0, 5).map((bullet, bi) => ({
+      id: `${entry.id}-block-${bi}`,
+      type: "fact" as SlideBlock["type"],
+      icon: BLOCK_ICONS[bi % BLOCK_ICONS.length],
+      title: bullet,
+      body: "",
+    }));
+  }
+
+  if (layout === "list-slide") {
+    return entry.bullets.slice(0, 8).map((bullet, bi) => ({
+      id: `${entry.id}-block-${bi}`,
+      type: "fact" as SlideBlock["type"],
+      icon: "file" as SlideBlock["icon"],
+      title: bullet,
+      body: "",
+    }));
+  }
+
+  if (layout === "timeline") {
+    return entry.bullets.slice(0, 6).map((bullet, bi) => {
+      const sepIdx = bullet.indexOf(" — ");
+      const tagline = sepIdx !== -1 ? bullet.slice(0, sepIdx).trim() : undefined;
+      const title = sepIdx !== -1 ? bullet.slice(sepIdx + 3).trim() : bullet;
+      return {
+        id: `${entry.id}-block-${bi}`,
+        type: (bi === 0 ? "focus" : "movement") as SlideBlock["type"],
+        icon: "trend" as SlideBlock["icon"],
+        title,
+        body: "",
+        ...(tagline ? { tagline } : {}),
+      };
+    });
+  }
+
+  if (layout === "chart-bar" || layout === "chart-progress") {
+    return entry.bullets.slice(0, 8).map((bullet, bi) => {
+      const sepIdx = bullet.indexOf(" — ");
+      const metric = sepIdx !== -1 ? bullet.slice(0, sepIdx).trim() : undefined;
+      const title = sepIdx !== -1 ? bullet.slice(sepIdx + 3).trim() : bullet;
+      return {
+        id: `${entry.id}-block-${bi}`,
+        type: "fact" as SlideBlock["type"],
+        icon: "trend" as SlideBlock["icon"],
+        title,
+        body: "",
+        ...(metric ? { metric } : {}),
+      };
+    });
+  }
+
+  if (layout === "table-simple") {
+    return entry.bullets.map((bullet, bi) => ({
+      id: `${entry.id}-block-${bi}`,
+      type: "fact" as SlideBlock["type"],
+      icon: "file" as SlideBlock["icon"],
+      title: "",
+      body: bullet,
+    }));
+  }
+
+  if (layout === "image-text") {
+    return entry.bullets.map((bullet, bi) => ({
+      id: `${entry.id}-block-${bi}`,
+      type: (bi === 0 ? "focus" : "fact") as SlideBlock["type"],
+      icon: "file" as SlideBlock["icon"],
+      title: bullet,
+      body: "",
+    }));
+  }
+
+  if (layout === "closing") {
+    return [{
+      id: `${entry.id}-block-0`,
+      type: "decision" as SlideBlock["type"],
+      icon: "flag" as SlideBlock["icon"],
+      title: entry.bullets[0] ?? "",
+      body: entry.bullets.slice(1).join("\n").trim(),
+    }];
+  }
+
   return entry.bullets.map((bullet, bi) => ({
     id: `${entry.id}-block-${bi}`,
     type: (bi === 0 ? "focus" : "fact") as SlideBlock["type"],
@@ -95,7 +243,6 @@ function buildBlocksForLayout(layout: CanvasLayoutId, entry: SlideTextEntry): Sl
   }));
 }
 
-/** Сохраняет структуру блоков из плана слайда (нужна для cover / stat-focus / quote / comparison). */
 function blocksFromSlideTextEntry(
   slide: PresentationSlide,
   entry: SlideTextEntry,
@@ -181,6 +328,20 @@ function buildRailRhythm(length: number) {
   );
 }
 
+function resolveCanvasLayout(entry: SlideTextEntry, fallback: CanvasLayoutId): CanvasLayoutId {
+  if (entry.layoutType && LAYOUT_TYPE_TO_CANVAS[entry.layoutType]) {
+    return LAYOUT_TYPE_TO_CANVAS[entry.layoutType];
+  }
+  return fallback;
+}
+
+function resolveSlideFunction(entry: SlideTextEntry, fallback: SlideFunctionId): SlideFunctionId {
+  if (entry.layoutType && LAYOUT_TYPE_TO_FUNCTION[entry.layoutType]) {
+    return LAYOUT_TYPE_TO_FUNCTION[entry.layoutType];
+  }
+  return fallback;
+}
+
 export function buildDraftFromSlideTexts(
   slideTexts: SlideTextEntry[],
   workingDraft: WorkingDraft,
@@ -189,21 +350,42 @@ export function buildDraftFromSlideTexts(
     slideSpeakerNotes?: PresentationDraft["slideSpeakerNotes"];
   } = {},
 ): PresentationDraft {
-  const baseDraft = buildPresentationDraft(workingDraft, options);
-  const slides = baseDraft.slides.map((slide, index) => {
-    const entry = slideTexts[index];
-    if (!entry) {
-      return slide;
+  const expandedWorkingDraft = ensureSlidePlanLength(workingDraft, slideTexts.length);
+  const baseDraft = buildPresentationDraft(expandedWorkingDraft, options);
+
+  const slides: PresentationSlide[] = slideTexts.map((entry, index) => {
+    const baseSlide = baseDraft.slides[index];
+
+    if (baseSlide) {
+      const layout = resolveCanvasLayout(entry, baseSlide.canvasLayoutId);
+      const slideWithLayout = { ...baseSlide, canvasLayoutId: layout };
+      const blocks = blocksFromSlideTextEntry(slideWithLayout, entry);
+
+      return {
+        ...slideWithLayout,
+        railTitle: `${index + 1} — ${entry.railTitle}`,
+        title: entry.title,
+        subtitle: entry.subtitle,
+        blocks,
+        railRhythm: buildRailRhythm(blocks.length),
+      };
     }
 
-    const blocks = blocksFromSlideTextEntry(slide, entry);
+    const layout = resolveCanvasLayout(entry, "features");
+    const fn = resolveSlideFunction(entry, "detail");
+    const blocks = buildBlocksForLayout(layout, entry);
 
     return {
-      ...slide,
-      railTitle: `${slide.slotId} — ${entry.railTitle}`,
+      id: entry.id,
+      index,
+      slideFunctionId: fn,
+      canvasLayoutId: layout,
+      railTitle: `${index + 1} — ${entry.railTitle}`,
       title: entry.title,
       subtitle: entry.subtitle,
       blocks,
+      drawerActions: [],
+      lastTransformId: null,
       railRhythm: buildRailRhythm(blocks.length),
     };
   });
@@ -215,5 +397,30 @@ export function buildDraftFromSlideTexts(
     slides,
     slideSpeakerNotes: options.slideSpeakerNotes ?? baseDraft.slideSpeakerNotes,
     fitPassStrength: "editor",
+    workingDraft: expandedWorkingDraft,
   });
+}
+
+function ensureSlidePlanLength(workingDraft: WorkingDraft, targetLength: number): WorkingDraft {
+  if (workingDraft.slidePlan.length >= targetLength) {
+    return workingDraft;
+  }
+
+  const extra = targetLength - workingDraft.slidePlan.length;
+  const extraPlan: WorkingDraftSlidePlanEntry[] = Array.from({ length: extra }, () => ({
+    slideFunctionId: "detail" as SlideFunctionId,
+    canvasLayoutId: "features" as CanvasLayoutId,
+    coreMessage: "",
+    blockPlan: [],
+    placeholderPlan: [],
+    lastTransformId: null,
+  }));
+
+  const extraTitles = Array.from({ length: extra }, () => "");
+
+  return {
+    ...workingDraft,
+    slidePlan: [...workingDraft.slidePlan, ...extraPlan],
+    visibleSlideTitles: [...workingDraft.visibleSlideTitles, ...extraTitles],
+  };
 }

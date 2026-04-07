@@ -1,0 +1,152 @@
+/* ── Мигающие точки в чате (Clarify + Draft) ── */
+.chat-bubble--thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: var(--space-3) var(--space-4);
+  min-height: 2.25rem;
+}
+
+.chat-dot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  animation: chat-dot-blink 1.2s infinite both;
+}
+
+.chat-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chat-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes chat-dot-blink {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* ── Спиннер для Building screen ── */
+.build-status__spinner {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 3px solid var(--accent-primary-soft);
+  border-top-color: var(--accent-primary);
+  animation: build-spin 0.8s linear infinite;
+  margin-top: var(--space-4);
+}
+
+@keyframes build-spin {
+  to { transform: rotate(360deg); }
+}
+
+.build-status__lead {
+  margin: 0;
+  font-size: 0.875rem; /* нестандартный размер */
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 0 var(--space-6) var(--space-5);
+}
+
+/* ── Иерархия топбара редактора ── */
+.editor-topbar-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+  border-right: 1px solid var(--border-strong);
+  margin-right: var(--space-1);
+}
+
+.editor-pill-btn--primary {
+  background: var(--accent-primary);
+  color: #fff;
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 12px rgba(45, 75, 238, 0.2);
+}
+
+.editor-pill-btn--primary:hover {
+  background: #2440d4;
+  border-color: #2440d4;
+  color: #fff;
+}
+
+/* ── Focus rings — keyboard navigation ─────────────────────────────── */
+/*
+ * Applies only when navigating via keyboard (:focus-visible).
+ * Mouse users never see these rings — matching browser default behaviour.
+ */
+.ghost-button:focus-visible,
+.primary-button:focus-visible,
+.example-chip:focus-visible,
+.composer-send:focus-visible,
+.chat-cta:focus-visible,
+.chat-compose-send:focus-visible,
+.compose-send:focus-visible,
+.chat-suggestion-chip:focus-visible,
+.draft-screen__build-btn:focus-visible,
+.draft-screen__chat-send:focus-visible,
+.editor-pill-btn:focus-visible,
+.editor-back-button:focus-visible,
+.regen-button:focus-visible,
+.icon-button:focus-visible,
+.drawer-trigger:focus-visible,
+.slide-thumbnail:focus-visible,
+.editor-rail-thumb:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.slide-text-card__title:focus-visible,
+.slide-text-card__subtitle:focus-visible,
+.slide-text-card__bullet-text:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+  background: var(--accent-primary-soft);
+}
+
+.editor-slide-footer__btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* ── Missing disabled states ── */
+.chat-compose-send:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.chat-suggestion-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.chat-suggestion-chip:disabled:hover {
+  background: transparent;
+}
+
+/* ── Prefers-reduced-motion: disable all decorative animations ── */
+@media (prefers-reduced-motion: reduce) {
+  .chat-dot {
+    animation: none;
+    opacity: 0.6;
+  }
+
+  .build-status__spinner {
+    animation: none;
+    border-color: var(--accent-primary);
+  }
+
+  .slide-text-card__skeleton-line {
+    animation: none;
+    background: var(--border-soft);
+  }
+}

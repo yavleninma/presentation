@@ -4,12 +4,14 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   Maximize2,
   Sparkles,
   X,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { COLOR_OPTIONS, TEMPLATE_OPTIONS } from "../../lib/demo-generator";
+import { downloadBlob, exportPdf } from "../../lib/pdf-export";
 import type {
   ColorThemeId,
   EditorDrawerState,
@@ -19,8 +21,9 @@ import type {
 } from "../../lib/presentation-types";
 import { BrandMark, BrandWordmark } from "../brand-mark";
 import { BackButton } from "../ui/back-button";
+import { ErrorBoundary } from "../ui/error-boundary";
 import { SlideCanvas, type SlideCanvasDebugPayload } from "../slide-canvas";
-import { EditorSlideRailThumb } from "./editor-slide-rail-thumb";
+import { EditorSlideRailThumb, EditorSlideRailAdd } from "./editor-slide-rail-thumb";
 
 export function EditorScreen({
   draft,
@@ -32,6 +35,9 @@ export function EditorScreen({
   onSelectTemplate,
   onSelectColor,
   onRegenerateSlide,
+  onAddSlide,
+  onRemoveSlide,
+  onMoveSlide,
   onRenameDocument,
   onBackToDraft,
   onBackToStart,
@@ -48,6 +54,9 @@ export function EditorScreen({
   onSelectTemplate: (value: TemplateId) => void;
   onSelectColor: (value: ColorThemeId) => void;
   onRegenerateSlide: (transformId: HiddenTransformId) => void;
+  onAddSlide: (afterIndex: number) => void;
+  onRemoveSlide: (slideId: string) => void;
+  onMoveSlide: (fromIndex: number, toIndex: number) => void;
   onRenameDocument: (value: string) => void;
   onBackToDraft: () => void;
   onBackToStart: () => void;
@@ -58,6 +67,9 @@ export function EditorScreen({
   // — hooks first, before any early return —
   const [isPresenting, setIsPresenting] = useState(false);
   const [presenterScale, setPresenterScale] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const pdfHostRef = useRef<HTMLDivElement | null>(null);
 
   // Natural slide dimensions (matches .slide-canvas max width = 58rem at 16px)
   const SLIDE_W = 928;
@@ -118,6 +130,37 @@ export function EditorScreen({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isPresenting]);
 
+  useEffect(() => {
+    if (!isPresenting) return;
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    function onTouchStart(e: TouchEvent) {
+      touchStartX = e.touches[0]?.clientX ?? 0;
+      touchStartY = e.touches[0]?.clientY ?? 0;
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX;
+      const dy = (e.changedTouches[0]?.clientY ?? 0) - touchStartY;
+      if (Math.abs(dx) < Math.abs(dy) || Math.abs(dx) < 40) return;
+      const { activeIdx: idx, slideList: list, slideTotal: total, onSelectSlide: select } =
+        navRef.current;
+      if (dx < 0 && idx >= 0 && idx < total - 1) {
+        select(list[idx + 1].id);
+      } else if (dx > 0 && idx > 0) {
+        select(list[idx - 1].id);
+      }
+    }
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [isPresenting]);
+
   if (!activeSlide) {
     return null;
   }
@@ -147,6 +190,29 @@ export function EditorScreen({
     }
   }
 
+  async function handleExportPdf() {
+    if (exporting) return;
+    setExporting(true);
+    setExportProgress(0);
+    try {
+      const blob = await exportPdf(
+        draft,
+        (index) =>
+          pdfHostRef.current?.querySelector<HTMLElement>(
+            `[data-pdf-slide="${index}"]`,
+          ) ?? null,
+        (current) => setExportProgress(current),
+      );
+      const filename = `${draft.documentTitle || "Презентация"}.pdf`;
+      downloadBlob(blob, filename);
+    } catch {
+      // silent — пользователь увидит что кнопка вернулась в нормальное состояние
+    } finally {
+      setExporting(false);
+      setExportProgress(0);
+    }
+  }
+
   return (
     <>
     {isPresenting && (
@@ -165,11 +231,13 @@ export function EditorScreen({
               transformOrigin: "top left",
             }}
           >
-            <SlideCanvas
-              slide={activeSlide}
-              templateId={draft.workingDraft.templateId}
-              colorThemeId={draft.workingDraft.colorThemeId}
-            />
+            <ErrorBoundary>
+              <SlideCanvas
+                slide={activeSlide}
+                templateId={draft.workingDraft.templateId}
+                colorThemeId={draft.workingDraft.colorThemeId}
+              />
+            </ErrorBoundary>
           </div>
         </div>
 
@@ -316,6 +384,22 @@ export function EditorScreen({
 
             <button
               type="button"
+              className="editor-pill-btn editor-pill-btn--export"
+              onClick={handleExportPdf}
+              disabled={exporting}
+              aria-label="Скачать PDF"
+              title="Скачать PDF"
+            >
+              <Download size={15} strokeWidth={2} aria-hidden />
+              <span>
+                {exporting
+                  ? `${exportProgress}/${draft.slides.length}`
+                  : "PDF"}
+              </span>
+            </button>
+
+            <button
+              type="button"
               className="editor-pill-btn editor-pill-btn--primary"
               onClick={enterPresentation}
               aria-label="Показать презентацию"
@@ -330,28 +414,39 @@ export function EditorScreen({
         <div className="editor-body" data-drawer={drawerState}>
           <aside className="editor-rail" aria-label="Слайды презентации">
             <div className="rail-list">
-              {draft.slides.map((slide) => (
+              {draft.slides.map((slide, idx) => (
                 <EditorSlideRailThumb
                   key={slide.id}
                   slide={slide}
                   active={slide.id === activeSlide.id}
                   templateId={draft.workingDraft.templateId}
                   colorThemeId={draft.workingDraft.colorThemeId}
+                  isFirst={idx === 0}
+                  isLast={idx === draft.slides.length - 1}
+                  canDelete={draft.slides.length > 1}
                   onClick={() => onSelectSlide(slide.id)}
+                  onRemove={() => onRemoveSlide(slide.id)}
+                  onMoveUp={() => onMoveSlide(idx, idx - 1)}
+                  onMoveDown={() => onMoveSlide(idx, idx + 1)}
                 />
               ))}
+              <EditorSlideRailAdd
+                onClick={() => onAddSlide(draft.slides.length - 1)}
+              />
             </div>
           </aside>
 
           <section className="editor-main">
             <div className="canvas-wrap">
-              <SlideCanvas
-                slide={activeSlide}
-                templateId={draft.workingDraft.templateId}
-                colorThemeId={draft.workingDraft.colorThemeId}
-                debugLayerEnabled={showDebugLayer}
-                debugPayload={debugPayload}
-              />
+              <ErrorBoundary>
+                <SlideCanvas
+                  slide={activeSlide}
+                  templateId={draft.workingDraft.templateId}
+                  colorThemeId={draft.workingDraft.colorThemeId}
+                  debugLayerEnabled={showDebugLayer}
+                  debugPayload={debugPayload}
+                />
+              </ErrorBoundary>
             </div>
             <footer
               className="editor-slide-footer"
@@ -443,6 +538,36 @@ export function EditorScreen({
         </div>
       </div>
     </section>
+
+    {/* Скрытый хост для рендера слайдов при PDF-экспорте */}
+    <div
+      ref={pdfHostRef}
+      aria-hidden="true"
+      style={{
+        position: "fixed",
+        left: "-9999px",
+        top: 0,
+        width: 1920,
+        pointerEvents: "none",
+        zIndex: -1,
+      }}
+    >
+      {draft.slides.map((slide, i) => (
+        <div
+          key={slide.id}
+          data-pdf-slide={i}
+          style={{ width: 1920, height: 1080, overflow: "hidden" }}
+        >
+          <ErrorBoundary>
+            <SlideCanvas
+              slide={slide}
+              templateId={draft.workingDraft.templateId}
+              colorThemeId={draft.workingDraft.colorThemeId}
+            />
+          </ErrorBoundary>
+        </div>
+      ))}
+    </div>
     </>
   );
 }

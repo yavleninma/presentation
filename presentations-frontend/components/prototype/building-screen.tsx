@@ -3,29 +3,47 @@
 import { useEffect, useState } from "react";
 import type { DraftSession } from "@/lib/presentation-types";
 
-const BUILD_STEPS = [
-  "Собираем тему и адресата",
-  "Выделяем факты и следующий шаг",
-  "Раскладываем историю по слайдам",
-  "Проверяем первый рабочий проход",
-] as const;
+export type BuildingStep = "analyzing" | "planning" | "filling" | "done";
+
+const BUILD_STEPS: Array<{ id: BuildingStep; label: string }> = [
+  { id: "analyzing", label: "Анализирую материал" },
+  { id: "planning", label: "Планирую структуру" },
+  { id: "filling", label: "Наполняю слайды" },
+  { id: "done", label: "Готово" },
+];
+
+function stepToIndex(step: BuildingStep): number {
+  const idx = BUILD_STEPS.findIndex((s) => s.id === step);
+  return idx >= 0 ? idx : 0;
+}
 
 interface BuildingScreenProps {
   session: DraftSession;
+  buildingStep?: BuildingStep;
   onBack: () => void;
 }
 
-export function BuildingScreen({ session, onBack }: BuildingScreenProps) {
-  const [activeStep, setActiveStep] = useState(0);
+export function BuildingScreen({ session, buildingStep = "analyzing", onBack }: BuildingScreenProps) {
+  const [displayIndex, setDisplayIndex] = useState(0);
+  const targetIndex = stepToIndex(buildingStep);
 
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setActiveStep(1), 1200),
-      setTimeout(() => setActiveStep(2), 2800),
-      setTimeout(() => setActiveStep(3), 4800),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, []);
+    // Плавно движемся к targetIndex
+    if (displayIndex < targetIndex) {
+      const timer = setTimeout(() => {
+        setDisplayIndex((i) => Math.min(i + 1, targetIndex));
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [displayIndex, targetIndex]);
+
+  // Если нет реального прогресса (шаг не меняется долго), имитируем первые 2 шага таймером
+  useEffect(() => {
+    if (buildingStep === "analyzing") {
+      const timer1 = setTimeout(() => setDisplayIndex((i) => Math.max(i, 0)), 300);
+      return () => clearTimeout(timer1);
+    }
+  }, [buildingStep]);
 
   return (
     <section className="entry-stage">
@@ -44,21 +62,21 @@ export function BuildingScreen({ session, onBack }: BuildingScreenProps) {
 
         <div className="chat-card-sep" />
 
-        <div className="build-status" aria-live="polite" aria-busy="true">
+        <div className="build-status" aria-live="polite" aria-busy={buildingStep !== "done"}>
           <div className="build-status__steps">
-            {BUILD_STEPS.map((stepLabel, i) => {
-              const isDone = i < activeStep;
-              const isActive = i === activeStep;
+            {BUILD_STEPS.map((step, i) => {
+              const isDone = i < displayIndex;
+              const isActive = i === displayIndex;
               return (
                 <div
-                  key={stepLabel}
+                  key={step.id}
                   className={`build-status__step${isActive ? " is-active" : isDone ? " is-done" : ""}`}
                   aria-current={isActive ? "step" : undefined}
                 >
                   <span className="build-status__mark" aria-hidden="true">
                     {isDone ? "✓" : String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="build-status__step-name">{stepLabel}</span>
+                  <span className="build-status__step-name">{step.label}</span>
                 </div>
               );
             })}
